@@ -115,9 +115,6 @@ async function enter() {
       toast(e.message || 'That invite link is not valid', 'error');
     }
   }
-  // Keep the shared demo Space reachable for anyone arriving cold.
-  if (!joinedId) await tryRpc('redeem_invite', { p_token: DEMO_TOKEN });
-
   showChat();
 
   const { data: prof } = await sb.from('profiles')
@@ -130,8 +127,20 @@ async function enter() {
   initPresence();
 
   await loadSpaces();
+
+  // The demo Space is for someone who arrives cold with nowhere to go. It used
+  // to be joined on EVERY sign-in that did not carry an invite token, which
+  // meant a person provisioned into a real organisation was silently added to a
+  // Space of 1571 strangers and, because the default below preferred the demo
+  // slug, landed in it instead of their own. Only fall back to it when the
+  // person genuinely belongs to nothing.
+  if (!store.spaces.length) {
+    await tryRpc('redeem_invite', { p_token: DEMO_TOKEN });
+    await loadSpaces();
+  }
+
   const active = store.spaces.find((x) => x.id === joinedId)
-    || store.spaces.find((x) => x.slug === 'demo')
+    || store.spaces.find((x) => x.slug !== 'demo')
     || store.spaces[0];
 
   if (active) {

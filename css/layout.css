@@ -156,6 +156,24 @@
   line-height: var(--t-loose);
 }
 
+/* The secondary sign-in paths. Someone who was handed an account and a password
+   should be able to tell at a glance which control is theirs, so these recede:
+   quieter text, tighter rhythm, and no full-weight button competing with
+   "Sign in". They stay fully visible and operable, because a path you have to
+   discover is a path people ask you about instead of using. */
+.authalt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+}
+.authalt .field-label { color: var(--c-text-3, var(--c-text-2)); }
+.authalt button {
+  font-weight: var(--t-medium);
+  color: var(--c-text-2);
+}
+.authalt button:hover { color: var(--c-text); }
+
 /* ============================================================================
    APP SHELL
    ========================================================================= */

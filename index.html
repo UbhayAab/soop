@@ -84,16 +84,17 @@
       <div class="brand"><span class="brand-mark" id="brandMark"></span><h1>Soop</h1></div>
       <p class="tagline">Channels and voice rooms like Discord. Threads that never shout over the room, like Slack. Media that stays right here, like WhatsApp.</p>
 
-      <label class="field"><span class="field-label">Your name</span>
-        <input id="displayName" placeholder="What should people call you?" maxlength="40" autocomplete="name" /></label>
-
+      <!-- Signing in is the only thing most people who open this page are here to
+           do, so it is the only thing above the fold. "Your name" used to sit
+           first, which reads as a registration form to somebody who already has
+           an account, and it is not even used by the password path - only by the
+           guest and OTP paths, which is where it now lives. -->
       <div id="emailStep">
         <label class="field"><span class="field-label">Email</span>
           <input id="email" type="email" placeholder="you@gmail.com" autocomplete="email" inputmode="email" /></label>
         <label class="field"><span class="field-label">Password</span>
           <input id="password" type="password" placeholder="Your password" autocomplete="current-password" /></label>
         <button id="pwSignIn" class="wide">Sign in</button>
-        <button id="otpSend" class="ghost wide">Email me a sign-in code instead</button>
       </div>
 
       <!-- Provisioned accounts arrive with a temporary password and are made to
@@ -120,10 +121,20 @@
         </div>
       </div>
 
-      <div class="or"><span>or</span></div>
-      <button id="guestBtn" class="ghost wide">Continue as a guest</button>
       <div id="authErr" class="autherr hidden"></div>
-      <p class="muted fineprint">Guest sessions are real accounts without an email. You can open an invite link at any time to join a Space. <span class="byline">A Redtree product.</span></p>
+
+      <!-- Everything below is a secondary path and is styled to read as one.
+           Someone who was given an account and a password should never wonder
+           which of three buttons is theirs. The name field belongs here because
+           only these two paths use it. -->
+      <div class="authalt">
+        <div class="or"><span>or</span></div>
+        <label class="field"><span class="field-label">Your name</span>
+          <input id="displayName" placeholder="Only needed for the options below" maxlength="40" autocomplete="name" /></label>
+        <button id="otpSend" class="ghost wide sm">Email me a sign-in code instead</button>
+        <button id="guestBtn" class="ghost wide sm">Look around as a guest</button>
+        <p class="muted fineprint">A guest session is a real account without an email, and it drops you in the open demo Space rather than any organisation. If you were given an account, sign in above instead. <span class="byline">A Redtree product.</span></p>
+      </div>
     </div>
   </div>
 
