@@ -167,7 +167,10 @@
   gap: var(--s-3);
   margin-top: var(--s-2);
 }
-.authalt .field-label { color: var(--c-text-3, var(--c-text-2)); }
+/* This label was dimmed to --c-text-3 to make the section recede, which put it
+   at 2.9:1 against the card - below AA, on the one screen every single person
+   has to get through. Recession comes from position and weight instead; the
+   colour goes back to the same token the labels above it use. */
 .authalt button {
   font-weight: var(--t-medium);
   color: var(--c-text-2);

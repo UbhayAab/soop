@@ -30,7 +30,7 @@ export function register(app) {
 }
 
 // ------------------------------------------------------------------ styling
-// Appended from here rather than styles.css: that file is shared, this is not.
+// Appended from here rather than a shared stylesheet: those are shared, this is not.
 const STYLE = `
 .mx-ack{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:6px 0 2px;padding:6px 10px;
   border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:8px;

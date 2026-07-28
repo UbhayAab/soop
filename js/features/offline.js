@@ -192,12 +192,20 @@ const STYLE = `
 #obBar.on{display:flex}
 #obBar .ico{width:15px;height:15px;flex:none}
 #obBar .ob-txt{min-width:0}
-#obBar.ob-down{background:var(--c-danger-quiet);color:var(--c-danger);
+/* Same rule as .autherr: the tint and the rule carry the state, the words stay
+   at full text contrast. Semantic colour ON its own quiet tint measured 3.35:1
+   for "Back online." - below AA, on a banner that exists precisely to be read at
+   a glance by somebody on a bad train connection. The glyph keeps the colour,
+   because an icon is not text. */
+#obBar.ob-down{background:var(--c-danger-quiet);color:var(--c-text);
   border-block-end-color:var(--c-danger)}
-#obBar.ob-wait{background:var(--c-warn-quiet);color:var(--c-warn);
+#obBar.ob-down .ico{color:var(--c-danger)}
+#obBar.ob-wait{background:var(--c-warn-quiet);color:var(--c-text);
   border-block-end-color:var(--c-warn)}
-#obBar.ob-up{background:var(--c-success-quiet);color:var(--c-success);
+#obBar.ob-wait .ico{color:var(--c-warn)}
+#obBar.ob-up{background:var(--c-success-quiet);color:var(--c-text);
   border-block-end-color:var(--c-success)}
+#obBar.ob-up .ico{color:var(--c-success)}
 /* Only if section.msgs was not there to host it. */
 body > #obBar.on{position:fixed;left:0;right:0;
   top:calc(var(--header-h,44px) + var(--channelbar-h,49px) + env(safe-area-inset-top));

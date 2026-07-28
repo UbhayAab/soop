@@ -6,7 +6,7 @@
 //    Members -> Audit -> Members must not re-hit the server; only an action that
 //    actually changed something invalidates its slice of the cache.
 //  - The panel is widened with a `:has(.admin-root)` rule injected from here, so
-//    nothing in styles.css has to know this feature exists and the width falls
+//    nothing in the shared stylesheets has to know this feature exists and the width falls
 //    back the instant another panel takes over the aside.
 import { api, table } from '../api.js';
 import { store, hasPerm } from '../store.js';
