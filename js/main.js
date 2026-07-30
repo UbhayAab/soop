@@ -56,8 +56,39 @@ async function applyRoute() {
   } else if (r.kind === 'message') {
     const c = store.channels.find((x) => x.id === r.channelId);
     if (c) await openChannel(c, { jumpSeq: r.seq });
+  } else if (r.kind === 'joinOrg' || r.kind === 'join') {
+    // An invite opened by somebody who is ALREADY signed in and has the app on
+    // screen. A URL that differs only in its fragment does not reload the page,
+    // so main() never runs again and enter()'s redeem never happens - the hash
+    // just changed and nothing at all occurred. That is the ordinary case for
+    // this product, because the link is pasted into a chat that people read on
+    // the phone they are already signed in on, and it made the org links look
+    // dead for exactly the people most likely to click one.
+    await redeemFromRoute(r);
   }
   if (r.kind !== 'none') history.replaceState(null, '', location.pathname + location.search);
+}
+
+// One redeem path, used by the cold-start route in enter() and by a hash change
+// on a running app.
+async function redeemFromRoute(r) {
+  try {
+    if (r.kind === 'joinOrg') {
+      const org = await api.rpc('redeem_org_invite', { p_token: extractToken(r.token) });
+      await loadSpaces();
+      const s = store.spaces.find((x) => x.org_id === org?.id);
+      if (s && s.id !== store.ws?.id) await switchWorkspace(s);
+      toast('You are in ' + (org?.name || 'the organisation'), 'success');
+    } else {
+      const ws = await api.redeemInvite(extractToken(r.token));
+      await loadSpaces();
+      const s = store.spaces.find((x) => x.id === ws?.id);
+      if (s && s.id !== store.ws?.id) await switchWorkspace(s);
+      toast('You are in ' + (ws?.name || 'the Space'), 'success');
+    }
+  } catch (e) {
+    toast(e.message || 'That invite link is not valid', 'error');
+  }
 }
 
 // Someone opening an invite link who is not signed in has to detour through
