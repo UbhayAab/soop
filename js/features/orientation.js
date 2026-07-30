@@ -146,32 +146,51 @@ function showCard(g, firstVisit) {
 //
 // A banner is visible without being in the way: it sits above the conversation,
 // scrolls nothing, and one tap retires it for good.
+//
+// It has to be ONE LINE, and that is not a style preference. The banner is a
+// flex sibling of #messages inside section.msgs, so every pixel it takes is a
+// pixel the conversation loses. It used to carry the whole guide card under a
+// max-height of 52vh, and measured on the real app that came to 255px including
+// its margins: the message list fell to 342px of a 675px pane on a 1366x768
+// laptop, and to 188px at 1092x614, which is what a 1366 panel reports at the
+// 125% scaling Windows ships. Two messages visible at a time, on the first
+// screen a new volunteer ever sees, in every channel they had not opened before.
+// It also broke the scroll rule: nearBottom() allows 140px, so on a 188px list
+// the reader is unavoidably "at the bottom" and every arriving message yanked
+// the view down.
+//
+// So the banner states what it is and offers the card; the card itself opens in
+// the About panel, which already exists, is scrollable, and takes nothing from
+// the conversation.
 function showWelcome(g) {
   const host = document.querySelector('section.msgs');
   if (!host) return;
   host.querySelector('.' + CLS + '-banner')?.remove();
 
-  const card = buildCard(g, { firstVisit: false });
-  card.querySelector('.' + CLS + '-foot')?.remove();
-
   const banner = el('div', CLS + '-banner');
   const head = el('div', CLS + '-bannerhead');
   head.innerHTML = `<strong>Welcome to #${esc(g.channel_name || 'this channel')}</strong>`;
-  const close = el('button', 'icon', icon('close'));
-  close.setAttribute('aria-label', 'Dismiss');
-  close.onclick = () => {
+
+  const retire = () => {
     banner.remove();
     tryRpc('mark_guide_seen', { p_channel: g.channel_id });
     cache.delete(g.channel_id);
   };
-  head.appendChild(close);
-  banner.append(head, card);
 
-  if (g.can_edit) {
-    const ed = el('button', 'ghost sm', 'Edit this');
-    ed.onclick = () => editDialog(g.channel_id);
-    banner.appendChild(ed);
-  }
+  // The guide itself, one tap away rather than 255px of it in the way.
+  const open = el('button', 'ghost sm', 'What this channel is for');
+  open.onclick = () => {
+    uiRef?.openPanel(PANEL, { channelId: g.channel_id });
+    retire();
+  };
+  head.appendChild(open);
+
+  const close = el('button', 'icon', icon('close'));
+  close.setAttribute('aria-label', 'Dismiss');
+  close.onclick = retire;
+  head.appendChild(close);
+  banner.appendChild(head);
+
   // Above the message list, below the channel bar.
   host.insertBefore(banner, host.firstChild);
 }
@@ -352,19 +371,26 @@ function style() {
    phone that meant the title sat flush against the screen edge with a stray x
    floating beside it, on the one screen a new volunteer sees first. It is a band
    across the top of the conversation, so it gets a band's frame: its own surface,
-   a rule underneath, and the same horizontal padding as the card it wraps. */
-.${CLS}-banner{flex:none;padding:var(--s-4) var(--s-5) var(--s-5);
+   a rule underneath, and the same horizontal padding as the card it wraps.
+
+   The max-height is a HARD FLOOR UNDER THE CONVERSATION, not a nicety. This
+   element is a flex sibling of #messages, so its height comes straight out of
+   the message list. At 52vh, holding the full guide card, it measured 255px and
+   left 188px of message list on a 1366x768 laptop at Windows' 125% scaling. One
+   row, and a ceiling low enough that no future content can take the pane back. */
+.${CLS}-banner{flex:0 0 auto;padding:var(--s-3) var(--s-5);
   background:var(--c-surface-2);border-bottom:1px solid var(--c-border);
-  max-height:52vh;overflow-y:auto}
-.${CLS}-bannerhead{display:flex;align-items:center;gap:var(--s-4);
-  font-size:var(--t-md);color:var(--c-text)}
-.${CLS}-bannerhead button{margin-left:auto;flex:none;
-  min-width:40px;min-height:40px;border-radius:var(--r-md)}
+  max-height:56px;overflow:hidden}
+.${CLS}-bannerhead{display:flex;align-items:center;gap:var(--s-3);
+  font-size:var(--t-md);color:var(--c-text);min-width:0}
+.${CLS}-bannerhead strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.${CLS}-bannerhead button:first-of-type{margin-left:auto}
+.${CLS}-bannerhead button{flex:none;min-height:32px;border-radius:var(--r-md)}
+.${CLS}-bannerhead button.icon{min-width:32px}
 .${CLS}-bannerhead svg{width:16px;height:16px}
 /* no box inside a box: the banner is already the frame */
 .${CLS}-banner .${CLS}-card{margin:var(--s-3) 0 0;padding:0;border:0;
-  background:none;box-shadow:none;max-width:none}
-.${CLS}-banner>button{margin-top:var(--s-4);min-height:40px}`;
+  background:none;box-shadow:none;max-width:none}`;
   document.head.appendChild(s);
 }
 

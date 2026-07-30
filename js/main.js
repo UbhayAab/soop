@@ -160,10 +160,40 @@ function subscribeUser(uid) {
     subscribe('user', 'user:' + uid, {
       mention: () => { refreshUnread(); flashTitle(); },
       unread: () => refreshUnread(),
-      status: () => {},
+      // set_status / clear_status broadcast here. This was an empty function, so
+      // a status set on the phone never appeared on the laptop, and shell.js's
+      // 'status:changed' listener had no publisher anywhere in the app - the
+      // sidebar foot kept saying "Active" after a write that had succeeded.
+      status: (p) => {
+        store.myProfile = { ...(store.myProfile || {}), ...(p || {}), id: store.me };
+        store.profiles.set(store.me, store.myProfile);
+        bus.emit('status:changed');
+        bus.emit('profiles');
+      },
+      // set_presence_status broadcasts the availability the same way, so a hold
+      // chosen on one device is reflected on the other rather than being fought
+      // over by two beats.
+      presence: (p) => {
+        if (p?.status) { store.myPresence = p.status; bus.emit('presence:mine', p.status); }
+        bus.emit('status:changed');
+      },
       claims_changed: async () => {
         const { data } = await sb.auth.refreshSession();
         if (data?.session) sb.realtime.setAuth(data.session.access_token);
+      },
+      // A direct message, on the topic this client holds for the whole session.
+      // Until 0063 the only DM event was on dm:<conversation>, which nothing
+      // subscribes to unless that exact conversation is already open - so a DM
+      // reached a person only if they happened to be looking straight at it. This
+      // is what makes one arrive while you are reading a channel, or in your other
+      // Space, or with the phone in your pocket.
+      dm: (p) => {
+        refreshUnread();
+        flashTitle();
+        import('./core/channels.js').then(({ refreshDMList }) => refreshDMList?.());
+        if (p?.conversation_id && p.conversation_id === store.currentDM) {
+          import('./core/dms.js').then(({ reconcileDM }) => reconcileDM?.());
+        }
       },
       reminder: (p) => toast('Reminder: ' + (p?.note || 'you asked to be reminded')),
     });

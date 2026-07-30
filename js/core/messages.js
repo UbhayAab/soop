@@ -174,6 +174,26 @@ export function jumpTo(messageId) {
   setTimeout(() => node.classList.remove('flash'), 1600);
 }
 
+// Is this reader parked on the newest message, or reading further up?
+//
+// The one question the whole "do not yank me to the bottom" contract turns on,
+// and it was answered in four different places with four different thresholds:
+// 140px in channels.js nearBottom(), 220px in features/offline.js, 60px in
+// wireScroll, and NOT AT ALL in dms.js and threads.js, which is why those two
+// scrolled unconditionally. One answer, used by all of them.
+//
+// The slop scales with the viewport as well as being capped. A fixed 140px is
+// most of a short list: with the orientation banner squeezing #messages to 188px
+// on a 1366x768 laptop at 125% scaling, a reader could not get more than 48px
+// from the bottom without the list ending, so they were permanently "at the
+// bottom" and every arrival dragged them down. That banner is fixed, but the
+// threshold must not depend on it having been.
+export function atBottom(el, slop = 140) {
+  if (!el) return true;
+  const room = Math.min(slop, Math.max(48, el.clientHeight * 0.25));
+  return el.scrollHeight - el.scrollTop - el.clientHeight < room;
+}
+
 // Pin to the bottom, and STAY pinned while the list is still settling.
 //
 // One assignment is not enough. Rows keep growing for a few hundred milliseconds
@@ -185,16 +205,33 @@ export function jumpTo(messageId) {
 //
 // The correction is only applied while scrollTop is exactly where we left it. If
 // the person has touched the list at all, they own it and we do not fight them.
-export function scrollDown() {
-  const m = $('messages');
+//
+// `host` defaults to the channel list, because that is what every existing
+// caller means. The thread panel and the DM view are their own scroll
+// containers and pass themselves in.
+export function scrollDown(host) {
+  const m = host || $('messages');
   if (!m) return;
+  // A `scroll-behavior: smooth` anywhere in the cascade turns each assignment
+  // below into an animation whose read-back is the pre-animation value, which
+  // makes the correction ladder stand down on its first tick. layout.css no
+  // longer sets it on #messages; this makes the ladder immune to it coming back,
+  // or to a third-party container that has it.
+  const prev = m.style.scrollBehavior;
+  m.style.scrollBehavior = 'auto';
   m.scrollTop = m.scrollHeight;
   let mine = m.scrollTop;
   const fix = () => {
-    if (!m.isConnected || Math.abs(m.scrollTop - mine) > 2) return;
+    if (!m.isConnected || Math.abs(m.scrollTop - mine) > 2) {
+      m.style.scrollBehavior = prev;
+      return;
+    }
+    m.style.scrollBehavior = 'auto';
     m.scrollTop = m.scrollHeight;
     mine = m.scrollTop;
+    m.style.scrollBehavior = prev;
   };
+  m.style.scrollBehavior = prev;
   requestAnimationFrame(fix);
   // The ladder runs past the point where the last thing that can change a row's
   // height has landed: the web font swapping in, an avatar decoding, an image

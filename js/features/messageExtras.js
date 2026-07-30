@@ -569,8 +569,10 @@ function placeDivider() {
     + '<span class="mx-newdiv-line"></span>');
   const jump = el('button', 'sm ghost', 'Jump to newest ↓');
   jump.onclick = () => {
+    // Let the scroll retire the pill. Removing the node from here left
+    // channels.js's counter behind, so once five had been read the next arrival
+    // announced six. wireScroll clears both when the bottom is reached.
     list.scrollTop = list.scrollHeight;
-    document.getElementById('newBelow')?.remove();
   };
   div.appendChild(jump);
   list.insertBefore(div, first);

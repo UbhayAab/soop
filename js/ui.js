@@ -308,7 +308,13 @@ export function popover(anchorEl, contentEl, opts = {}) {
   const p = el('div', 'popover' + (opts.cls ? ' ' + opts.cls : ''));
   p.appendChild(contentEl);
   document.body.appendChild(p);
-  const a = anchorEl.getBoundingClientRect();
+  // A caller that anchored off a header button which ended up in the overflow
+  // menu hands us null. Throwing here was worse than useless: the popover had
+  // already been appended, so it stayed in the DOM as a fixed element with no top
+  // or left, parked off the bottom of the page. Cheap insurance for every feature
+  // that anchors off a header button, not just the one that was found doing it.
+  const anchor = anchorEl && anchorEl.getBoundingClientRect ? anchorEl : document.body;
+  const a = anchor.getBoundingClientRect();
   const r = p.getBoundingClientRect();
   let top = opts.below ? a.bottom + 6 : a.top - r.height - 6;
   if (top < 8) top = a.bottom + 6;
@@ -317,7 +323,7 @@ export function popover(anchorEl, contentEl, opts = {}) {
   p.style.top = top + 'px';
   p.style.left = Math.max(8, left) + 'px';
   const away = (e) => {
-    if (!p.contains(e.target) && !anchorEl.contains(e.target)) {
+    if (!p.contains(e.target) && !anchor.contains(e.target)) {
       p.remove();
       document.removeEventListener('mousedown', away);
     }

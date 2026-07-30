@@ -10,7 +10,7 @@ import { store, bus, nameOf } from '../store.js';
 import { $, el, esc, plain, relTime } from '../util.js';
 import { registerPanel, openPanel, closePanel, toast, confirmModal, formModal, currentPanel } from '../ui.js';
 import { buildMessage, appendMessage, loadReactions, claimMessage,
-  refreshThreadIndicator, avatarHtml, renderedIn } from './messages.js';
+  refreshThreadIndicator, avatarHtml, renderedIn, atBottom } from './messages.js';
 
 export const threadState = { id: null, root: null, following: false, maxSeq: 0 };
 
@@ -49,8 +49,13 @@ bus.on('message:new', ({ msg }) => {
   // container saw it first, so the panel asks itself.
   if (!host || renderedIn(host, msg.id)) return;
   store.seen.add(msg.id);
+  // The panel is its own scroll container and had no at-bottom test at all, so a
+  // reply arriving while you read back through a long thread threw you to the
+  // end of it. Same contract as the channel: only follow a reader who was
+  // already on the last reply.
+  const stick = atBottom(host, 80);
   appendMessage(host, msg, 'thread');
-  host.scrollTop = host.scrollHeight;
+  if (stick) host.scrollTop = host.scrollHeight;
   threadState.maxSeq = Math.max(threadState.maxSeq, msg.seq || 0);
   api.markThreadRead(threadState.id, threadState.maxSeq).catch(() => {});
 });
@@ -90,10 +95,25 @@ registerPanel({
     }
 
     let msgs = [];
-    try { msgs = (await api.threadMessages(threadId)) || []; }
+    let loaded = false;
+    try { msgs = (await api.threadMessages(threadId)) || []; loaded = true; }
     catch (e) { list.appendChild(el('div', 'muted pad', esc(e.message))); }
 
     const replies = msgs.filter((m) => !root || m.id !== root.id);
+
+    // Opening the thread is the one moment the true count is in our hands, so it
+    // is where a badge that has drifted gets repaired. Only ever from a load that
+    // actually succeeded: the catch above leaves msgs empty, and treating that as
+    // "zero replies" would wipe a correct badge every time the connection
+    // hiccupped. Not applied at the 500-row page limit either, where the answer
+    // would be "500" rather than the truth.
+    if (loaded && root && msgs.length < 500) {
+      const t = store.rootThreads.get(root.id);
+      if (t && t.count !== replies.length) {
+        t.count = replies.length;
+        refreshThreadIndicator(root.id);
+      }
+    }
     if (!replies.length) {
       list.appendChild(el('div', 'empty', 'No replies yet. Say something - only people following this thread get notified.'));
     }
@@ -188,8 +208,13 @@ registerPanel({
           appendMessage(host, data, 'thread');
           host.scrollTop = host.scrollHeight;
         }
-        const t = store.rootThreads.get(threadState.root?.id);
-        if (t) { t.count = (t.count || 0) + 1; refreshThreadIndicator(threadState.root.id); }
+        // NOT counted here. The reply's own realtime echo comes back to its
+        // sender (broadcast self is on) and channels.js applyIncoming() counts it
+        // there, for every client including this one. Counting locally as well is
+        // what made the badge read double for whoever wrote the replies: two
+        // replies showed four, which is the number both organisations reported.
+        // One increment per delivered message, in one place, and applyEvents()
+        // covers the echo the transport drops.
 
         // "Also send to channel" has to put the message in the channel for the
         // SENDER too. claimMessage() above already registered this id on behalf

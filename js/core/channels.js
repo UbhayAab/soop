@@ -8,7 +8,7 @@ import { PERM, MESSAGE_PAGE } from '../config.js';
 import { $, el, esc, debounce } from '../util.js';
 import { toast, contextMenu, formModal, confirmModal, renderNavSections, closePanel } from '../ui.js';
 import { appendMessage, claimMessage, loadReactions, applyEdit, applyDelete, applyReaction,
-  refreshThreadIndicator, jumpTo, buildMessage, scrollDown, renderedIn,
+  refreshThreadIndicator, jumpTo, buildMessage, scrollDown, renderedIn, atBottom,
   renderBatch, prependBatch, capWindow, capWindowTop, resetWindow, windowState,
   restoreAbove, restoreBelow, deferBelow, jumpLatest } from './messages.js';
 import * as pagecache from '../lib/pagecache.js';
@@ -75,8 +75,15 @@ export async function renderChannels() {
   const host = $('channels');
   if (!host || !store.ws) return;
   const um = store.unread;
-  const text = store.channels.filter((c) => c.kind !== 'voice' && !c.archived_at);
-  const voice = store.channels.filter((c) => c.kind === 'voice' && !c.archived_at);
+  // get_bootstrap orders by (position, name) but the fallback read in
+  // workspace.js orders by position alone, and every channel a Space is created
+  // with shares position 1000 - so which of #general and #random came first
+  // depended on which path loaded the list. Sort here and both paths agree.
+  const byPos = (a, z) => (+a.position || 0) - (+z.position || 0)
+    || String(a.name || '').localeCompare(String(z.name || ''));
+  const live = store.channels.filter((c) => !c.archived_at).sort(byPos);
+  const text = live.filter((c) => c.kind !== 'voice');
+  const voice = live.filter((c) => c.kind === 'voice');
 
   const byCat = new Map();
   for (const c of text) {
@@ -97,8 +104,18 @@ export async function renderChannels() {
   };
 
   let h = '';
+  // Channels with no category used to render as a bare group above every
+  // category heading, which is how a channel someone had just created appeared
+  // to jump to the very top of the sidebar and out of the list: the create
+  // dialog defaults to "No category", and this group is drawn before "General".
+  // Both organisations reported it. The rows were never in the wrong ORDER - the
+  // server hands them back last, by position - they were in an unlabelled group
+  // that reads as being outside the list. It gets a heading, like Voice and
+  // Direct messages already have.
   const uncat = byCat.get('') || [];
-  if (uncat.length) h += `<div class="navgroup">${uncat.map(chanRow).join('')}</div>`;
+  if (uncat.length) {
+    h += `<h3><span>Channels</span></h3><div class="navgroup">${uncat.map(chanRow).join('')}</div>`;
+  }
   for (const cat of store.categories) {
     const list = byCat.get(cat.id) || [];
     if (!list.length) continue;
@@ -126,10 +143,15 @@ export async function renderChannels() {
   for (const d of store.dms) {
     const others = (d.other_user_ids || []).filter((u) => u !== store.me);
     const label = others.length ? others.map(nameOf).join(', ') : 'you';
-    const unread = d.unread > 0;
+    // get_bootstrap sends dms[].unread as a JSON BOOLEAN while refreshDMList
+    // normalises it to 0/1, and this printed it raw - so on the first paint after
+    // a cold start the badge on a DM read the literal word "true". There is no
+    // per-message DM count on either path, so the honest badge is a dot.
+    const unread = d.unread === true || +d.unread > 0;
+    const count = typeof d.unread === 'number' && d.unread > 1 ? d.unread : null;
     h += `<div class="chan${store.currentDM === d.conversation_id ? ' active' : ''}${unread ? ' unread' : ''}"
       data-dm="${d.conversation_id}"><span class="ch-ico">@</span><span class="ch-name">${esc(label)}</span>
-      ${unread ? `<span class="badge">${d.unread}</span>` : ''}</div>`;
+      ${unread ? (count ? `<span class="badge">${count}</span>` : '<span class="dot-unread"></span>') : ''}</div>`;
   }
   h += '<div class="chan chan-add" data-newdm="1">＋ New message</div></div>';
 
@@ -198,7 +220,13 @@ export async function createChannelDialog() {
         { value: 'announcement', label: 'Announcement (only admins post)' },
         { value: 'forum', label: 'Forum (threaded posts)' },
       ] },
+      // Default to the category of the channel you are standing in. Creating a
+      // channel is nearly always "another one of these", and the old default of
+      // "No category" is what sent every channel anyone created into the
+      // unlabelled group at the top of the sidebar instead of into the list they
+      // were looking at.
       { name: 'category', label: 'Category', type: 'select',
+        value: store.current?.category_id || '',
         options: [{ value: '', label: 'No category' },
           ...store.categories.map((c) => ({ value: c.id, label: c.name }))] },
       { name: 'is_private', label: 'Private (invite only)', type: 'checkbox' },
@@ -326,6 +354,10 @@ export async function openChannel(c, opts = {}) {
   prepainted = null;
   store.current = c;
   store.currentDM = null;
+  // The pill belongs to the conversation that was on screen. It is a sibling of
+  // #messages, not a child, so emptying the list left the previous channel's
+  // "3 new messages" floating over the new one.
+  clearNewBelow();
   if (!preOpened) {
     resetChannelState();
     resetWindow();
@@ -557,9 +589,12 @@ function shouldShowInChannel(m) {
   return store.rootThreads.has(m.id); // the root message itself
 }
 
+// One threshold for the whole app, in messages.js. This used to be a bare 140px,
+// which is a lot of a short list: the orientation banner had #messages down to
+// 188px on a 1366x768 laptop at Windows' 125% scaling, so nothing could ever be
+// more than 48px from the bottom and every arrival counted as "follow them down".
 function nearBottom() {
-  const m = $('messages');
-  return !m || m.scrollHeight - m.scrollTop - m.clientHeight < 140;
+  return atBottom($('messages'));
 }
 
 // ------------------------------------------------------------------ realtime
@@ -699,17 +734,39 @@ function markReadSoon(channelId, seq) {
   }, MARK_READ_MS);
 }
 
-function showNewBelow() {
+// The pill that says "something arrived while you were reading up there".
+//
+// It used to be a static "New messages" with no count, which does not answer the
+// question the reader actually has - how much did I miss - and gave them nothing
+// to decide whether to go and look. It also survived a channel switch, because it
+// is a sibling of #messages inside section.msgs and only the LIST is emptied on
+// open, so the pill from the previous conversation stayed on screen over the new
+// one. Both organisations asked for exactly this control, so it is worth being
+// the real thing: a count, and a reset when the reader gets to the bottom.
+let newBelowCount = 0;
+
+export function showNewBelow(n = 1) {
+  newBelowCount += Math.max(0, n);
+  const host = $('messages')?.parentElement;
+  if (!host) return;
   let b = $('newBelow');
   if (!b) {
-    b = el('button', 'new-below', 'New messages ↓');
+    b = el('button', 'new-below');
     b.id = 'newBelow';
     // jumpLatest rebuilds the tail in one bounded pass. Walking back down to it
     // a chunk at a time is not bounded, and after a long scroll up it is the
     // difference between instant and several seconds.
-    b.onclick = () => { jumpLatest($('messages'), 'channel'); b.remove(); };
-    $('messages').parentElement.appendChild(b);
+    b.onclick = () => { jumpLatest($('messages'), 'channel'); clearNewBelow(); };
+    host.appendChild(b);
   }
+  b.textContent = newBelowCount === 1
+    ? '1 new message ↓'
+    : `${newBelowCount} new messages ↓`;
+}
+
+export function clearNewBelow() {
+  newBelowCount = 0;
+  $('newBelow')?.remove();
 }
 
 // ------------------------------------------------------------------ resync
@@ -717,8 +774,23 @@ function showNewBelow() {
 // reconnect that fires SUBSCRIBED on four topics at once costs one pass and not
 // four. Every caller names its reason; the harness and the tests read it back.
 let resyncTimer = null;
-let resyncing = false;
+let resyncUntil = 0;
 let resyncAgain = false;
+
+// How long one pass is allowed to hold the door shut. This used to be a bare
+// boolean cleared only in runResync's own finally block, and the pass it guards
+// awaits api.resume() -> sb.rpc() -> fetch(), which supabase-js gives no timeout.
+// So a request that never settles - the dead-but-open socket of a phone that
+// slept, which is exactly what probe-4 and probe-12 model - left the latch set
+// for the life of the page, and from that moment EVERY heal trigger was dropped
+// at the door: the 25s backstop, visibilitychange, online, focus, rejoin, gap and
+// nudge. Nothing but a reload could bring the conversation up to date again,
+// which is the second half of "I have to refresh the site to see new messages".
+//
+// A deadline cannot get stuck. 45s is longer than any pass that is going to
+// succeed (the slowest measured resume is under 2s on a bad line) and shorter
+// than a person's patience.
+const RESYNC_MAX_MS = 45000;
 
 export function requestResync(reason = 'manual', delay = 0) {
   delivery.lastReason = reason;
@@ -728,8 +800,8 @@ export function requestResync(reason = 'manual', delay = 0) {
 }
 
 async function runResync(reason) {
-  if (resyncing) { resyncAgain = true; return; }
-  resyncing = true;
+  if (Date.now() < resyncUntil) { resyncAgain = true; return; }
+  resyncUntil = Date.now() + RESYNC_MAX_MS;
   try {
     delivery.resyncs++;
     if (store.current) await reconcile();
@@ -737,7 +809,7 @@ async function runResync(reason) {
   } catch (e) {
     console.warn('resync', e?.message || e);
   } finally {
-    resyncing = false;
+    resyncUntil = 0;
     if (resyncAgain) { resyncAgain = false; requestResync(reason + '+', 60); }
   }
 }
@@ -805,10 +877,29 @@ async function applyEvents(channelId, events, gen) {
   const wanted = [...new Set([...newIds, ...editedIds])];
   const byId = new Map();
   if (wanted.length) {
-    const { data } = await sb.from('messages').select('*').in('id', wanted);
+    // The error used to be discarded. Fourteen lines below, the loop advances
+    // store.cursor per event BEFORE it checks whether the row was actually
+    // fetched - so a failed read here (offline mid-pass, an aborted request, a
+    // 5xx, or a URL long enough to be rejected on a 200-id `in` filter) marched
+    // the cursor across the whole page while rendering nothing, and resume() only
+    // ever asks for events AFTER the cursor. Those messages were then
+    // unreachable for the life of the session: the exact "I refreshed and there
+    // they were" report. Abandoning the pass leaves the cursor where it is, so
+    // the next trigger asks for the same span again.
+    const { data, error } = await sb.from('messages').select('*').in('id', wanted);
+    if (error) {
+      console.warn('resync: message fetch failed, leaving the cursor alone', error.message);
+      requestResync('refetch', 1500);
+      return;
+    }
     for (const m of data || []) byId.set(m.id, m);
   }
   if (gen !== openGen || store.current?.id !== channelId) return;
+
+  // How many messages actually reached the DOM. newIds cannot answer this: it
+  // includes thread-only replies, deleted rows and ids already on screen, so
+  // counting it would tell the reader they had missed messages they can see.
+  let landed = 0;
 
   for (const e of events) {
     store.cursor = Math.max(store.cursor, e.seq);
@@ -833,6 +924,7 @@ async function applyEvents(channelId, events, gen) {
     }
     if (!claimMessage(m)) continue;
     appendMessage($('messages'), m, 'channel');
+    landed++;
     // The cached page has to learn about a healed message too. It did not, and
     // that left a HOLE in the middle of the stored page: a span recovered over
     // resume() reached the screen but never the snapshot, so the next cold start
@@ -844,7 +936,7 @@ async function applyEvents(channelId, events, gen) {
   }
 
   if (newIds.length) await loadReactions(newIds);
-  if (stick) scrollDown(); else if (newIds.length) showNewBelow();
+  if (stick) scrollDown(); else if (landed) showNewBelow(landed);
 }
 
 // Messages that arrived early are applied the moment the log has filled in
@@ -1031,9 +1123,12 @@ export function wireScroll() {
       // They cost no round trip at all.
       if (!restoreAbove(list)) loadOlder();
     }
-    if (list.scrollHeight - list.scrollTop - list.clientHeight < 60) {
+    if (atBottom(list, 60)) {
       if (restoreBelow(list)) return;      // more tail to bring back before the button goes
-      $('newBelow')?.remove();
+      // Reaching the bottom yourself is the same as having read them, so the
+      // count has to go with the pill. It used to only remove the node, and the
+      // counter lived on: after five had been read the next arrival said six.
+      clearNewBelow();
     }
   }, 120));
 }

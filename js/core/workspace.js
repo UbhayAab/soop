@@ -165,6 +165,21 @@ function subscribeWorkspace(ws) {
       if (p?.user_id) store.profiles.delete(p.user_id);
       bus.emit('profiles');
     },
+    // A colleague changed their custom status. Without this it only showed up
+    // after a full reload: core/presence.js deliberately fetches profiles ONLY
+    // for ids it has never seen, so an existing member's status_text was never
+    // refetched. 0062 is what publishes this event.
+    member_status: (p) => {
+      if (!p?.user_id) return;
+      const prev = store.profiles.get(p.user_id);
+      if (!prev) return;                      // not someone on screen here
+      store.profiles.set(p.user_id, {
+        ...prev,
+        status_text: p.status_text ?? null,
+        status_emoji: p.status_emoji ?? null,
+      });
+      bus.emit('profiles');
+    },
   });
 }
 

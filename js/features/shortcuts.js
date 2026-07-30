@@ -358,20 +358,21 @@ export function register(app) {
     name: 'shortcuts', description: 'Show every keyboard shortcut', run: () => helpModal(),
   });
 
-  // Core heartbeats 'online' every 45s, which would stomp an away/dnd status
-  // within the minute. Re-assert it from here until /back clears it.
-  let presenceHold = null;
-  function holdPresence(status) {
-    clearInterval(presenceHold);
-    if (status === 'online') { presenceHold = null; return; }
-    presenceHold = setInterval(() => {
-      api.setPresenceStatus(status).catch(() => {});
-    }, 20000);
-  }
+  // Core heartbeats every 45s and heartbeat() overwrites user_presence.status,
+  // which used to stomp an away/dnd choice within the minute. This file fought
+  // that with its own 20-second re-assert loop - one extra write per client per
+  // 20s, forever - and it still lost the race to the beat that fires the instant
+  // a channel opens. core/presence.js now carries the chosen status on the beat
+  // it was already making, and migration 0062 stops the server clearing a hold,
+  // so saying it once is enough. The status popover never had this workaround at
+  // all, which is why its Availability picker in particular looked completely
+  // dead while /away half-worked.
   async function setPresence(status, msg) {
     try {
       await api.setPresenceStatus(status);
-      holdPresence(status);
+      store.myPresence = status;
+      bus.emit('presence:mine', status);
+      bus.emit('status:changed');
       ui.toast(msg, 'success');
     } catch (e) { ui.toast(e.message, 'error'); }
   }

@@ -219,7 +219,16 @@ section.msgs {
   overflow-x: hidden;
   overscroll-behavior: contain;
   padding: var(--s-5) 0 var(--s-4);
-  scroll-behavior: smooth;
+  /* NOT scroll-behavior: smooth. This was on the scroll container itself, so
+     every scrollTop assignment became an animation - including the pin-to-bottom
+     correction in messages.js scrollDown(), which reads scrollTop back to decide
+     whether the reader has taken the list over. Under smooth the read-back is
+     the PRE-animation value, so the ladder saw a position it did not expect and
+     stood down: measured in Chromium, 1 of its 5 ticks ran, and one message
+     carrying an image left the newest row 300px below the fold - past the
+     at-bottom slop, so somebody who WAS reading the newest message silently
+     stopped being followed down. Deliberate travel is still animated, by the
+     jumpTo/jumpToSeq callers that ask for it explicitly. */
 }
 
 /* The strips between the list and the composer must never take space from the

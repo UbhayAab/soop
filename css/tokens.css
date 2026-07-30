@@ -106,8 +106,18 @@
      side of the screen to the other. Typography caps a comfortable line at
      roughly 90 characters; this is that, plus the avatar gutter. The column is
      centred, so the conversation sits in front of you instead of smeared across
-     the desk. */
-  --reading-max: 1080px;
+     the desk.
+
+     It was a flat 1080px, which is narrower than the pane on any monitor wider
+     than about 1450px. Measured on a 1920 window: a 1080px column inside a
+     1572px pane, left-aligned, so 492px - 31% of the conversation pane - was
+     dead grey with the messages ending in a hard vertical edge three quarters
+     of the way across the screen. That is what both organisations reported as
+     "the chat is not centered, it is abruptly cut off, we have to zoom to get
+     the UI right": zooming in shrinks the pane until the column fills it again.
+     A cap that only engages beyond 1920 keeps the long-line protection for the
+     27 inch case and gives every laptop the whole pane. */
+  --reading-max: min(1600px, 100%);
 }
 
 /* ============================================================================

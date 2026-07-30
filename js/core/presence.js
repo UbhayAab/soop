@@ -48,7 +48,31 @@ export function initPresence() {
   // Sent on the beat rather than as its own request on purpose: the request the
   // client already makes is the cheapest place to put it, and on a phone the
   // radio is already awake for it.
-  const beat = () => api.heartbeat('online', store.current?.id || null).catch(() => {});
+  // The status the beat carries. This used to be a hard-coded 'online', and
+  // heartbeat() overwrites user_presence.status, so choosing Away or Do not
+  // disturb was undone within 45 seconds - sooner, because opening any channel
+  // beats immediately. Live evidence before the fix: of 1798 user_presence rows,
+  // 1797 were 'offline' and 1 was 'online'. Not one row in either organisation
+  // was 'away' or 'dnd', in an app that has offered the choice since 0034. The
+  // value was unreachable, not unwanted, which is exactly what "your status and
+  // availability is not working" meant.
+  //
+  // features/shortcuts.js had already hit this and worked around it locally with
+  // a 20-second re-assert loop. Sending the real value on the beat we are already
+  // making fixes it for every caller and lets that loop go.
+  //
+  // Deliberately NOT remembered on the device. The server is the authority:
+  // migration 0062 stops a beat downgrading a hold, so a hold survives a reload
+  // on its own, and app.reap_presence still clears it 60s after the last beat.
+  // That is the semantic we want - a hold, not a mode - and it means a shared
+  // phone cannot carry one person's Away into the next person's session.
+  let myStatus = 'online';
+  const beat = () => api.heartbeat(myStatus, store.current?.id || null).catch(() => {});
+  bus.on('presence:mine', (s) => {
+    if (s !== 'online' && s !== 'away' && s !== 'dnd') return;
+    myStatus = s;
+    beat();
+  });
   beat();
   setInterval(beat, 45000);
   // Opening a channel is the moment the census changes; waiting up to 45s to
@@ -178,14 +202,17 @@ export function initPresence() {
     if (document.visibilityState !== 'visible') return;
     beat();
     ensureFreshAuth().catch(() => {});
-    retryAllNow();
+    // force: coming back from sleep is exactly the case where the socket looks
+    // joined and carries nothing, and where a plain retryAllNow() skipped every
+    // topic and left the tab needing a reload to receive anything again.
+    retryAllNow({ force: true });
     requestResync('visible');
     refreshUnread();
   });
 
   window.addEventListener('online', () => {
     beat();
-    retryAllNow();
+    retryAllNow({ force: true });
     requestResync('online');
     refreshUnread();
   });

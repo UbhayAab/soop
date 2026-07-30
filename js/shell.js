@@ -44,9 +44,17 @@ export function paintIdentity() {
   const st = $('sbMeStatus');
   if (st) {
     const p = store.myProfile || {};
+    // This line is the only always-visible statement of your own state, and it
+    // used to say "Active" unconditionally whenever no custom status text was
+    // set. So picking Away or Do not disturb changed nothing anybody could see,
+    // and the honest report was "availability does not work" even once the write
+    // was correct. Availability is the fallback now, and it is also shown
+    // alongside a custom status, because the two answer different questions:
+    // what I am doing, and whether to expect an answer.
+    const avail = { away: 'Away', dnd: 'Do not disturb' }[store.myPresence] || 'Active';
     st.textContent = p.status_text
-      ? `${p.status_emoji || ''} ${p.status_text}`.trim()
-      : 'Active';
+      ? `${p.status_emoji || ''} ${p.status_text}`.trim() + (store.myPresence && store.myPresence !== 'online' ? ` · ${avail}` : '')
+      : avail;
   }
 }
 

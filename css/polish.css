@@ -244,11 +244,15 @@ section.msgs:has(> .ux-unread-top) > :first-child { margin-top: calc(var(--s-11)
    not a margin. Shifting the whole conversation every time somebody speaks
    would be worse than the overlap it fixes. */
 
+/* No backdrop blur. All three pills are filled with an opaque accent, so the
+   blur was invisible at rest and cost a compositing layer that Chrome updates
+   off the fling - which is where you actually see it, as the list tearing
+   through the pill during a fast scroll. An opaque fill needs no backdrop. */
 .sc-jump,
 .new-below,
 .ux-unread-top {
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 /* "Jump to the first unread message" - the one control the unread divider was
@@ -296,12 +300,15 @@ section.msgs:has(> .ux-unread-top) > .sc-jump { display: none; }
    about a second of empty grey.
    ========================================================================= */
 .ux-sk-list { padding: var(--s-6) 0; }
+/* Centred, like the real rows in shell.css: a skeleton that sits somewhere
+   other than where the message it stands in for will appear is a visible jump
+   at the moment the channel lands. */
 .ux-sk-row {
   display: flex;
   gap: var(--s-4);
   width: 100%;
   max-width: var(--reading-max);
-  margin-inline: 0 auto;
+  margin-inline: auto;
   padding: var(--s-3) var(--s-5);
 }
 .ux-sk-av {
@@ -638,8 +645,27 @@ aside#panel:not(.hidden) {
    straight through a line of text. Visible in every phone screenshot as "Today"
    printed over somebody's words. A sticky element has to occlude what passes
    beneath it.
+
+   AND IT HAS TO OCCLUDE ALL THE WAY TO THE EDGE IT IS PINNED TO. A background
+   was not enough on its own: reading.css gives the divider a 32px top margin,
+   sticky offsets are measured from the MARGIN box, and a margin paints nothing.
+   So while pinned at top:0 the opaque band began 32px below the top of the
+   scroll viewport and every row scrolled visibly through the strip between the
+   channel bar and the date - reproduced in a captured fling frame, and reported
+   from both organisations as being able to see the conversation through the bar
+   with the channel name in it. The spacing above the date is now painted rather
+   than reserved: same rhythm when it sits in the flow, no transparent gap when
+   it is pinned.
    ========================================================================= */
 .daydiv {
   background: var(--c-bg);
-  padding-block: var(--s-2);
+  margin-top: 0;
+  padding-block: var(--s-8) var(--s-2);
+  /* #messages carries --s-5 of top padding, and a sticky element pins to the
+     PADDING box, not the border box - so at top:0 the last 12px before the
+     channel bar still had rows scrolling through it, measured. A scroll
+     container clips at its border box, so that strip is visible; the divider has
+     to be allowed to reach it. The 12px it gives up off the top of its own box
+     is the padding added above, which is empty. */
+  top: calc(-1 * var(--s-5));
 }

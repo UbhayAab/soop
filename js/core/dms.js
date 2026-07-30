@@ -1,12 +1,12 @@
 // Direct messages. Same rendering path as channels so DMs get reactions,
 // attachments, replies and the in-app media viewer for free.
-import { sb, subscribe } from '../sb.js';
+import { sb, subscribe, unsubscribe } from '../sb.js';
 import { api, table, tryRpc } from '../api.js';
 import { store, bus, nameOf, resetChannelState } from '../store.js';
 import { $, el, esc } from '../util.js';
 import { toast, modal, closePanel } from '../ui.js';
-import { appendMessage, claimMessage, loadReactions, applyReaction } from './messages.js';
-import { renderChannels, refreshUnread } from './channels.js';
+import { appendMessage, claimMessage, loadReactions, applyReaction, atBottom, scrollDown } from './messages.js';
+import { renderChannels, refreshUnread, showNewBelow, clearNewBelow } from './channels.js';
 import { avatarHtml } from './messages.js';
 
 // A DM had no cursor, no gap detection and no healing path of ANY kind. Both
@@ -59,11 +59,25 @@ export async function openDM(conversationId) {
   }
   await loadReactions(msgs.map((m) => m.id));
   if (gen !== dmGen) return;
-  list.scrollTop = list.scrollHeight;
+  // The pill is a sibling of the list, so opening a conversation does not clear
+  // it. Use the hardened pin rather than one bare assignment, or avatars and
+  // images settling leave the newest message below the fold - which then reads as
+  // "not at the bottom" and turns the next arrival into a pill instead of a
+  // follow.
+  clearNewBelow();
+  scrollDown(list);
 
   const lastSeq = msgs.length ? msgs[msgs.length - 1].seq : 0;
   store.dmCursor = lastSeq || 0;
   if (lastSeq) api.markDMRead(conversationId, lastSeq).catch(() => {});
+
+  // Opening a DM never touched the 'typing' subscription, so the previous
+  // CHANNEL's typ:<channel_id> topic stayed live - and composer.js sendTyping()
+  // publishes on whatever getSub('typing') currently holds. Every keystroke typed
+  // into a private conversation was therefore broadcast into the last channel the
+  // person had open, where everyone reading it saw "<name> is typing…" while they
+  // wrote a DM. Nothing in a DM should reach a channel at all.
+  unsubscribe('typing');
 
   subscribe('dm', 'dm:' + conversationId, {
     msg: (m) => onIncomingDM(conversationId, m),
@@ -97,8 +111,14 @@ function applyIncomingDM(conversationId, m) {
   if (m.seq) store.dmCursor = Math.max(store.dmCursor, m.seq);
   if (!claimMessage(m)) return;
   const list = $('messages');
+  // The channel path has always asked whether the reader is at the bottom before
+  // following it down. This did not: every arriving DM yanked whoever was reading
+  // back up the conversation to the newest message, with no pill and nothing to
+  // say what had happened. Reported by both organisations, and DMs are where they
+  // noticed it, because a DM is the one place a message always concerns you.
+  const stick = atBottom(list);
   appendMessage(list, m, 'dm');
-  list.scrollTop = list.scrollHeight;
+  if (stick) scrollDown(list); else showNewBelow();
   api.markDMRead(conversationId, m.seq).catch(() => {});
   bus.emit('message:new', { msg: m, dm: true });
 }
@@ -121,17 +141,22 @@ export async function reconcileDM() {
     const rows = Array.isArray(r?.messages) ? r.messages : [];
     if (!rows.length) break;
     const list = $('messages');
+    const stick = atBottom(list);
+    let landed = 0;
     for (const m of rows) {
       store.dmCursor = Math.max(store.dmCursor, m.seq || 0);
       dmGapBuffer.delete(m.seq);
       if (m.deleted_at) continue;
       if (!claimMessage(m)) continue;
       appendMessage(list, m, 'dm');
+      landed++;
       bus.emit('message:new', { msg: m, dm: true, healed: true });
     }
     await loadReactions(rows.map((m) => m.id));
     if (gen !== dmGen || store.currentDM !== conversationId) return;
-    list.scrollTop = list.scrollHeight;
+    // A healed message is still an arriving message: recovering what the socket
+    // dropped must not move somebody who is reading further up either.
+    if (stick) scrollDown(list); else if (landed) showNewBelow(landed);
     if (!r.more || page + 1 >= 5) break;
   }
 
@@ -168,7 +193,16 @@ export async function startDM(userId) {
     }
     await openDM(conv.id);
     renderChannels();
-  } catch (e) { toast(e.message, 'error'); }
+  } catch (e) {
+    // create_dm filters the recipients down to members of THIS Space and raises
+    // 'need_recipient' when none survive, so two people in different
+    // organisations cannot DM at all here. The raw error code told the person
+    // nothing, and this is the most likely thing to hit for the one account that
+    // is a member of both.
+    toast(/need_recipient/i.test(e.message || '')
+      ? 'That person is not in this Space, so there is no conversation to open. Switch to the Space you share with them.'
+      : (e.message || 'Could not start that conversation'), 'error');
+  }
 }
 
 export function newDMDialog() {

@@ -274,11 +274,22 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
 .sb-me-caret .ico { width: 14px; height: 14px; opacity: 0.6; }
 
 /* ============================================================================
-   THE COLUMN - left-aligned, not centred.
-   Centring the conversation inside the remaining space leaves a wide empty
-   gutter on the right and makes the app look like it is missing a panel. Slack
-   anchors the text to the left edge of the pane and lets the slack sit on the
-   right, which is what the eye expects when the navigation is on the left.
+   THE COLUMN
+
+   This used to left-align the column (margin-inline: 0 auto) on the argument
+   that a right-hand gutter makes the app look like it is missing a panel. The
+   argument was right and the implementation made it worse: with --reading-max at
+   a flat 1080px the gutter was 492px on a 1920 window, so instead of a small
+   asymmetry there was a third of the pane sitting empty behind a hard edge. Both
+   organisations reported it as the chat being cut off three quarters of the way
+   across the screen.
+
+   --reading-max is now min(1600px, 100%), so the column fills the pane outright
+   on every laptop and the cap only engages past 1920. Where it does engage the
+   remainder is split evenly, which reads as a deliberate measure rather than a
+   missing panel. Symmetry is only jarring when the gutter is large enough to
+   look like a hole, and above 1920 that split is what every reading surface
+   does.
    ========================================================================= */
 .msg,
 .daydiv,
@@ -290,7 +301,7 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
 #composerBar > #attachChips,
 #typing,
 #dmReceipt {
-  margin-inline: 0 auto;
+  margin-inline: auto;
 }
 
 /* ============================================================================

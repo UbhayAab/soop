@@ -151,6 +151,18 @@ function seg(items, current, onPick) {
   return host;
 }
 
+// Whatever door was used, the sheet has to hang off a control that is really in
+// the document. #hb-status only exists when the header button rendered INLINE,
+// and at order 95 it never does, so fall through to controls that are always
+// there. Prefer the one nearest the door that was used: the identity chip, since
+// both the user menu and the sidebar foot live in it.
+function statusAnchor() {
+  const chip = $('hstatusChip');
+  return document.getElementById('hb-status')
+    || (chip && !chip.classList.contains('hidden') ? chip : null)
+    || $('userMenu') || $('sidebarMe') || $('btnMore') || document.body;
+}
+
 function openStatusPopover(anchor, ui, api) {
   const p = store.myProfile || {};
   const box = el('div', 'hstatus-pop');
@@ -231,6 +243,13 @@ function openStatusPopover(anchor, ui, api) {
       try {
         await api.setPresenceStatus(value);
         myPresence = value;
+        // core/presence.js sends whatever this says on its liveness beat. Without
+        // telling it, the next beat wrote 'online' straight back over the choice
+        // and the picker was inert. shell.js paints it from store.myPresence, so
+        // the sidebar foot stops claiming "Active" the moment it changes.
+        store.myPresence = value;
+        bus.emit('presence:mine', value);
+        bus.emit('status:changed');
         btn.parentElement.querySelectorAll('button').forEach((n) => n.classList.remove('on'));
         btn.classList.add('on');
         ui.toast('Availability set to ' + value);
@@ -283,6 +302,18 @@ export function register({ ui, api }) {
 
   // #meName is static shell markup, so the listener can be attached immediately;
   // main.js only ever writes its textContent.
+  // Both #meName and the chip sit INSIDE <button id="userMenu">, and shell.js
+  // binds the user menu to that button. Without stopPropagation a click opened
+  // this sheet and then opened the context menu on top of it, whose own first
+  // mousedown dismissed the sheet again - so clicking your name looked like the
+  // status feature did not exist. The avatar and the caret still open the
+  // identity menu, which is where Sign out lives.
+  const openFrom = (anchor) => (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openStatusPopover(anchor, ui, api);
+  };
+
   const nameEl = $('meName');
   const chip = el('span', 'hstatus-chip hidden');
   chip.id = 'hstatusChip';
@@ -290,16 +321,30 @@ export function register({ ui, api }) {
     nameEl.parentElement.insertBefore(chip, nameEl.nextSibling);
     nameEl.style.cursor = 'pointer';
     nameEl.title = 'Set a status';
-    nameEl.addEventListener('click', () => openStatusPopover(nameEl, ui, api));
+    nameEl.addEventListener('click', openFrom(nameEl));
   }
-  chip.addEventListener('click', () => openStatusPopover(chip, ui, api));
+  chip.addEventListener('click', openFrom(chip));
+
+  // "Set a status" in the user menu, offered from BOTH identity controls - the
+  // top bar and the sidebar foot - emitted this event into nothing. Grep found
+  // exactly one hit for 'status:open' in the whole app: the emit. That menu item
+  // is the affordance people actually find, which is most of why the feature was
+  // reported as not existing.
+  bus.on('status:open', () => openStatusPopover(statusAnchor(), ui, api));
 
   headerDef = {
     id: 'status',
     label: icon('smile'),
     title: 'Your status and availability',
     order: 95,
-    onClick: (e) => openStatusPopover(e.currentTarget || document.getElementById('hb-status'), ui, api),
+    // order 95 is far past the inline cap of 4, so this button ALWAYS lands in
+    // the overflow menu - where shell.js replays the original #btnMore click long
+    // after dispatch ended. e.currentTarget is null by then, and #hb-status was
+    // never rendered either, so the old expression handed popover() null: it
+    // appended the sheet and THEN threw on getBoundingClientRect, leaving a fixed
+    // element with no coordinates parked off the bottom of the page. From the
+    // outside, a button that does nothing.
+    onClick: () => openStatusPopover(statusAnchor(), ui, api),
   };
   ui.addHeaderButton(headerDef);
 
@@ -358,7 +403,18 @@ export function register({ ui, api }) {
     scheduleExpiry();
     if (!store.me) return;
     const rows = await table('user_presence', (q) => q.eq('user_id', store.me));
-    if (rows[0]?.status) myPresence = rows[0].status;
+    // 'offline' is what app.reap_presence leaves behind between sessions; it is
+    // not a choice anybody made, so it must not become the picker's state or the
+    // word in the sidebar. Anything else is a hold this person set, which
+    // survives a reload because 0062 stops the beat downgrading it - so re-assert
+    // it to the beat rather than letting the session start at 'online'.
+    const saved = rows[0]?.status;
+    if (saved && saved !== 'offline') {
+      myPresence = saved;
+      store.myPresence = saved;
+      bus.emit('presence:mine', saved);
+      bus.emit('status:changed');
+    }
     if (!store.ws) return;
     try {
       const s = await api.notifySettings(store.ws.id);

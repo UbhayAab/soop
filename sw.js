@@ -7,7 +7,14 @@
 //    posts SKIP_WAITING.
 //  - The esm.sh dependencies are cached so the app opens offline instead of
 //    hanging on a module import.
-const VERSION = 'soop-v7';
+// Bumped for the delivery, scroll and layout fixes. The module URLs carry no
+// version of their own, so this string is the only cache-bust lever the app has:
+// activate() deletes every cache key that does not start with VERSION, which is
+// what drops the precached v7 copies of these files. Code is network-first
+// (below), but the precached copy is still what wins the 3.5s race on a slow
+// phone, so without this bump the 41 installed clients would keep serving the old
+// bundle whenever the network was slow - which is the shape of 03f8074.
+const VERSION = 'soop-v8';
 const SHELL = VERSION + '-shell';
 const VENDOR = VERSION + '-vendor';
 

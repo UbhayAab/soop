@@ -145,10 +145,29 @@ function scheduleReopen(d) {
 
 // Retry every down topic now, resetting backoff. Called when the environment
 // tells us the network came back, which is better information than a timer.
-export function retryAllNow() {
+//
+// `force` rebuilds topics that merely CLAIM to be joined, and that is the whole
+// reason this file owns a state machine. d.joined goes true on SUBSCRIBED and
+// goes false only when realtime-js reports CHANNEL_ERROR, TIMED_OUT or CLOSED -
+// and the failure this app actually suffers is the one where frames stop moving
+// and no status is ever reported: a phone that slept, a cell handover, a laptop
+// lid. probe-4 measures the socket still looking connected for about 35 seconds
+// after it has stopped carrying anything. In that window every topic is
+// joined:true behind a dead socket, `continue` skipped all of them, and nothing
+// short of a page reload ever rebuilt them. That is the client-side half of "I
+// have to refresh the site to see the latest messages".
+export function retryAllNow({ force = false } = {}) {
   for (const d of subs.values()) {
-    if (d.joined || d.dead) continue;
-    clearTimeout(d.timer); d.timer = null;
+    if (d.dead) continue;
+    if (d.joined && !force) continue;
+    // Already waiting on a reopen: leave it be, so a wake event and this file's
+    // own error handler cannot double-schedule the same rebuild.
+    if (d.timer) continue;
+    if (force && d.joined) {
+      // Nothing has told us this is down, so say so ourselves before rebuilding,
+      // or scheduleReopen's own `current(d)` bookkeeping still believes it is up.
+      d.joined = false;
+    }
     d.attempts = 0;
     scheduleReopen(d);
   }

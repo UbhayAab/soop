@@ -32,7 +32,7 @@ import { $, el, esc, debounce } from '../util.js';
 import { icon } from '../icons.js';
 import { SUPABASE_URL, PUBLISHABLE } from '../config.js';
 import { sb, accessToken } from '../sb.js';
-import { appendMessage, upgradeMessageRow, scrollDown } from '../core/messages.js';
+import { appendMessage, upgradeMessageRow, scrollDown, atBottom } from '../core/messages.js';
 import { threadState } from '../core/threads.js';
 import * as outbox from '../lib/outbox.js';
 import * as readcache from '../lib/readcache.js';
@@ -729,8 +729,10 @@ function setState(node, state, rec) {
   // which is the one state nobody can afford to miss. Follow it down - but only
   // if they were already at the bottom, never yanking someone out of history.
   if (state === 'failed' && node.closest('#messages')) {
-    const list = $('messages');
-    if (list && list.scrollHeight - list.scrollTop - list.clientHeight < 220) scrollDown();
+    // Deliberately the most generous slop in the app - a failed send is worth
+    // following - but through the shared test, so it also scales down on a short
+    // list instead of meaning "always".
+    if (atBottom($('messages'), 220)) scrollDown();
   }
 }
 
@@ -865,7 +867,11 @@ function ensureThreadRows(rows) {
       : (rec.attempts > 0 && navigator.onLine ? 'retrying' : rec.state), rec);
     added = true;
   }
-  if (added) host.scrollTop = host.scrollHeight;
+  // Only follow the panel down if the reader was already near the end of it.
+  // This runs on an outbox flush as well as on a send, so unconditionally
+  // pinning here threw a reader out of a thread they were reading back through
+  // the moment the connection returned.
+  if (added && atBottom(host, 200)) host.scrollTop = host.scrollHeight;
 }
 
 // Core restores the text into the thread textarea in its own catch block, which
