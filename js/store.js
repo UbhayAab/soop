@@ -8,6 +8,8 @@ export const store = {
   isAdmin: false,           // platform admin OR ADMINISTRATOR bit here
 
   spaces: [],               // every workspace I am a member of
+  orgs: [],                 // organisations I belong to; the rail groups by these
+  myPresence: 'online',     // my chosen availability, painted by the shell
   ws: null,                 // current workspace row
   categories: [],
   channels: [],

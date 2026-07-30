@@ -36,6 +36,9 @@ export async function table(name, build) {
 }
 
 export const api = {
+  // Escape hatch for RPCs that have no typed wrapper yet - the organisation
+  // layer (0064) calls several and they all take plain named arguments.
+  rpc,
   // ---------- identity + profile ----------
   setProfile: (p) => rpc('set_profile', {
     p_display_name: p.display_name ?? null, p_avatar_key: p.avatar_key ?? null,

@@ -1702,3 +1702,101 @@
   :root .forum-card:hover { transform: none; box-shadow: var(--e-1); }
   :root .forum-card:active { background: var(--c-surface-2); }
 }
+
+
+/* ============================================================================
+   THE ORGANISATION LAYER (0064)
+
+   The rail used to be a flat list of Spaces because there was nothing to group
+   by: every Space owned its own hidden organisation, so 150 Spaces meant 150
+   orgs and "which of these belong together" had no answer. Now an org holds many
+   team servers, and the rail says so - a small label above each org's run of
+   servers, and a "…" tile at the end of the run that opens the directory of the
+   ones this person has not joined.
+   ========================================================================= */
+:root .sorg-label {
+  flex: none;
+  width: 44px;
+  margin: var(--s-4) auto var(--s-1);
+  color: var(--c-nav-text-2);
+  font-size: var(--t-2xs);
+  font-weight: var(--t-bold);
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+}
+:root .sorg-sep {
+  flex: none;
+  width: 24px;
+  height: 1px;
+  margin: var(--s-4) auto 0;
+  background: var(--c-nav-border);
+}
+/* Quieter than a real server: it is a door, not a place. */
+:root .sicon.sorg-more {
+  background: transparent;
+  border: 1px dashed var(--c-nav-border);
+  color: var(--c-nav-text-2);
+  font-size: var(--t-lg);
+  line-height: 1;
+}
+:root .sicon.sorg-more:hover { border-color: var(--c-nav-text-2); color: var(--c-nav-text); }
+
+/* ---------------------------------------------------------------- directory */
+:root .orgdir-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin-bottom: var(--s-5);
+}
+:root .orgdir-head .muted { flex: 1 1 auto; min-width: 0; font-size: var(--t-sm); }
+:root .orgdir-list { display: flex; flex-direction: column; gap: var(--s-2); }
+:root .orgdir-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-surface);
+}
+:root .orgdir-row:hover { border-color: var(--c-accent); }
+:root .orgdir-ico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--c-surface-2) 100%, transparent);
+  filter: hue-rotate(calc(var(--h, 0) * 1deg));
+  font-size: var(--t-xs);
+  font-weight: var(--t-bold);
+}
+:root .orgdir-main { flex: 1 1 auto; min-width: 0; }
+:root .orgdir-sub { font-size: var(--t-xs); }
+:root .orgdir-locked { flex: none; font-size: var(--t-xs); }
+:root .orgdir-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-top: var(--s-6);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--c-border);
+}
+
+/* ---------------------------------------------------------------- people */
+:root .orgppl-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--c-border-subtle, var(--c-border));
+}
+:root .orgppl-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root .orgppl-row select { flex: none; }
+
+@media (max-width: 860px) {
+  :root .orgdir-head { flex-wrap: wrap; }
+  :root .orgdir-row { flex-wrap: wrap; }
+}

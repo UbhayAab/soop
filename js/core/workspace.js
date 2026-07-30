@@ -10,19 +10,54 @@ import { toast, formModal, modal, confirmModal, renderHeaderButtons } from '../u
 import { renderChannels, openChannel, refreshUnread, lastChannelId } from './channels.js';
 
 // ------------------------------------------------------------------ rail
+// The rail groups by ORGANISATION. Until 0064 there was nothing to group by:
+// create_space minted a fresh organizations row per Space, so every server was
+// its own org and the rail was a flat list of unrelated icons. Measured on the
+// live database before that migration: 150 workspaces, 150 organizations, and no
+// organization with more than one workspace - which is exactly the thing that was
+// reported as "a server itself is an organization".
+//
+// One group per org, its name above its servers, and the servers of an org that
+// this person has not joined reachable through the directory at the end of the
+// group rather than being invisible.
 export function renderSpaceRail() {
   const r = $('spaceRail');
   if (!r) return;
-  let h = '';
+  const orgs = store.orgs || [];
+  const byOrg = new Map();
   for (const s of store.spaces) {
+    const k = s.org_id || '';
+    if (!byOrg.has(k)) byOrg.set(k, []);
+    byOrg.get(k).push(s);
+  }
+
+  const icon = (s) => {
     const b = store.spaceBadges.get(s.id);
     const active = store.ws?.id === s.id;
-    h += `<div class="sicon${active ? ' active' : ''}" data-ws="${s.id}" title="${esc(s.name || '')}"
+    return `<div class="sicon${active ? ' active' : ''}" data-ws="${s.id}" title="${esc(s.name || '')}"
       style="--h:${hueOf(s.id)}">${esc(initials(s.name))}
       ${b?.mention_total ? `<span class="sbadge">${b.mention_total}</span>`
         : b?.unread_total ? '<span class="sdot"></span>' : ''}</div>`;
+  };
+
+  let h = '';
+  const placed = new Set();
+  for (const o of orgs) {
+    const mine = byOrg.get(o.org_id) || [];
+    // The label is what turns "five icons" into "these three are Jarurat Care".
+    // Only worth drawing when the person is actually in more than one org.
+    if (orgs.length > 1) h += `<div class="sorg-label" title="${esc(o.name)}">${esc(initials(o.name))}</div>`;
+    for (const s of mine) { h += icon(s); placed.add(s.id); }
+    // "in that org there can be multiple servers, which they can look into"
+    h += `<div class="sicon sorg-more" data-org="${o.org_id}"
+      title="Servers in ${esc(o.name)}">…</div>`;
+    if (orgs.length > 1) h += '<div class="sorg-sep"></div>';
   }
-  h += `<div class="sicon add" data-add="1" title="Create or join a Space">+</div>`;
+  // A Space whose org this person is not a member of - the demo Space, or one
+  // joined by a plain Space invite. Still theirs; just not under a heading.
+  for (const s of store.spaces) if (!placed.has(s.id)) h += icon(s);
+
+  h += `<div class="sicon add" data-add="1" title="Create or join">+</div>`;
   r.innerHTML = h;
   r.querySelectorAll('[data-ws]').forEach((n) => {
     n.onclick = () => {
@@ -30,6 +65,9 @@ export function renderSpaceRail() {
       if (s && s.id !== store.ws?.id) switchWorkspace(s);
     };
     n.oncontextmenu = (e) => { e.preventDefault(); spaceMenu(e, store.spaces.find((x) => x.id === n.dataset.ws)); };
+  });
+  r.querySelectorAll('[data-org]').forEach((n) => {
+    n.onclick = () => orgDirectory(n.dataset.org);
   });
   r.querySelector('[data-add]').onclick = spaceChooser;
 }
@@ -56,12 +94,193 @@ function spaceMenu(ev, s) {
 export async function loadSpaces() {
   const rows = await table('workspaces', (q) => q.order('created_at'));
   store.spaces = rows;
+  // Which organisations this person belongs to, for the rail's grouping and for
+  // "can I make a server here". tryRpc rather than rpc: a client that reaches a
+  // deployment without 0064 gets an empty list and the flat rail it had before,
+  // rather than a broken sign-in.
+  const [orgs] = await tryRpc('my_orgs', {});
+  store.orgs = Array.isArray(orgs) ? orgs : [];
   const [summary] = await tryRpc('get_space_summary', {});
   if (Array.isArray(summary)) {
     store.spaceBadges = new Map(summary.map((s) => [s.workspace_id, s]));
   }
   renderSpaceRail();
   return rows;
+}
+
+// ------------------------------------------------------------------ the directory
+// Every server in one organisation, joined or not, with who made it. This is the
+// surface the operator asked for: "in that org there can be multiple servers,
+// which they can look into", and "always show who made the server".
+export async function orgDirectory(orgId) {
+  const org = (store.orgs || []).find((o) => o.org_id === orgId);
+  const box = el('div', 'orgdir');
+  box.innerHTML = '<div class="muted pad">loading…</div>';
+  const m = modal({ title: org ? org.name : 'Servers', body: box, wide: true });
+
+  const paint = async () => {
+    const [rows] = await tryRpc('list_org_spaces', { p_org: orgId });
+    const list = Array.isArray(rows) ? rows : [];
+    const canAdmin = org?.org_role === 'admin';
+    box.innerHTML = `
+      <div class="orgdir-head">
+        <div class="muted">${list.length} server${list.length === 1 ? '' : 's'} in this organisation.
+          Anyone here can make one.</div>
+        <button class="sm" data-a="new">＋ New server</button>
+      </div>
+      <div class="orgdir-list">${list.map((s) => `
+        <div class="orgdir-row" data-id="${s.id}">
+          <span class="orgdir-ico" style="--h:${hueOf(s.id)}">${esc(initials(s.name))}</span>
+          <div class="orgdir-main">
+            <b>${esc(s.name)}</b>
+            <div class="muted orgdir-sub">
+              ${s.join_policy === 'open' ? '' : '🔒 invite only · '}made by ${esc(s.created_by_name || 'someone')}
+              · ${s.member_count} member${s.member_count === 1 ? '' : 's'}
+            </div>
+          </div>
+          ${s.is_member
+            ? '<button class="sm ghost" data-open="1">Open</button>'
+            : (s.join_policy === 'open' || canAdmin)
+              ? '<button class="sm" data-join="1">Join</button>'
+              : '<span class="muted orgdir-locked">Ask to be added</span>'}
+        </div>`).join('')
+      || '<div class="empty">No servers yet. Make the first one.</div>'}</div>
+      ${canAdmin ? `<div class="orgdir-foot">
+        <button class="sm ghost" data-a="invite">Invite people to ${esc(org.name)}</button>
+        <button class="sm ghost" data-a="people">People and roles</button>
+      </div>` : ''}`;
+
+    box.querySelector('[data-a="new"]').onclick = () => { m.close(); createTeamSpaceDialog(orgId); };
+    box.querySelector('[data-a="invite"]')?.addEventListener('click', () => { m.close(); orgInviteDialog(orgId); });
+    box.querySelector('[data-a="people"]')?.addEventListener('click', () => { m.close(); orgPeopleDialog(orgId); });
+    box.querySelectorAll('.orgdir-row').forEach((row) => {
+      const id = row.dataset.id;
+      row.querySelector('[data-open]')?.addEventListener('click', async () => {
+        m.close();
+        const s = store.spaces.find((x) => x.id === id);
+        if (s) await switchWorkspace(s);
+      });
+      row.querySelector('[data-join]')?.addEventListener('click', async () => {
+        try {
+          await api.rpc('join_team_space', { p_workspace: id });
+          await loadSpaces();
+          const s = store.spaces.find((x) => x.id === id);
+          m.close();
+          if (s) await switchWorkspace(s);
+          toast('Joined');
+        } catch (e) { toast(joinError(e), 'error'); }
+      });
+    });
+  };
+  await paint().catch(() => { box.innerHTML = '<div class="empty">Could not load the servers.</div>'; });
+}
+
+const joinError = (e) => (/invite_only/.test(e.message || '')
+  ? 'That server is invite only. Ask somebody inside it to add you.'
+  : /banned/.test(e.message || '') ? 'You cannot join that server.'
+  : e.message || 'Could not join');
+
+// ------------------------------------------------------------------ make a server
+export async function createTeamSpaceDialog(orgId) {
+  const org = (store.orgs || []).find((o) => o.org_id === orgId);
+  const out = await formModal({
+    title: 'New server' + (org ? ' in ' + org.name : ''),
+    note: 'A server is one team: HR, tech, design. It has its own channels and its '
+        + 'own members, and nobody outside it can read what is said inside.',
+    fields: [
+      { name: 'name', label: 'Server name', required: true, placeholder: 'HR' },
+      { name: 'join_policy', label: 'Who can join', type: 'select', value: 'invite',
+        options: [
+          { value: 'invite', label: 'Only people who are added (private)' },
+          { value: 'open', label: 'Anyone in ' + (org?.name || 'this organisation') },
+        ] },
+    ],
+    submitLabel: 'Create server',
+  });
+  if (!out) return;
+  try {
+    const ws = await api.rpc('create_team_space', {
+      p_org: orgId, p_name: out.name.trim(), p_join_policy: out.join_policy || 'invite',
+    });
+    await loadSpaces();
+    const s = store.spaces.find((x) => x.id === ws?.id) || ws;
+    if (s) await switchWorkspace(s);
+    toast('Created ' + (ws?.name || out.name));
+  } catch (e) { toast(e.message || 'Could not create that server', 'error'); }
+}
+
+// ------------------------------------------------------------------ org invite
+export async function orgInviteDialog(orgId) {
+  const org = (store.orgs || []).find((o) => o.org_id === orgId);
+  const out = await formModal({
+    title: 'Invite people to ' + (org?.name || 'this organisation'),
+    note: 'This link joins the ORGANISATION, not one server. Whoever opens it can '
+        + 'then see every server in it and join the open ones.',
+    fields: [
+      { name: 'role', label: 'They join as', type: 'select', value: 'member',
+        options: [
+          { value: 'member', label: 'Member - can see the servers and make new ones' },
+          { value: 'admin', label: 'Admin - can also invite, and open any server' },
+        ] },
+      { name: 'uses', label: 'How many people may use it', type: 'number',
+        placeholder: 'leave blank for no limit' },
+    ],
+    submitLabel: 'Create link',
+  });
+  if (!out) return;
+  try {
+    const token = await api.rpc('create_org_invite', {
+      p_org: orgId,
+      p_role: out.role || 'member',
+      p_max_uses: out.uses ? +out.uses : null,
+      p_expires_at: null,
+    });
+    const link = location.origin + location.pathname + '#/join-org/' + token;
+    await navigator.clipboard?.writeText(link).catch(() => {});
+    const body = el('div');
+    body.innerHTML = `<p class="muted">Send this to the people you want in
+      <b>${esc(org?.name || 'this organisation')}</b>. It is copied already.</p>
+      <input class="wide" readonly value="${esc(link)}" />`;
+    modal({ title: 'Join link', body });
+  } catch (e) { toast(e.message || 'Could not make a link', 'error'); }
+}
+
+// ------------------------------------------------------------------ org people
+export async function orgPeopleDialog(orgId) {
+  const org = (store.orgs || []).find((o) => o.org_id === orgId);
+  const box = el('div', 'orgppl');
+  box.innerHTML = '<div class="muted pad">loading…</div>';
+  modal({ title: 'People in ' + (org?.name || 'this organisation'), body: box, wide: true });
+  const paint = async () => {
+    const [rows] = await tryRpc('list_org_members', { p_org: orgId });
+    const list = Array.isArray(rows) ? rows : [];
+    box.innerHTML = list.map((p) => `
+      <div class="orgppl-row" data-u="${p.user_id}">
+        <span class="orgdir-ico" style="--h:${hueOf(p.user_id)}">${esc(initials(p.display_name))}</span>
+        <b class="orgppl-name">${esc(p.display_name)}</b>
+        <select data-role>
+          <option value="member"${p.org_role === 'member' ? ' selected' : ''}>Member</option>
+          <option value="admin"${p.org_role === 'admin' ? ' selected' : ''}>Admin</option>
+        </select>
+      </div>`).join('') || '<div class="empty">Nobody yet.</div>';
+    box.querySelectorAll('.orgppl-row').forEach((row) => {
+      row.querySelector('[data-role]').onchange = async (e) => {
+        const value = e.target.value;
+        try {
+          await api.rpc('set_org_role', { p_org: orgId, p_user: row.dataset.u, p_role: value });
+          toast('Role updated');
+          const o = (store.orgs || []).find((x) => x.org_id === orgId);
+          if (o && row.dataset.u === store.me) o.org_role = value;
+        } catch (err) {
+          toast(/last_admin/.test(err.message || '')
+            ? 'That is the only admin left. Make somebody else an admin first.'
+            : err.message || 'Could not change that role', 'error');
+          await paint();
+        }
+      };
+    });
+  };
+  await paint().catch(() => { box.innerHTML = '<div class="empty">Could not load the members.</div>'; });
 }
 
 // One round trip for the whole workspace. Falls back to individual queries when
@@ -213,16 +432,38 @@ export async function reloadChannels(openId) {
 // ------------------------------------------------------------------ create / join
 export async function spaceChooser() {
   const box = el('div', 'chooser');
+  const orgs = store.orgs || [];
+  // A server inside an organisation you are already in is the common case now,
+  // and it is what "let ppl make servers" asked for - so it is offered first,
+  // by name, and every member gets it rather than only admins. Starting a whole
+  // new organisation is the rare thing and reads as such.
   box.innerHTML = `
+    ${orgs.map((o) => `
+    <button class="chooser-card" data-org="${o.org_id}">
+      <div class="cc-ico">🏢</div><div><b>New server in ${esc(o.name)}</b>
+      <div class="muted">One team - HR, tech, design. Its own channels, its own
+        members, and nobody outside it can read them.</div></div>
+    </button>`).join('')}
+    ${orgs.map((o) => `
+    <button class="chooser-card" data-dir="${o.org_id}">
+      <div class="cc-ico">🗂️</div><div><b>Browse ${esc(o.name)}</b>
+      <div class="muted">${o.spaces} server${o.spaces === 1 ? '' : 's'} - see what exists and join.</div></div>
+    </button>`).join('')}
     <button class="chooser-card" data-a="create">
-      <div class="cc-ico">🏗️</div><div><b>Create a Space</b>
-      <div class="muted">Start a new organization. You become its admin and get an invite link to share.</div></div>
+      <div class="cc-ico">🏗️</div><div><b>Start a new organisation</b>
+      <div class="muted">A separate organisation of your own, unrelated to the ones above.</div></div>
     </button>
     <button class="chooser-card" data-a="join">
       <div class="cc-ico">🔗</div><div><b>Join with a link</b>
       <div class="muted">Someone sent you an invite link or code? Paste it here.</div></div>
     </button>`;
-  const m = modal({ title: 'Spaces', body: box });
+  const m = modal({ title: 'Servers', body: box });
+  box.querySelectorAll('[data-org]').forEach((n) => {
+    n.onclick = () => { m.close(); createTeamSpaceDialog(n.dataset.org); };
+  });
+  box.querySelectorAll('[data-dir]').forEach((n) => {
+    n.onclick = () => { m.close(); orgDirectory(n.dataset.dir); };
+  });
   box.querySelector('[data-a="create"]').onclick = () => { m.close(); createSpaceDialog(); };
   box.querySelector('[data-a="join"]').onclick = () => { m.close(); joinDialog(); };
 }

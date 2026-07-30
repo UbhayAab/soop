@@ -38,6 +38,10 @@ function hydrateIcons(root) {
 function route() {
   const h = location.hash || '';
   let m;
+  // An ORGANISATION link, which is the one the operator hands out. It places the
+  // person in the org and every open server in it, then the directory shows them
+  // the rest. Matched before #/join/ because that pattern would swallow it.
+  if ((m = h.match(/#\/join-org\/([^/?#]+)/))) return { kind: 'joinOrg', token: decodeURIComponent(m[1]) };
   if ((m = h.match(/#\/join\/([^/?#]+)/))) return { kind: 'join', token: decodeURIComponent(m[1]) };
   if ((m = h.match(/#\/m\/([0-9a-f-]{36})\/(\d+)/i))) return { kind: 'message', channelId: m[1], seq: +m[2] };
   if ((m = h.match(/#\/c\/([0-9a-f-]{36})/i))) return { kind: 'channel', channelId: m[1] };
@@ -103,14 +107,24 @@ async function enter() {
   if (await needsPasswordSetup()) { showAuth(); showSetPassword(s.user.email); return; }
   sb.realtime.setAuth(s.access_token);
 
-  // An invite in the URL is the whole multi-org story: open link, land in that Space.
+  // An invite in the URL is the whole multi-org story: open link, land in that
+  // Space - or, for an organisation link, in that organisation and every open
+  // server inside it.
   const r = route();
-  const pending = r.kind === 'join' ? r.token : takePendingInvite();
+  const pendingRaw = (r.kind === 'join' || r.kind === 'joinOrg') ? r.token : takePendingInvite();
+  const pendingIsOrg = r.kind === 'joinOrg' || (typeof pendingRaw === 'string' && pendingRaw.startsWith('org:'));
+  const pending = pendingIsOrg && typeof pendingRaw === 'string'
+    ? pendingRaw.replace(/^org:/, '') : pendingRaw;
   let joinedId = null;
+  let joinedOrg = null;
   if (pending) {
     try {
-      const wsRow = await api.redeemInvite(extractToken(pending));
-      joinedId = wsRow?.id || null;
+      if (pendingIsOrg) {
+        joinedOrg = await api.rpc('redeem_org_invite', { p_token: extractToken(pending) });
+      } else {
+        const wsRow = await api.redeemInvite(extractToken(pending));
+        joinedId = wsRow?.id || null;
+      }
     } catch (e) {
       toast(e.message || 'That invite link is not valid', 'error');
     }
@@ -134,12 +148,20 @@ async function enter() {
   // Space of 1571 strangers and, because the default below preferred the demo
   // slug, landed in it instead of their own. Only fall back to it when the
   // person genuinely belongs to nothing.
-  if (!store.spaces.length) {
+  // Somebody registered ahead of their organisation link - which is now the
+  // normal way in, since accounts are created first and the org link is sent
+  // after. Dropping them into a Space of 1571 strangers is worse than telling
+  // them the truth, so the demo fallback is only for a session that has no
+  // organisation either.
+  if (!store.spaces.length && !store.orgs.length) {
     await tryRpc('redeem_invite', { p_token: DEMO_TOKEN });
     await loadSpaces();
   }
 
   const active = store.spaces.find((x) => x.id === joinedId)
+    // Straight into the organisation they just joined, not whichever Space is
+    // oldest.
+    || (joinedOrg ? store.spaces.find((x) => x.org_id === joinedOrg.id) : null)
     || store.spaces.find((x) => x.slug !== 'demo')
     || store.spaces[0];
 
@@ -148,8 +170,11 @@ async function enter() {
     await applyRoute();
   } else {
     renderChannels();
-    $('messages').innerHTML =
-      '<div class="empty">You are not in a Space yet. Create one with <b>+</b> on the left, or open an invite link.</div>';
+    const org = store.orgs[0];
+    $('messages').innerHTML = org
+      ? `<div class="empty">You are in <b>${esc(org.name)}</b> but not in any of its servers yet.
+         Open the <b>…</b> button on the left to see them and join one.</div>`
+      : '<div class="empty">You are not in an organisation yet. Open the join link your admin sent you.</div>';
   }
   bus.emit('auth');
   paintInstallButton();
@@ -303,7 +328,10 @@ bus.on('thread:alsoSent', ({ message }) => {
 async function main() {
   // stash an invite arriving before sign-in so it survives the auth round trip
   const r = route();
+  // The org variant is tagged so the far side of the email round trip knows
+  // which RPC to redeem it with. Same 30 minute TTL, same reason.
   if (r.kind === 'join') stashPendingInvite(r.token);
+  if (r.kind === 'joinOrg') stashPendingInvite('org:' + r.token);
 
   initTheme();
   hydrateIcons(document);
