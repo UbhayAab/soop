@@ -7,14 +7,21 @@ export const PUBLISHABLE = 'sb_publishable_5gyvKj8AtZeXGDWVLYg3VA_Uwh4T4RD';
 // the app is never an empty room. Real Spaces are joined via #/join/<token>.
 export const DEMO_TOKEN = 'hearth-demo-open-2026';
 
-// Offer "email me a sign-in code" on the sign-in screen. Off: accounts here are
-// provisioned with a password, so there is nothing an emailed code verifies -
-// it only sends the person out to a mailbox that may demand its own device
-// verification before they can even read it, which is two other companies'
-// security checks standing between somebody and a chat app. Turn it back on
-// when this project has its own mailer and the code is the way in for new
-// people rather than a detour for people who already have an account.
+// Self sign-up: the two ways somebody could get an account without an operator.
+// Both are off. An account is provisioned, handed over with a password, and the
+// first sign-in forces the person to replace it - there is nothing for a code to
+// verify and nothing a guest session is for.
+//
+// CODE_SIGNIN also controls account CREATION, not just the button: requesting a
+// code ran signInWithOtp with shouldCreateUser, so asking for one conjured a
+// real account with no password and no Space.
+//
+// Turning either back on is only half the job. The server enforces both as well
+// (disable_signup and external_anonymous_users_enabled), so reopen it with
+// `node scripts/auth-config.mjs --open-signup` or the button will be visible and
+// still fail.
 export const CODE_SIGNIN = false;
+export const GUEST_SIGNIN = false;
 
 export const APP_NAME = 'Soop';
 export const APP_VENDOR = 'Redtree';

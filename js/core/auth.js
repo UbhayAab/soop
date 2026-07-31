@@ -3,7 +3,7 @@
 // cooldown, because a code screen that silently does nothing is the fastest way
 // to lose someone at the door.
 import { sb, session } from '../sb.js';
-import { CODE_SIGNIN } from '../config.js';
+import { CODE_SIGNIN, GUEST_SIGNIN } from '../config.js';
 import { api, tryRpc } from '../api.js';
 import { store } from '../store.js';
 import { $, el, esc } from '../util.js';
@@ -83,6 +83,10 @@ export function initAuth(onSignedIn) {
       busy(btn, false);
     }
   };
+  // Both ship hidden; these two lines are what put them back, so the flags in
+  // config.js are the only thing to change on the client.
+  $('guestBtn').classList.toggle('hidden', !GUEST_SIGNIN);
+  $('displayName').closest('.field').classList.toggle('hidden', !(GUEST_SIGNIN || CODE_SIGNIN));
 
   // ---- password sign-in ----
   // The interim path while the organisations finish their own mailer: accounts
@@ -179,7 +183,11 @@ export function initAuth(onSignedIn) {
       const { error } = await sb.auth.signInWithOtp({
         email,
         options: {
-          shouldCreateUser: true,
+          // Never conjure an account. This was true, so asking for a code was a
+          // silent sign-up: somebody not on any roster got a real account with
+          // no password and no Space, and an app with nothing in it. A code is
+          // for getting back into an account that already exists.
+          shouldCreateUser: false,
           // The link has to come back to THIS page, including when the mail app
           // opens it in a fresh tab.
           emailRedirectTo: location.origin + location.pathname,
