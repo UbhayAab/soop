@@ -169,6 +169,41 @@
   cursor: default;
 }
 
+/* ---------------------------------------------------------- NO TEAM YET
+   The screen for an account that belongs to nothing. It replaced being dumped
+   into a 1770-member demo Space, which was neither their team nor fast enough
+   to finish loading on a phone - and when it did not finish, the shell had
+   painted and the conversation had not, which is what "blank screen" was. This
+   has to look deliberate rather than like a failure, because the person reading
+   it has just been told twice that something is wrong with their password. */
+.noteam {
+  max-width: 420px;
+  margin: auto;
+  padding: var(--s-8) var(--s-6) calc(var(--s-8) + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  text-align: left;
+}
+.noteam h2 {
+  font-size: var(--t-xl);
+  font-weight: var(--t-bold);
+  color: var(--c-text);
+  line-height: var(--t-snug);
+}
+.noteam .field { margin-bottom: 0; }
+.noteam .fineprint { margin-top: var(--s-2); }
+
+/* Chrome that only means something once you are inside a Space. A channel bar
+   showing a lone "#", a "Search this Space" over no Space, and a composer
+   inviting you to "pick a channel" when there are none to pick, are three more
+   things telling somebody their account is broken when it is not. */
+body.no-team #channelbar,
+body.no-team #composerBar,
+body.no-team #globalSearch,
+body.no-team #navToggle { display: none; }
+body.no-team #messages { padding: 0; }
+
 .fineprint {
   margin-top: var(--s-1);
   font-size: var(--t-xs);

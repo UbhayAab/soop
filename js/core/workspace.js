@@ -504,10 +504,20 @@ export async function joinDialog() {
   } catch (e) { toast(e.message || 'That invite did not work', 'error'); }
 }
 
+// Accepts the whole link, the hash alone, or a bare token. `join-org` has to be
+// matched too and has to be matched FIRST: `join\/` alone does not match
+// "join-org/", so an organisation link pasted whole came back as the entire URL
+// and was then sent to the server as if it were the token. Nobody is going to
+// pull a token out of a URL by hand on a phone, so every shape the link arrives
+// in has to work.
 export const extractToken = (s) => {
-  const m = (s || '').match(/join\/([^/?#\s]+)/);
+  const m = (s || '').match(/join-org\/([^/?#\s]+)/) || (s || '').match(/join\/([^/?#\s]+)/);
   return m ? decodeURIComponent(m[1]) : (s || '').trim();
 };
+
+// Which redeem an invite string is for, when the app has to choose. Only the
+// link form says; a bare token does not, and the caller falls back.
+export const looksLikeOrgInvite = (s) => /join-org\//.test(s || '');
 
 export function inviteLinkFor(token) {
   return location.origin + location.pathname + '#/join/' + token;

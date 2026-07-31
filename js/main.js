@@ -1,12 +1,11 @@
 // Bootstrap: sign in, load the Space, wire the shell, register features.
-import { DEMO_TOKEN } from './config.js';
 import { sb, session } from './sb.js';
 import { api, tryRpc } from './api.js';
 import { store, bus, nameOf } from './store.js';
 import { $, el, esc } from './util.js';
 import ui, { toast, openPanel, closePanel, renderHeaderButtons, modal, closePopovers } from './ui.js';
 import { initAuth, showAuth, showChat, needsPasswordSetup, showSetPassword } from './core/auth.js';
-import { loadSpaces, switchWorkspace, spaceChooser, inviteDialog, copyInvite, extractToken } from './core/workspace.js';
+import { loadSpaces, switchWorkspace, spaceChooser, inviteDialog, copyInvite, extractToken, looksLikeOrgInvite } from './core/workspace.js';
 import { openChannel, renderChannels, wireScroll, refreshUnread, jumpToSeq,
   paintLastChannelFromCache } from './core/channels.js';
 import { initComposer, setReply, resolveMentions } from './core/composer.js';
@@ -184,11 +183,14 @@ async function enter() {
   // after. Dropping them into a Space of 1571 strangers is worse than telling
   // them the truth, so the demo fallback is only for a session that has no
   // organisation either.
-  if (!store.spaces.length && !store.orgs.length) {
-    await tryRpc('redeem_invite', { p_token: DEMO_TOKEN });
-    await loadSpaces();
-  }
-
+  // The demo Space used to catch anybody who belonged to nothing. It has 1770
+  // members and 3095 messages, and dropping a new colleague into it was wrong
+  // twice over: it is not their team, and it is by far the heaviest Space in the
+  // project, so on a phone on mobile data the bootstrap for it is the slowest
+  // thing the app ever does. When it did not finish, the shell had already
+  // painted and the conversation had not - which is the blank screen people kept
+  // reporting right after choosing their password. Somebody who belongs to
+  // nothing now gets a screen that says so and can act on it.
   const active = store.spaces.find((x) => x.id === joinedId)
     // Straight into the organisation they just joined, not whichever Space is
     // oldest.
@@ -197,18 +199,97 @@ async function enter() {
     || store.spaces[0];
 
   if (active) {
+    document.body.classList.remove('no-team');
     await switchWorkspace(active);
     await applyRoute();
   } else {
     renderChannels();
-    const org = store.orgs[0];
-    $('messages').innerHTML = org
-      ? `<div class="empty">You are in <b>${esc(org.name)}</b> but not in any of its servers yet.
-         Open the <b>…</b> button on the left to see them and join one.</div>`
-      : '<div class="empty">You are not in an organisation yet. Open the join link your admin sent you.</div>';
+    // A route may still be pending - somebody who opened an org link, was sent
+    // to sign in, and came back. Redeem it before concluding they have nothing.
+    await applyRoute();
+    if (!store.spaces.length) showNoTeam();
   }
   bus.emit('auth');
   paintInstallButton();
+}
+
+// ------------------------------------------------------------------ no team
+// The screen for somebody who has an account and belongs to nothing yet. It has
+// to do three things the old empty <div> did not: say plainly that this is not
+// broken, give them something to DO without waiting for anybody, and accept the
+// link in the form it actually reaches them - pasted whole out of WhatsApp,
+// where nobody is going to extract a token from a URL by hand.
+export function showNoTeam(msg) {
+  const org = store.orgs[0];
+  const box = $('messages');
+  // Everything that only makes sense once you are in a Space comes off: the
+  // channel bar with its lone "#", the Space search, the composer telling them
+  // to "pick a channel" when there are none. Leaving that chrome around the
+  // message is what still made it read as broken rather than as a step.
+  document.body.classList.add('no-team');
+  box.innerHTML = `
+    <div class="noteam">
+      <h2>${org ? `You are in ${esc(org.name)}` : 'You are signed in'}</h2>
+      <p class="muted">${org
+        ? 'You are not in any of its servers yet. Paste the invite your admin sent you, or ask them to add you to one.'
+        : 'You are not part of a team yet. Paste the invite link or code your admin sent you.'}</p>
+      <label class="field"><span class="field-label">Invite link or code</span>
+        <input id="joinCode" placeholder="Paste the whole link, or just the code" autocomplete="off" /></label>
+      <button id="joinGo" class="wide">Join</button>
+      <div id="joinErr" class="autherr hidden"></div>
+      <p class="muted fineprint">Nothing is wrong with your account and your password is saved.
+        You just have not been added to a team yet.</p>
+    </div>`;
+  if (msg) { $('joinErr').textContent = msg; $('joinErr').classList.remove('hidden'); }
+
+  const go = async () => {
+    const raw = $('joinCode').value.trim();
+    if (!raw) return;
+    const btn = $('joinGo');
+    btn.disabled = true;
+    const was = btn.textContent;
+    btn.textContent = '…';
+    $('joinErr').classList.add('hidden');
+    try {
+      // Accept every shape the same link arrives in: the full URL, the hash
+      // alone, or the bare token. An org token and a Space token are different
+      // RPCs and the link does not always say which, so try the org first and
+      // fall back rather than making somebody guess which kind they were sent.
+      const token = extractToken(raw);
+      const isOrg = looksLikeOrgInvite(raw);
+      let landed = null;
+      if (isOrg) {
+        const o = await api.rpc('redeem_org_invite', { p_token: token });
+        landed = o?.name;
+      } else {
+        try {
+          const ws = await api.redeemInvite(token);
+          landed = ws?.name;
+        } catch {
+          const o = await api.rpc('redeem_org_invite', { p_token: token });
+          landed = o?.name;
+        }
+      }
+      await loadSpaces();
+      const s = store.spaces[0];
+      if (s) {
+        document.body.classList.remove('no-team');
+        await switchWorkspace(s);
+        toast('You are in ' + (landed || s.name), 'success');
+      } else {
+        throw new Error('That invite was accepted but did not put you in a server. Ask your admin to add you to one.');
+      }
+    } catch (e) {
+      $('joinErr').textContent = /not valid|invalid|expired|revoked/i.test(e.message || '')
+        ? 'That link or code is not valid any more. Ask your admin for a fresh one.'
+        : (e.message || 'Could not join with that');
+      $('joinErr').classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = was;
+    }
+  };
+  $('joinGo').onclick = go;
+  $('joinCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
 }
 
 function subscribeUser(uid) {
