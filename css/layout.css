@@ -150,6 +150,25 @@
   line-height: var(--t-snug);
 }
 
+/* Bullets inside the error notice: the failure is usually one of two or three
+   specific things, and naming them is the difference between a person fixing it
+   themselves and a person messaging the operator. */
+.autherr ul {
+  margin: var(--s-3) 0 0;
+  padding-left: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.autherr li { line-height: var(--t-loose); }
+
+/* The account field on the password-change screen. It exists for the password
+   manager; it must not look like something to fill in. */
+#pwUser {
+  color: var(--c-text-2);
+  cursor: default;
+}
+
 .fineprint {
   margin-top: var(--s-1);
   font-size: var(--t-xs);

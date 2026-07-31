@@ -7,6 +7,15 @@ export const PUBLISHABLE = 'sb_publishable_5gyvKj8AtZeXGDWVLYg3VA_Uwh4T4RD';
 // the app is never an empty room. Real Spaces are joined via #/join/<token>.
 export const DEMO_TOKEN = 'hearth-demo-open-2026';
 
+// Offer "email me a sign-in code" on the sign-in screen. Off: accounts here are
+// provisioned with a password, so there is nothing an emailed code verifies -
+// it only sends the person out to a mailbox that may demand its own device
+// verification before they can even read it, which is two other companies'
+// security checks standing between somebody and a chat app. Turn it back on
+// when this project has its own mailer and the code is the way in for new
+// people rather than a detour for people who already have an account.
+export const CODE_SIGNIN = false;
+
 export const APP_NAME = 'Soop';
 export const APP_VENDOR = 'Redtree';
 export const VERSION = '0.3.0';

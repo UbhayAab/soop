@@ -89,25 +89,39 @@
            first, which reads as a registration form to somebody who already has
            an account, and it is not even used by the password path - only by the
            guest and OTP paths, which is where it now lives. -->
-      <div id="emailStep">
+      <!-- A real <form> rather than two inputs and a click handler, because the
+           password manager is a participant here, not a bystander. Chrome,
+           Safari and Samsung Pass decide "this was a sign-in" and "this was a
+           password change" from form submission, and with no form they decide
+           neither: they keep the temporary password they saved on day one and
+           autofill it forever. That is what the "I set my own password and it
+           says it is wrong" reports actually were. -->
+      <form id="emailStep" novalidate>
         <label class="field"><span class="field-label">Email</span>
           <input id="email" type="email" placeholder="you@gmail.com" autocomplete="email" inputmode="email" /></label>
         <label class="field"><span class="field-label">Password</span>
           <input id="password" type="password" placeholder="Your password" autocomplete="current-password" /></label>
-        <button id="pwSignIn" class="wide">Sign in</button>
-      </div>
+        <button id="pwSignIn" type="submit" class="wide">Sign in</button>
+      </form>
 
       <!-- Provisioned accounts arrive with a temporary password and are made to
            replace it before they can use the app. -->
-      <div id="setPwStep" class="hidden">
+      <form id="setPwStep" class="hidden" novalidate>
         <p class="muted">Welcome<span id="pwWho"></span>. Choose a password before you continue - the temporary one stops working now.</p>
+        <!-- Readonly, and deliberately on screen. A change-password form with no
+             username field gives the password manager nothing to attach the new
+             password to, so it either saves it under the wrong account or does
+             not offer to save it at all. Showing it also answers the question
+             people ask at this exact moment: which account am I setting this for. -->
+        <label class="field"><span class="field-label">Account</span>
+          <input id="pwUser" type="email" autocomplete="username" readonly tabindex="-1" /></label>
         <label class="field"><span class="field-label">New password</span>
           <input id="newPw" type="password" placeholder="At least 8 characters" autocomplete="new-password" /></label>
         <label class="field"><span class="field-label">Confirm password</span>
           <input id="newPw2" type="password" placeholder="Type it again" autocomplete="new-password" /></label>
         <div id="pwMeter" class="pwmeter"><i></i></div>
-        <button id="pwSave" class="wide">Set password and continue</button>
-      </div>
+        <button id="pwSave" type="submit" class="wide">Set password and continue</button>
+      </form>
 
       <div id="otpStep" class="hidden">
         <p class="muted">Check <b id="otpTarget"></b>. Open the email and either
@@ -131,7 +145,15 @@
         <div class="or"><span>or</span></div>
         <label class="field"><span class="field-label">Your name</span>
           <input id="displayName" placeholder="Only needed for the options below" maxlength="40" autocomplete="name" /></label>
-        <button id="otpSend" class="ghost wide sm">Email me a sign-in code instead</button>
+        <!-- Hidden, not deleted. Asking somebody to go and read an email turned
+             out to be the worst thing on this screen: the address is often on a
+             mail host that makes them verify a device before they can open the
+             inbox, so a person who only wanted to sign in ends up doing two
+             other companies' security checks first. An account here is handed
+             out with a password; there is nothing to verify. The whole path
+             stays wired and comes back by flipping CODE_SIGNIN in js/config.js
+             once the project has its own mailer. -->
+        <button id="otpSend" class="ghost wide sm hidden">Email me a sign-in code instead</button>
         <button id="guestBtn" class="ghost wide sm">Look around as a guest</button>
         <p class="muted fineprint">A guest session is a real account without an email, and it drops you in the open demo Space rather than any organisation. If you were given an account, sign in above instead. <span class="byline">A Redtree product.</span></p>
       </div>

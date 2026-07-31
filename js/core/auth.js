@@ -3,6 +3,7 @@
 // cooldown, because a code screen that silently does nothing is the fastest way
 // to lose someone at the door.
 import { sb, session } from '../sb.js';
+import { CODE_SIGNIN } from '../config.js';
 import { api, tryRpc } from '../api.js';
 import { store } from '../store.js';
 import { $, el, esc } from '../util.js';
@@ -14,11 +15,22 @@ let resendTimer = null;
 const show = (id) => { $(id).classList.remove('hidden'); };
 const hide = (id) => { $(id).classList.add('hidden'); };
 
-function authError(msg) {
+function authError(msg, causes) {
   const e = $('authErr');
   e.textContent = msg || '';
+  if (msg && causes?.length) {
+    const ul = el('ul');
+    for (const c of causes) ul.appendChild(el('li', '', esc(c)));
+    e.appendChild(ul);
+  }
   e.classList.toggle('hidden', !msg);
 }
+
+// Whether the person actually typed into the password box, as opposed to the
+// browser filling it. Autofill selects a value without a keystroke or a paste,
+// so "no key was ever pressed in this field" is a good enough read on it - and
+// it is the case that needs a different answer when sign-in fails.
+let pwWasTyped = false;
 
 function busy(btn, on, label) {
   btn.disabled = on;
@@ -78,31 +90,62 @@ export function initAuth(onSignedIn) {
   // forces a real one.
   const passwordSignIn = async () => {
     const email = $('email').value.trim();
-    const password = $('password').value;
+    const typed = $('password').value;
     if (!/^\S+@\S+\.\S+$/.test(email)) return authError('Enter a valid email address');
-    if (!password) return authError('Enter your password');
+    if (!typed) return authError('Enter your password');
     const btn = $('pwSignIn');
     busy(btn, true);
     authError('');
     try {
-      const { error } = await sb.auth.signInWithPassword({ email, password });
+      // A password is whatever bytes were chosen, so it is never silently
+      // rewritten - but a temporary password handed out over WhatsApp is copied,
+      // and a long-press copy on Android takes the trailing space with it.
+      // gotrue rejects that as a wrong password with no way to tell the
+      // difference. So: try exactly what was entered, and only if that is
+      // refused, try it again without the surrounding whitespace.
+      let { error } = await sb.auth.signInWithPassword({ email, password: typed });
+      const trimmed = typed.trim();
+      if (error && /invalid login/i.test(error.message || '') && trimmed && trimmed !== typed) {
+        ({ error } = await sb.auth.signInWithPassword({ email, password: trimmed }));
+      }
       if (error) throw error;
       if (await needsPasswordSetup()) { showSetPassword(email); return; }
       await onSignedIn();
     } catch (e) {
-      authError(/invalid login/i.test(e.message || '')
-        ? 'That email and password do not match. Check with whoever set up your account.'
-        : e.message);
+      if (/invalid login/i.test(e.message || '')) {
+        // "Check with whoever set up your account" was the whole message, and it
+        // is the one thing that does not help: it is not the operator's mistake
+        // in either of the two cases that actually happen. Name them instead.
+        const causes = [];
+        if (!pwWasTyped) {
+          causes.push('Your browser filled the password in for you, and it may still be holding the '
+            + 'temporary one from your first sign-in. Clear the box and type the password you chose.');
+        }
+        causes.push('Your account may be under a different email address - most people were added '
+          + 'with a personal address, not a work one. Try the other one.');
+        causes.push('If neither works, ask the person who set this up to reset you. Nobody can see '
+          + 'your password, so it can only be replaced, never looked up.');
+        authError('That email and password do not match.', causes);
+      } else {
+        authError(e.message);
+      }
       busy(btn, false);
     }
   };
-  $('pwSignIn').onclick = passwordSignIn;
-  $('password').addEventListener('keydown', (e) => { if (e.key === 'Enter') passwordSignIn(); });
+  $('emailStep').addEventListener('submit', (e) => { e.preventDefault(); passwordSignIn(); });
+  // keydown, not input: autofill writes a value without either, and telling the
+  // two apart is what lets the failure message name the right cause.
+  $('password').addEventListener('keydown', () => { pwWasTyped = true; });
+  $('password').addEventListener('paste', () => { pwWasTyped = true; });
 
   // ---- forced password change ----
   const savePassword = async () => {
-    const a = $('newPw').value;
-    const b = $('newPw2').value;
+    // Trimmed on the way IN, which is the half that matters. A stray space
+    // pasted here is stored as part of the password forever, and the person then
+    // types the password they think they chose and is told it is wrong - with no
+    // way for anyone to work out why, because nobody can read the password back.
+    const a = $('newPw').value.trim();
+    const b = $('newPw2').value.trim();
     if (a.length < 8) return authError('Use at least 8 characters');
     if (a !== b) return authError('Those two passwords do not match');
     const btn = $('pwSave');
@@ -113,14 +156,16 @@ export function initAuth(onSignedIn) {
       if (error) throw error;
       // Only drop the latch once GoTrue has actually accepted the new password.
       await api.completePasswordSetup();
+      // The password manager saved the temporary password on the way in. Leave
+      // the new one where it can find it and let the form's submit be what it
+      // reads, rather than being asked to guess from a SPA that never navigates.
       await onSignedIn();
     } catch (e) {
       authError(e.message || 'Could not set that password');
       busy(btn, false);
     }
   };
-  $('pwSave').onclick = savePassword;
-  $('newPw2').addEventListener('keydown', (e) => { if (e.key === 'Enter') savePassword(); });
+  $('setPwStep').addEventListener('submit', (e) => { e.preventDefault(); savePassword(); });
   $('newPw').addEventListener('input', () => paintStrength($('newPw').value));
 
   // ---- request a code ----
@@ -153,8 +198,12 @@ export function initAuth(onSignedIn) {
       authError(msg);
     } finally { busy(btn, false); }
   };
+  // Enter in the email box submits the sign-in form now, which is the path
+  // almost everyone here is on. Requesting a code is an explicit button press.
   $('otpSend').onclick = sendCode;
-  $('email').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendCode(); });
+  // The button ships hidden; this is what puts it back, so the flag is the only
+  // thing to change when the mailer exists.
+  $('otpSend').classList.toggle('hidden', !CODE_SIGNIN);
 
   // ---- verify ----
   const verify = async () => {
@@ -238,6 +287,9 @@ export function showSetPassword(email) {
   hide('otpStep');
   show('setPwStep');
   $('pwWho').textContent = email ? `, ${email}` : '';
+  // The password manager needs a username on this form or it has nothing to file
+  // the new password against - see the comment on #pwUser in index.html.
+  $('pwUser').value = email || '';
   authError('');
   setTimeout(() => $('newPw').focus(), 40);
 }
