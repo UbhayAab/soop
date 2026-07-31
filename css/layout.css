@@ -972,14 +972,24 @@ body.nav-open #messages::after {
        the tap-to-close target, and it keeps the drawer from reading as a page. */
     width: min(var(--sidebar-w), calc(100vw - var(--rail-w) - var(--s-12)));
     padding-bottom: calc(var(--s-9) + env(safe-area-inset-bottom));
-    box-shadow: var(--e-3);
+    /* No shadow while closed. transform moves the BOX off screen, but a shadow
+       is painted outside the box, so a 28px blur on a drawer parked at the left
+       edge spills 28px of grey back onto the conversation - down the full height
+       of the phone, permanently, with the drawer shut. Measured: a gradient from
+       #f0f1f2 at x=0 fading to white by x=28, which reads as one very thick
+       smudged separator hugging the left side and nothing else.
+       The lift belongs to the drawer while it is over the content; parked, it is
+       not over anything. Transitioned with the slide so it does not snap on. */
+    box-shadow: none;
     pointer-events: none;
     transform: translateX(calc(-100% - var(--rail-w)));
-    transition: transform var(--m-slow) var(--m-out);
+    transition: transform var(--m-slow) var(--m-out),
+                box-shadow var(--m-slow) var(--m-out);
   }
   body.nav-open #sidebar {
     pointer-events: auto;
     transform: none;
+    box-shadow: var(--e-3);
   }
 
   /* uxfix.js drops .ux-one-space on the body when there is nothing to switch
