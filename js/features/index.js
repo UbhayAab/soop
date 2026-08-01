@@ -12,6 +12,7 @@ const FEATURES = [
   'forum',
   'later',
   'status',
+  'profile',
   'admin',
   'moderation',
   'integrations',

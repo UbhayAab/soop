@@ -11,7 +11,7 @@
 // JWT rather than trusting anything sent from here.
 import { store } from '../store.js';
 import { el, esc } from '../util.js';
-import { api } from '../api.js';
+import { api, table } from '../api.js';
 import { sb } from '../sb.js';
 import { SUPABASE_URL } from '../config.js';
 
@@ -181,6 +181,53 @@ async function drawPeople(host, ctx, ui) {
 
   host.appendChild(el('h4', 'sec', 'Add people to ' + (org.name || 'this organisation')));
   addPeopleForm(host, ctx, ui, org);
+
+  // ---------------------------------------------------------- identity policy
+  // The per-organisation decision about who may change a name or a title. It
+  // lives next to Add people because both are things an admin does to somebody
+  // else's account, and because "why can they not fix their own name" is
+  // answered here.
+  host.appendChild(el('h4', 'sec', 'Names and titles'));
+  const pol = el('div', 'admin-form');
+  // store.orgs comes from list_my_orgs, which does not carry the policy, so read
+  // the row. Defaults to "anyone" if the read is refused, which is how the
+  // product behaved before this existed.
+  let cur = {};
+  try {
+    const rows = await table('organizations', (q) => q.eq('id', org.org_id));
+    cur = rows?.[0]?.identity_policy || {};
+  } catch { cur = {}; }
+  const opts = (v) => ['anyone', 'admins', 'locked'].map((o) =>
+    `<option value="${o}"${(v || 'anyone') === o ? ' selected' : ''}>${
+      { anyone: 'Anyone can change their own', admins: 'Only admins can set it', locked: 'Locked, nobody can change it' }[o]
+    }</option>`).join('');
+  pol.innerHTML = `
+    <p class="muted">Some organisations want these to match what HR holds; others
+      want people to write their own. <b>Locked</b> applies to admins too, so the
+      organisation can say a field has not been touched since it was set.</p>
+    <label class="field"><span class="field-label">Names</span>
+      <select id="polName">${opts(cur.name)}</select></label>
+    <label class="field"><span class="field-label">Titles</span>
+      <select id="polTitle">${opts(cur.title)}</select></label>
+    <label class="field"><span class="field-label">Pronouns</span>
+      <select id="polPronouns">${opts(cur.pronouns)}</select></label>
+    <button id="polSave" class="wide">Save these rules</button>`;
+  host.appendChild(pol);
+  pol.querySelector('#polSave').onclick = async () => {
+    const btn = pol.querySelector('#polSave');
+    btn.disabled = true;
+    try {
+      const saved = await api.setOrgIdentityPolicy(org.org_id, {
+        name: pol.querySelector('#polName').value,
+        title: pol.querySelector('#polTitle').value,
+        pronouns: pol.querySelector('#polPronouns').value,
+      });
+      cur = saved;
+      ui.toast('Saved', 'success');
+    } catch (e) {
+      ui.toast(e.message || 'Could not save that', 'error');
+    } finally { btn.disabled = false; }
+  };
 
   host.appendChild(el('h4', 'sec', 'Who has got in'));
   const board = el('div');

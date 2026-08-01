@@ -40,6 +40,23 @@ export const api = {
   // layer (0064) calls several and they all take plain named arguments.
   rpc,
   // ---------- identity + profile ----------
+  // ---------- identity (0067) ----------
+  // Title is descriptive and carries no access; roles are still roles.
+  myIdentityRules: () => rpc('my_identity_rules', {}),
+  setMyIdentity: (p) => rpc('set_my_identity', {
+    p_display_name: p.display_name ?? null,
+    p_title: p.title ?? null,
+    p_pronouns: p.pronouns ?? null,
+    p_avatar_key: p.avatar_key ?? null,
+  }),
+  adminSetMemberIdentity: (org, user, p) => rpc('admin_set_member_identity', {
+    p_org: org, p_user: user,
+    p_display_name: p.display_name ?? null,
+    p_title: p.title ?? null,
+    p_pronouns: p.pronouns ?? null,
+  }),
+  setOrgIdentityPolicy: (org, policy) => rpc('set_org_identity_policy', { p_org: org, p_policy: policy }),
+
   setProfile: (p) => rpc('set_profile', {
     p_display_name: p.display_name ?? null, p_avatar_key: p.avatar_key ?? null,
     p_pronouns: p.pronouns ?? null, p_status_text: p.status_text ?? null,

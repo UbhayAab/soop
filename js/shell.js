@@ -62,7 +62,11 @@ export function paintIdentity() {
 function userMenu(ev) {
   const themeName = THEMES.find((t) => t.id === effectiveTheme())?.name || 'Theme';
   contextMenu(ev, [
+    // First, because a wrong name is the thing people notice about themselves
+    // and could do nothing about until now.
+    { label: 'Your profile', onClick: () => bus.emit('identity:open') },
     { label: 'Set a status', onClick: () => bus.emit('status:open') },
+    { label: 'Change your password', onClick: () => bus.emit('password:open') },
     { label: 'Pause notifications', onClick: () => openPanel('notifications') },
     '-',
     { label: `Appearance: ${themeName}`, onClick: () => {
