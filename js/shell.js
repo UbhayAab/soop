@@ -126,6 +126,74 @@ export function paintChannelBar() {
 }
 
 // ------------------------------------------------------------------ init
+// ------------------------------------------------------------------ connection
+// sb.js has always known when delivery is down - every topic reports its status
+// and realtimeHealth() answers "is anything being delivered right now" - and the
+// app never told anybody. A socket carrying nothing looks exactly like a channel
+// where nobody is talking, and the only way to find out was to send a message
+// and watch it not arrive.
+//
+// Two rules keep this from becoming wallpaper:
+//   - it appears ONLY when something is wrong, so its absence is the good news
+//     and nobody learns to ignore a permanent green light;
+//   - it waits before appearing. A rejoin after a tunnel takes a second or two
+//     and flashing a red bar at every one of those is worse than saying nothing.
+const CONN_GRACE_MS = 3500;
+
+function initConnectionState() {
+  const bar = $('connState');
+  if (!bar) return;
+  const text = $('connStateText');
+  let downSince = 0;
+  let timer = null;
+
+  const paint = () => {
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const down = offline || (downSince && Date.now() - downSince >= CONN_GRACE_MS);
+    bar.classList.toggle('hidden', !down);
+    if (down) {
+      text.textContent = offline ? 'No connection' : 'Reconnecting…';
+      bar.classList.toggle('offline', !!offline);
+    }
+  };
+
+  const markDown = () => {
+    if (!downSince) downSince = Date.now();
+    clearTimeout(timer);
+    timer = setTimeout(paint, CONN_GRACE_MS);
+    paint();
+  };
+  const markUp = () => {
+    downSince = 0;
+    clearTimeout(timer);
+    paint();
+  };
+
+  bus.on('realtime:down', markDown);
+  bus.on('realtime:subscribed', markUp);
+  bus.on('realtime:status', ({ status }) => {
+    if (status === 'SUBSCRIBED') markUp();
+    else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') markDown();
+  });
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('offline', paint);
+    window.addEventListener('online', () => { paint(); retryNow(); });
+  }
+
+  async function retryNow() {
+    const btn = $('connRetry');
+    if (btn) { btn.disabled = true; btn.textContent = 'Retrying…'; }
+    try {
+      const { retryAllNow, ensureFreshAuth } = await import('./sb.js');
+      await ensureFreshAuth({ force: true }).catch(() => {});
+      retryAllNow({ force: true });
+    } catch { /* offline; the timer keeps trying anyway */ }
+    setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = 'Retry now'; } }, 2500);
+  }
+  $('connRetry')?.addEventListener('click', retryNow);
+}
+
 export function initShell() {
   $('userMenu')?.addEventListener('click', userMenu);
   $('sidebarMe')?.addEventListener('click', userMenu);
@@ -138,6 +206,7 @@ export function initShell() {
   bus.on('channel:open', paintChannelBar);
   bus.on('dm:open', paintChannelBar);
   bus.on('status:changed', paintIdentity);
+  initConnectionState();
 
   paintIdentity();
 }

@@ -189,6 +189,14 @@
       </div>
 
       <div class="tb-right">
+        <!-- Only ever visible when delivery is actually down. A permanent green
+             "connected" light is noise nobody reads; the absence of this bar is
+             what says everything is fine. Without it, a socket that has stopped
+             carrying messages looks exactly like a quiet afternoon. -->
+        <div id="connState" class="connstate hidden" role="status" aria-live="polite">
+          <span class="connstate-dot"></span><span id="connStateText">Reconnecting…</span>
+          <button id="connRetry" class="connstate-btn">Retry now</button>
+        </div>
         <button id="installBtn" class="install hidden" title="Install Soop as an app">
           <span data-ico="download"></span> Install</button>
         <button class="icon" id="btnHelp" title="Keyboard shortcuts"

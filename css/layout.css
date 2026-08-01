@@ -194,6 +194,51 @@
 .noteam .field { margin-bottom: 0; }
 .noteam .fineprint { margin-top: var(--s-2); }
 
+/* ------------------------------------------------------- loading / failed
+   The two states that used to be indistinguishable from an empty room, and from
+   each other. "Loading" has to look like work in progress or ten seconds of it
+   reads as broken; "failed" has to name what happened and offer the one thing
+   that helps, which is trying again. Neither may ever be silent. */
+.loading-space {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-4);
+  padding: var(--s-9) var(--s-6);
+  color: var(--c-text-2);
+  font-size: var(--t-sm);
+}
+.loading-space .spin {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--c-border);
+  border-top-color: var(--c-accent);
+  animation: spin 700ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .loading-space .spin { animation-duration: 2.4s; }
+}
+
+.loadfail {
+  max-width: 420px;
+  margin: auto;
+  padding: var(--s-8) var(--s-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  text-align: left;
+}
+.loadfail h2 {
+  font-size: var(--t-lg);
+  font-weight: var(--t-bold);
+  color: var(--c-text);
+  line-height: var(--t-snug);
+}
+.loadfail .fineprint { color: var(--c-text-3); }
+
 /* Chrome that only means something once you are inside a Space. A channel bar
    showing a lone "#", a "Search this Space" over no Space, and a composer
    inviting you to "pick a channel" when there are none to pick, are three more

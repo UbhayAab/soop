@@ -320,6 +320,47 @@ export async function orgPeopleDialog(orgId) {
 
 // One round trip for the whole workspace. Falls back to individual queries when
 // the consolidated RPC is unavailable, so the client never hard-depends on it.
+// Loading a Space is the slowest thing this app does and the one most likely to
+// be interrupted: it is one large round trip, and the people using this are on
+// mobile data. When it did not finish, nothing said so. The shell had already
+// painted, the conversation had not, and the result was a screen with a sidebar
+// and nothing in it - which is what "blank screen" meant every time it was
+// reported. A request that hangs forever is worse than one that fails, because
+// only the failure can be told to the person.
+const BOOTSTRAP_TIMEOUT_MS = 12000;
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error(`${label} timed out`)), ms)),
+  ]);
+}
+
+// The screen for "we could not load this". Never silent, always has a way out.
+function showSpaceFailed(target, err) {
+  const box = $('messages');
+  if (!box) return;
+  const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  box.innerHTML = `
+    <div class="loadfail">
+      <h2>Could not open ${esc(target?.name || 'this Space')}</h2>
+      <p class="muted">${offline
+        ? 'Your phone is offline. Nothing is wrong with your account - this screen comes back as soon as you have signal.'
+        : 'The connection dropped part way through loading it. Nothing is lost and nothing is wrong with your account.'}</p>
+      <button id="spaceRetry" class="wide">Try again</button>
+      <p class="muted fineprint">${esc(err?.message || 'no further detail')}</p>
+    </div>`;
+  const btn = $('spaceRetry');
+  if (btn) {
+    btn.onclick = async () => {
+      btn.disabled = true;
+      btn.textContent = 'Loading…';
+      try { await switchWorkspace(target); }
+      catch { btn.disabled = false; btn.textContent = 'Try again'; }
+    };
+  }
+}
+
 export async function switchWorkspace(target) {
   if (!target) return;
   store.ws = target;
@@ -328,7 +369,40 @@ export async function switchWorkspace(target) {
   $('spaceName').textContent = target.name || '';
   renderSpaceRail();
 
-  const [boot] = await tryRpc('get_bootstrap', { p_workspace: target.id });
+  // Say that something is happening. An empty conversation area for ten seconds
+  // reads as broken; the same ten seconds with a line of text reads as loading.
+  const msgs = $('messages');
+  if (msgs && !msgs.querySelector('.msg')) {
+    msgs.innerHTML = `<div class="loading-space"><span class="spin"></span>Opening ${esc(target.name || 'this Space')}…</div>`;
+  }
+
+  let boot = null;
+  let bootErr = null;
+  try {
+    // tryRpc RETURNS the error rather than throwing it, so destructuring only
+    // the first element threw the failure away and left bootErr null - which
+    // meant a Space that genuinely could not load fell through to the empty
+    // state and said "no channels here yet". The error is the whole point.
+    const [data, err] = await withTimeout(tryRpc('get_bootstrap', { p_workspace: target.id }),
+      BOOTSTRAP_TIMEOUT_MS, 'Loading this Space');
+    boot = data;
+    bootErr = err;
+  } catch (e) { bootErr = e; }
+
+  if (!boot?.channels) {
+    // The pre-0047 fallback is a second chance, not a guarantee. If it cannot
+    // produce channels either, this Space did not load and that is the whole
+    // truth - so say it rather than painting an empty room.
+    try {
+      await withTimeout(legacyLoad(target), BOOTSTRAP_TIMEOUT_MS, 'Loading this Space');
+    } catch (e) { bootErr = bootErr || e; }
+    if (!store.channels?.length) {
+      // A Space really can have no channels. Only call it a failure when
+      // something actually failed.
+      if (bootErr) { showSpaceFailed(target, bootErr); return; }
+    }
+  }
+
   if (boot && boot.channels) {
     store.categories = boot.categories || [];
     store.channels = boot.channels || [];
@@ -346,9 +420,9 @@ export async function switchWorkspace(target) {
     store.perms = BigInt(boot.me?.permissions ?? 0);
     store.isAdmin = !!boot.me?.is_admin || (store.perms & PERM.ADMINISTRATOR) !== 0n;
     if (boot.me) store.myProfile = { id: store.me, ...boot.me };
-  } else {
-    await legacyLoad(target);
   }
+  // legacyLoad already ran above when the bootstrap came back empty; running it
+  // a second time here was a duplicate round trip on the slowest path there is.
 
   bus.emit('workspace', { ws: target });
   renderHeaderButtons();
@@ -364,8 +438,21 @@ export async function switchWorkspace(target) {
   const first = store.channels.find((c) => c.id === lastId && c.kind !== 'voice' && !c.archived_at)
     || store.channels.find((c) => c.name === 'general' && c.kind !== 'voice')
     || store.channels.find((c) => c.kind !== 'voice' && !c.archived_at);
-  if (first) await openChannel(first);
-  else $('messages').innerHTML = '<div class="empty">No channels here yet.</div>';
+  if (first) {
+    await openChannel(first);
+  } else {
+    // Genuinely no channels, as distinct from "we could not load them" - which
+    // is handled above and says something completely different. The two used to
+    // render the same sentence, so an admin whose Space failed to load was told
+    // their Space was empty.
+    const canMake = (store.perms & PERM.MANAGE_CHANNELS) !== 0n
+      || (store.perms & PERM.ADMINISTRATOR) !== 0n;
+    $('messages').innerHTML = `<div class="empty">
+      <b>${esc(target.name || 'This Space')} has no channels yet.</b><br />
+      ${canMake
+        ? 'Use ＋ Add channel in the sidebar to make the first one.'
+        : 'Ask whoever runs this Space to create one.'}</div>`;
+  }
 }
 
 // Pre-0047 path: individual queries. Kept so a stale deploy still works.

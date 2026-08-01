@@ -429,7 +429,7 @@ export async function openChannel(c, opts = {}) {
   } else if (cached) {
     paintCached(list, cached);
   } else {
-    list.innerHTML = '<div class="muted pad">loading…</div>';
+    list.innerHTML = `<div class="loading-space"><span class="spin"></span>Opening #${esc(c.name)}…</div>`;
     cached = await pagecache.recall(store.me, c.id);
     if (gen !== openGen) return;
     if (cached) paintCached(list, cached);
@@ -443,7 +443,30 @@ export async function openChannel(c, opts = {}) {
   if (gen !== openGen) return;
   if (res.err) {
     // A cached page on screen is worth far more than an error replacing it.
-    if (!cached) list.innerHTML = `<div class="empty">${esc(res.err.message)}</div>`;
+    if (!cached) {
+      // This used to print the raw database error into the conversation, which
+      // tells a person nothing they can act on and reads like the app broke in a
+      // way that is their problem. Say what happened, offer the one thing that
+      // helps, and keep the detail as fine print for whoever is debugging.
+      const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+      list.innerHTML = `
+        <div class="loadfail">
+          <h2>Could not open #${esc(c.name)}</h2>
+          <p class="muted">${offline
+            ? 'Your phone is offline. This channel comes back on its own once you have signal.'
+            : 'The connection dropped while loading it. Nothing has been lost.'}</p>
+          <button id="chanRetry" class="wide">Try again</button>
+          <p class="muted fineprint">${esc(res.err.message || 'no further detail')}</p>
+        </div>`;
+      const btn = list.querySelector('#chanRetry');
+      if (btn) {
+        btn.onclick = () => {
+          btn.disabled = true;
+          btn.textContent = 'Loading…';
+          openChannel(c).catch(() => { btn.disabled = false; btn.textContent = 'Try again'; });
+        };
+      }
+    }
     return;
   }
   await pThreads;

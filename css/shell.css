@@ -393,3 +393,57 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
 }
 .chguide-bannerhead strong { flex: 1 1 auto; font-size: var(--t-base); }
 @media (max-width: 860px) { .chguide-banner { margin-inline: var(--s-4); } }
+
+/* ------------------------------------------------------- connection state
+   Shown only while delivery is actually down, so its absence is the good news.
+   Amber rather than red: the connection coming back is the normal outcome and
+   the usual cause is a tunnel, not a fault. It goes red only when the device
+   itself reports being offline, which is the one case the app cannot fix. */
+.connstate {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 4px var(--s-3) 4px var(--s-4);
+  border-radius: var(--r-pill, 999px);
+  background: color-mix(in srgb, var(--c-warn, #b7791f) 16%, var(--c-nav-bg));
+  border: 1px solid color-mix(in srgb, var(--c-warn, #b7791f) 42%, transparent);
+  color: var(--c-nav-text);
+  font-size: var(--t-xs);
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.connstate.offline {
+  background: color-mix(in srgb, var(--c-danger) 16%, var(--c-nav-bg));
+  border-color: color-mix(in srgb, var(--c-danger) 45%, transparent);
+}
+.connstate-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--c-warn, #b7791f);
+  animation: connpulse 1.6s ease-in-out infinite;
+}
+.connstate.offline .connstate-dot { background: var(--c-danger); animation: none; }
+@keyframes connpulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .connstate-dot { animation: none; } }
+
+.connstate-btn {
+  padding: 2px var(--s-3);
+  min-height: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--c-nav-text) 32%, transparent);
+  color: var(--c-nav-text);
+  font-size: var(--t-xs);
+  font-weight: var(--t-medium);
+}
+.connstate-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--c-nav-text) 12%, transparent); }
+.connstate-btn:disabled { opacity: 0.6; }
+
+/* On a phone the bar would push the user chip off the edge, so it loses its
+   button and keeps only the word - which is the part that matters. */
+@media (max-width: 620px) {
+  .connstate-btn { display: none; }
+  .connstate { padding-right: var(--s-4); }
+}
