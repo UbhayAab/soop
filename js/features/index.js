@@ -33,6 +33,8 @@ const FEATURES = [
   // header buttons past the inline cap, and the channel bar's overflow is dead.
   'coordnav',
   'offline',
+  // Late, so it is registered after the features whose errors it would catch.
+  'errorreport',
   // Last on purpose: it re-registers a few core panels by id and decorates what
   // every other feature has already put on screen.
   'uxfix',
