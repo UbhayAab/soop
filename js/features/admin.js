@@ -13,6 +13,7 @@ import { store, hasPerm } from '../store.js';
 import { PERM } from '../config.js';
 import { el, esc, relTime, plain } from '../util.js';
 import { icon } from '../icons.js';
+import { drawPeople, canManagePeople } from './people.js';
 
 const canAdmin = () => hasPerm(PERM.MANAGE_WORKSPACE) || store.isAdmin;
 
@@ -39,6 +40,16 @@ const CSS = `
 .admin-form .row.gap{align-items:flex-end;flex-wrap:wrap}
 .admin-form .field{margin-bottom:0;min-width:130px;flex:1}
 .admin-linkrow{display:flex;gap:8px;margin-top:10px}
+.admin-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:520px){.admin-row2{grid-template-columns:1fr}}
+.addresult{margin-top:12px}
+.addcreds{display:flex;flex-direction:column;gap:4px;margin:10px 0;max-height:320px;overflow:auto}
+.addcred{display:flex;gap:8px;align-items:center;justify-content:space-between;
+  background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12.5px}
+.addcred code{font-family:var(--f-mono,ui-monospace,monospace);word-break:break-all}
+.addcred-pw{font-weight:600;letter-spacing:.4px;white-space:nowrap}
+.admin-note{background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+  padding:8px 10px;margin-top:8px;font-size:12.5px;line-height:1.5}
 `;
 
 function injectCss() {
@@ -573,6 +584,9 @@ const TABS = [
   ['channels', 'Channels', drawChannels],
   ['invites', 'Invites', drawInvites],
   ['audit', 'Audit', drawAudit],
+  // Only for an admin of the ORGANISATION - it creates accounts and replaces
+  // passwords, which is a different and larger power than running one Space.
+  ['people', 'People', (h, c, a) => drawPeople(h, c, a.ui), canManagePeople],
 ];
 
 export function register(app) {
@@ -619,7 +633,7 @@ export function register(app) {
 
       const paintTabs = () => {
         tabsEl.innerHTML = '';
-        for (const [id, label] of TABS) {
+        for (const [id, label, , show] of TABS.filter((t) => !t[3] || t[3]())) {
           const b = el('button', 'sm' + (id === active ? '' : ' ghost'), esc(label));
           b.onclick = () => { if (id === active) return; active = id; paintTabs(); draw(); };
           tabsEl.appendChild(b);
