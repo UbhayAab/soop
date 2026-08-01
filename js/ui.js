@@ -70,6 +70,39 @@ export function confirmModal({ title, body, confirmLabel = 'Confirm', danger = f
   });
 }
 
+// For the handful of actions that destroy other people's work. A confirm button
+// is muscle memory by the third time somebody sees it; typing the name back is
+// not, and it is the only guard that reliably stops the wrong row being deleted.
+// `phrase` is what has to be typed - always the actual name of the thing.
+export function typeToConfirm({ title, body, phrase, confirmLabel = 'Delete' }) {
+  return new Promise((resolve) => {
+    let done = false;
+    const box = el('div');
+    box.innerHTML = `<p>${esc(body || '')}</p>
+      <label class="field"><span class="field-label">Type <b>${esc(phrase)}</b> to confirm</span>
+        <input id="ttcInput" autocomplete="off" spellcheck="false" placeholder="${esc(phrase)}" /></label>`;
+    const m = modal({
+      title,
+      body: box,
+      onClose: () => { if (!done) resolve(false); },
+      actions: [
+        { label: 'Cancel', kind: 'ghost', onClick: (c) => { done = true; c(); resolve(false); } },
+        { label: confirmLabel, kind: 'danger', onClick: (c) => { done = true; c(); resolve(true); } },
+      ],
+    });
+    const go = m.box.querySelector('.modal-foot button:last-child');
+    const input = box.querySelector('#ttcInput');
+    // Disabled until it matches, so the dangerous button is never the easy one.
+    go.disabled = true;
+    const check = () => { go.disabled = input.value.trim() !== phrase; };
+    input.addEventListener('input', check);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !go.disabled) { e.preventDefault(); go.click(); }
+    });
+    setTimeout(() => input.focus(), 40);
+  });
+}
+
 // A real replacement for window.prompt: fields = [{name,label,type,value,placeholder,options,rows,required}]
 export function formModal({ title, fields = [], submitLabel = 'Save', wide = false, note }) {
   return new Promise((resolve) => {
@@ -342,7 +375,7 @@ export function spinner(text = 'loading…') { return el('div', 'muted pad', esc
 export function emptyState(text) { return el('div', 'empty', esc(text)); }
 
 export const ui = {
-  toast, modal, confirmModal, formModal, getHeaderButtons, setInlineCap,
+  toast, modal, confirmModal, typeToConfirm, formModal, getHeaderButtons, setInlineCap,
   registerPanel, openPanel, closePanel, refreshPanel, currentPanel,
   addHeaderButton, renderHeaderButtons, addNavSection, renderNavSections,
   addMessageAction, getMessageActions, addComposerButton, renderComposerButtons,

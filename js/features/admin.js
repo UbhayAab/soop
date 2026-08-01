@@ -111,17 +111,102 @@ async function drawOverview(host, ctx, { ui }) {
   gateBox.appendChild(editGate);
   host.appendChild(gateBox);
 
-  const leave = el('button', 'sm danger', 'Leave this Space');
-  leave.onclick = async () => {
-    if (!(await ui.confirmModal({
-      title: 'Leave ' + (ws.name || 'this Space'),
-      body: 'You lose access immediately and need a fresh invite link to come back.',
-      confirmLabel: 'Leave', danger: true,
-    }))) return;
-    try { await api.leaveWorkspace(ws.id); location.reload(); }
-    catch (e) { ui.toast(e.message, 'error'); }
+  // ---------------------------------------------------------------- danger
+  // Everything that takes something away, in one place at the bottom, ordered
+  // from the mildest to the one that cannot be walked back. Nothing here was
+  // reachable from the product before: a Space created by mistake stayed
+  // forever, and "this intern has left" had no answer at all.
+  const iAmOrgAdmin = (store.orgs || [])
+    .find((o) => o.org_id === ws.org_id)?.org_role === 'admin';
+
+  host.appendChild(el('h4', 'sec', 'Danger zone'));
+  const danger = el('div', 'admin-danger');
+
+  const row = (label, hint, btnLabel, kind, onClick) => {
+    const r = el('div', 'admin-line');
+    r.innerHTML = `<div><b>${esc(label)}</b><div class="muted">${esc(hint)}</div></div>`;
+    const b = el('button', 'sm ' + kind, esc(btnLabel));
+    b.onclick = onClick;
+    r.appendChild(b);
+    danger.appendChild(r);
+    return b;
   };
-  host.appendChild(leave);
+
+  row('Leave this server', 'You lose access immediately and need a fresh invite to come back.',
+    'Leave', 'ghost', async () => {
+      if (!(await ui.confirmModal({
+        title: 'Leave ' + (ws.name || 'this server'),
+        body: 'You lose access immediately and need a fresh invite link to come back.',
+        confirmLabel: 'Leave', danger: true,
+      }))) return;
+      try { await api.leaveWorkspace(ws.id); location.reload(); }
+      catch (e) { ui.toast(e.message, 'error'); }
+    });
+
+  if (iAmOrgAdmin) {
+    const archived = !!ws.archived_at;
+    row(archived ? 'Unarchive this server' : 'Archive this server',
+      archived
+        ? 'Put it back in the rail and let people post again.'
+        : 'Keeps every message and every member, and stops it taking new posts. Reversible.',
+      archived ? 'Unarchive' : 'Archive', 'ghost', async () => {
+        try {
+          await api.archiveWorkspace(ws.id, !archived);
+          ui.toast(archived ? 'Server unarchived' : 'Server archived, and nothing was deleted', 'success');
+          location.reload();
+        } catch (e) { ui.toast(e.message, 'error'); }
+      });
+
+    if (ws.scheduled_delete_at) {
+      const when = new Date(ws.scheduled_delete_at).toLocaleString();
+      row('This server is scheduled for deletion', `It will be destroyed on ${when}. You can still stop it.`,
+        'Cancel deletion', '', async () => {
+          try { await api.restoreWorkspace(ws.id); ui.toast('Deletion cancelled', 'success'); location.reload(); }
+          catch (e) { ui.toast(e.message, 'error'); }
+        });
+    } else {
+      row('Delete this server',
+        'Destroys every channel, message and file in it. Scheduled for seven days out, so it can be stopped.',
+        'Delete', 'danger', async () => {
+          if (!(await ui.typeToConfirm({
+            title: 'Delete ' + (ws.name || 'this server'),
+            body: `Every channel, message and file in ${ws.name} is destroyed. Nothing here can bring them `
+                + 'back afterwards. Archiving keeps all of it and takes the server out of the rail.',
+            phrase: ws.name,
+            confirmLabel: 'Schedule deletion',
+          }))) return;
+          try {
+            const when = await api.deleteWorkspace(ws.id);
+            ui.toast(`Scheduled for deletion on ${new Date(when).toLocaleDateString()}. You can still cancel it.`, 'success');
+            location.reload();
+          } catch (e) {
+            ui.toast(/last_workspace/.test(e.message || '')
+              ? 'This is the only server left in the organisation. Create another one first.'
+              : e.message, 'error');
+          }
+        });
+    }
+  }
+
+  if (ws.org_id) {
+    row('Leave the whole organisation',
+      'Takes you out of every server in it, not only this one.',
+      'Leave organisation', 'ghost', async () => {
+        if (!(await ui.confirmModal({
+          title: 'Leave this organisation',
+          body: 'You are removed from every server inside it. You need a fresh join link to come back.',
+          confirmLabel: 'Leave', danger: true,
+        }))) return;
+        try { await api.leaveOrg(ws.org_id); location.reload(); }
+        catch (e) {
+          ui.toast(/last_admin/.test(e.message || '')
+            ? 'You are the only admin. Make somebody else an admin before you leave.'
+            : e.message, 'error');
+        }
+      });
+  }
+
+  host.appendChild(danger);
 }
 
 // ------------------------------------------------------------------ members
@@ -338,10 +423,14 @@ async function archive(c, ctx, ui) {
 }
 
 async function delChannel(c, ctx, ui) {
-  if (!(await ui.confirmModal({
+  // Typed back rather than clicked. In a table of channels the rows look alike
+  // and the Delete buttons line up, which is exactly how the wrong one goes.
+  if (!(await ui.typeToConfirm({
     title: 'Delete #' + c.name,
-    body: 'Every message in it goes too. This cannot be undone - archive it instead if you are unsure.',
-    confirmLabel: 'Delete forever', danger: true,
+    body: `Every message in #${c.name} is destroyed with it and cannot be brought back. `
+        + 'Archive keeps them and takes the channel out of the sidebar.',
+    phrase: c.name,
+    confirmLabel: 'Delete forever',
   }))) return;
   try {
     await api.deleteChannel(c.channel_id);

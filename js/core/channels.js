@@ -6,7 +6,7 @@ import { api, table } from '../api.js';
 import { store, bus, nameOf, resetChannelState, hasPerm } from '../store.js';
 import { PERM, MESSAGE_PAGE } from '../config.js';
 import { $, el, esc, debounce } from '../util.js';
-import { toast, contextMenu, formModal, confirmModal, renderNavSections, closePanel } from '../ui.js';
+import { toast, contextMenu, formModal, confirmModal, typeToConfirm, renderNavSections, closePanel } from '../ui.js';
 import { appendMessage, claimMessage, loadReactions, applyEdit, applyDelete, applyReaction,
   refreshThreadIndicator, jumpTo, buildMessage, scrollDown, renderedIn, atBottom,
   renderBatch, prependBatch, capWindow, capWindowTop, resetWindow, windowState,
@@ -192,8 +192,26 @@ function channelMenu(ev, c) {
     } },
     '-',
     { label: 'Edit channel', show: hasPerm(PERM.MANAGE_CHANNELS), onClick: () => editChannelDialog(c) },
+    // Archive sits above Delete and is worded as the ordinary choice, because it
+    // almost always is: what somebody wants is the channel out of the sidebar,
+    // not the conversation destroyed.
+    { label: c.archived_at ? 'Unarchive channel' : 'Archive channel', show: hasPerm(PERM.MANAGE_CHANNELS), onClick: async () => {
+      try {
+        await api.archiveChannel(c.id, !c.archived_at);
+        toast(c.archived_at ? 'Channel unarchived' : 'Channel archived, and every message kept');
+        bus.emit('channels:reload');
+      } catch (e) { toast(e.message, 'error'); }
+    } },
     { label: 'Delete channel', danger: true, show: hasPerm(PERM.MANAGE_CHANNELS), onClick: async () => {
-      if (!(await confirmModal({ title: 'Delete #' + c.name, body: 'Every message in it goes too. This cannot be undone.', confirmLabel: 'Delete', danger: true }))) return;
+      // Typed back, not clicked through. This is the only action in the sidebar
+      // that destroys other people's writing, and it sits two items below Mute.
+      if (!(await typeToConfirm({
+        title: 'Delete #' + c.name,
+        body: `Every message in #${c.name} is destroyed with it and cannot be brought back. `
+            + 'Archiving keeps them and takes the channel out of the sidebar.',
+        phrase: c.name,
+        confirmLabel: 'Delete forever',
+      }))) return;
       try { await api.deleteChannel(c.id); toast('Channel deleted'); bus.emit('channels:reload'); }
       catch (e) { toast(e.message, 'error'); }
     } },

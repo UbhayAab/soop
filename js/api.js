@@ -67,6 +67,17 @@ export const api = {
   bootstrap: (ws) => rpc('get_bootstrap', { p_workspace: ws }),
   spaceSummary: () => rpc('get_space_summary', {}),
   leaveWorkspace: (ws) => rpc('leave_workspace', { p_workspace: ws }),
+
+  // ---------- removal (0066) ----------
+  // Removing from the ORG is the real offboarding: kicking somebody out of one
+  // server leaves them in the organisation, where any server with
+  // join_policy='open' lets them straight back in.
+  removeOrgMember: (org, user) => rpc('remove_org_member', { p_org: org, p_user: user }),
+  leaveOrg: (org) => rpc('leave_org', { p_org: org }),
+  archiveWorkspace: (ws, bool) => rpc('archive_workspace', { p_workspace: ws, p_bool: bool }),
+  // Returns when the deletion will actually happen; reversible until then.
+  deleteWorkspace: (ws) => rpc('delete_workspace', { p_workspace: ws }),
+  restoreWorkspace: (ws) => rpc('restore_workspace', { p_workspace: ws }),
   setWorkspaceGate: (ws, level, requiresApproval, rules) => rpc('set_workspace_gate', {
     p_workspace: ws, p_verification_level: level,
     p_requires_approval: requiresApproval, p_rules_text: rules,

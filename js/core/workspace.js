@@ -254,15 +254,50 @@ export async function orgPeopleDialog(orgId) {
   const paint = async () => {
     const [rows] = await tryRpc('list_org_members', { p_org: orgId });
     const list = Array.isArray(rows) ? rows : [];
+    const iAmAdmin = (store.orgs || []).find((o) => o.org_id === orgId)?.org_role === 'admin';
     box.innerHTML = list.map((p) => `
-      <div class="orgppl-row" data-u="${p.user_id}">
+      <div class="orgppl-row" data-u="${p.user_id}" data-name="${esc(p.display_name || '')}">
         <span class="orgdir-ico" style="--h:${hueOf(p.user_id)}">${esc(initials(p.display_name))}</span>
         <b class="orgppl-name">${esc(p.display_name)}</b>
         <select data-role>
           <option value="member"${p.org_role === 'member' ? ' selected' : ''}>Member</option>
           <option value="admin"${p.org_role === 'admin' ? ' selected' : ''}>Admin</option>
         </select>
+        ${iAmAdmin && p.user_id !== store.me
+          ? '<button class="sm danger" data-remove>Remove</button>'
+          : (p.user_id === store.me ? '<span class="muted orgppl-you">you</span>' : '')}
       </div>`).join('') || '<div class="empty">Nobody yet.</div>';
+
+    // Removing somebody from the organisation, which also takes them out of
+    // every server inside it. Kicking from one server is the Space-level action
+    // and lives in the admin console; this is the one that means "they have
+    // left". Named for what it does to the person, not to the row.
+    box.querySelectorAll('[data-remove]').forEach((btn) => {
+      btn.onclick = async () => {
+        const row = btn.closest('.orgppl-row');
+        const who = row.dataset.name || 'this person';
+        const ok = await confirmModal({
+          title: `Remove ${who}?`,
+          body: `They lose access to ${org?.name || 'this organisation'} and every server inside it, `
+              + 'straight away. Anything they have already written stays. They can be added again later.',
+          confirmLabel: 'Remove',
+          danger: true,
+        });
+        if (!ok) return;
+        btn.disabled = true;
+        try {
+          await api.removeOrgMember(orgId, row.dataset.u);
+          toast(`${who} removed`, 'success');
+          await paint();
+        } catch (err) {
+          toast(/last_admin/.test(err.message || '')
+            ? 'That is the only admin left. Make somebody else an admin first.'
+            : err.message || 'Could not remove them', 'error');
+          btn.disabled = false;
+        }
+      };
+    });
+
     box.querySelectorAll('.orgppl-row').forEach((row) => {
       row.querySelector('[data-role]').onchange = async (e) => {
         const value = e.target.value;

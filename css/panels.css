@@ -1277,3 +1277,24 @@ body .onb-rr b {
 
   .chooser-card:active { background: var(--c-surface-3); }
 }
+
+/* ------------------------------------------------------------- danger zone
+   Everything that takes something away, gathered at the foot of the overview
+   rather than scattered through the console. It is bordered in the danger hue
+   so it reads as a different kind of place before anything is read, and each
+   row carries its own consequence in plain words - the button label alone has
+   never been enough to tell "archive" from "destroy".
+   The button is pushed right so no two actions sit under the same thumb. */
+body .admin-danger {
+  border: 1px solid color-mix(in srgb, var(--c-danger) 32%, var(--c-border));
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+body .admin-danger .admin-line {
+  justify-content: space-between;
+  gap: var(--s-5);
+  padding: var(--s-4);
+}
+body .admin-danger .admin-line > div { min-width: 0; flex: 1 1 auto; }
+body .admin-danger .admin-line .muted { margin-top: 2px; font-size: var(--t-xs); line-height: var(--t-loose); }
+body .admin-danger .admin-line button { flex: none; }
