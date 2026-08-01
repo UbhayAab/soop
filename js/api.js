@@ -95,6 +95,17 @@ export const api = {
   // Returns when the deletion will actually happen; reversible until then.
   deleteWorkspace: (ws) => rpc('delete_workspace', { p_workspace: ws }),
   restoreWorkspace: (ws) => rpc('restore_workspace', { p_workspace: ws }),
+  // ---------- managing a server (0068) ----------
+  updateWorkspace: (ws, patch = {}) => rpc('update_workspace', {
+    p_workspace: ws, p_name: patch.name ?? null, p_default_channel: patch.defaultChannel ?? null,
+  }),
+  renameOrganization: (org, name) => rpc('rename_organization', { p_org: org, p_name: name }),
+  // The org's own servers, with whether you are in them and may join.
+  listOrgWorkspaces: (org) => rpc('list_org_workspaces', { p_org: org }),
+  joinOrgWorkspace: (ws) => rpc('join_org_workspace', { p_workspace: ws }),
+  listJoinRequests: (ws) => rpc('list_join_requests', { p_workspace: ws }),
+  countJoinRequests: (ws) => rpc('count_join_requests', { p_workspace: ws }),
+
   setWorkspaceGate: (ws, level, requiresApproval, rules) => rpc('set_workspace_gate', {
     p_workspace: ws, p_verification_level: level,
     p_requires_approval: requiresApproval, p_rules_text: rules,

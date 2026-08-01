@@ -436,6 +436,10 @@ export async function switchWorkspace(target) {
   // from under the person a few seconds after showing it to them.
   const lastId = lastChannelId();
   const first = store.channels.find((c) => c.id === lastId && c.kind !== 'voice' && !c.archived_at)
+    // What the Space chose for people arriving, before falling back to a name
+    // this code happens to know. Somebody's first view of an organisation
+    // should be the channel its admin picked, not whichever sorts first.
+    || store.channels.find((c) => c.id === target.default_channel_id && !c.archived_at)
     || store.channels.find((c) => c.name === 'general' && c.kind !== 'voice')
     || store.channels.find((c) => c.kind !== 'voice' && !c.archived_at);
   if (first) {

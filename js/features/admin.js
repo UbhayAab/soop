@@ -90,6 +90,65 @@ async function drawOverview(host, ctx, { ui }) {
 
   host.appendChild(el('h4', 'sec', 'Space settings'));
   const ws = store.ws;
+
+  // Rename, and choose where new members land. The landing channel is not
+  // cosmetic: without it somebody joining opens into whichever channel sorts
+  // first, which is nobody's decision and is usually not the welcome one.
+  const nameBox = el('div', 'admin-form');
+  const textChannels = (store.channels || []).filter((c) => c.kind !== 'voice' && !c.archived_at);
+  nameBox.innerHTML = `
+    <label class="field"><span class="field-label">Server name</span>
+      <input id="wsName" value="${esc(ws.name || '')}" maxlength="60" /></label>
+    <label class="field"><span class="field-label">New members land in</span>
+      <select id="wsLanding">
+        <option value="">Whichever channel comes first</option>
+        ${textChannels.map((c) => `<option value="${esc(c.id)}"${c.id === ws.default_channel_id ? ' selected' : ''}># ${esc(c.name)}</option>`).join('')}
+      </select></label>
+    <button id="wsSave" class="sm">Save</button>`;
+  host.appendChild(nameBox);
+  nameBox.querySelector('#wsSave').onclick = async () => {
+    const btn = nameBox.querySelector('#wsSave');
+    btn.disabled = true;
+    try {
+      const name = nameBox.querySelector('#wsName').value.trim();
+      const landing = nameBox.querySelector('#wsLanding').value || null;
+      await api.updateWorkspace(ws.id, { name, defaultChannel: landing });
+      ws.name = name || ws.name;
+      ws.default_channel_id = landing;
+      const el2 = document.getElementById('spaceName');
+      if (el2) el2.textContent = ws.name;
+      ui.toast('Saved', 'success');
+    } catch (e) { ui.toast(e.message, 'error'); }
+    finally { btn.disabled = false; }
+  };
+
+  // Join requests. requires_approval has existed since 0051 with nothing that
+  // lists what it collects, so switching it on made every request vanish.
+  try {
+    const reqs = await cached(ctx, 'joinreqs', () => api.listJoinRequests(ws.id));
+    if ((reqs || []).length) {
+      host.appendChild(el('h4', 'sec', `Waiting to join - ${reqs.length}`));
+      const box = el('div');
+      for (const r of reqs) {
+        const row = el('div', 'admin-line');
+        row.innerHTML = `<div><b>${esc(r.display_name || 'somebody')}</b>
+          <div class="muted">asked ${esc(r.created_at ? relTime(r.created_at) : '')}</div></div>`;
+        const yes = el('button', 'sm', 'Let them in');
+        const no = el('button', 'sm ghost', 'Decline');
+        yes.onclick = async () => {
+          try { await api.approveJoin(r.id); ui.toast('Admitted', 'success'); ctx.cache.delete('joinreqs'); ctx.cache.delete('members'); ctx.redraw(); }
+          catch (e) { ui.toast(e.message, 'error'); }
+        };
+        no.onclick = async () => {
+          try { await api.rejectJoin(r.id); ui.toast('Declined'); ctx.cache.delete('joinreqs'); ctx.redraw(); }
+          catch (e) { ui.toast(e.message, 'error'); }
+        };
+        row.append(yes, no);
+        box.appendChild(row);
+      }
+      host.appendChild(box);
+    }
+  } catch { /* older server without list_join_requests */ }
   const gateBox = el('div', 'admin-form');
   const levels = ['Anyone with a link', 'Verified email required', 'Verified email, aged account'];
   gateBox.innerHTML = `<div class="muted">Who can join: <b>${esc(levels[ws.verification_level || 0] || 'custom')}</b>
@@ -257,6 +316,11 @@ async function drawMembers(host, ctx, { ui }) {
         const acts = el('td');
         const bar = el('div', 'admin-acts');
         if (r.user_id !== store.me) {
+          // Fixing somebody's name is not moderation and should not sit behind a
+          // moderation permission: it is the answer to "Shariva is spelled off
+          // her email address and she cannot change it herself", which is what
+          // an admins-only or locked identity policy creates.
+          if (iAmOrgAdminHere()) bar.appendChild(actionBtn('Edit name', 'sm ghost', () => editMemberIdentity(r, ctx, ui)));
           if (hasPerm(PERM.MODERATE)) bar.appendChild(actionBtn('Timeout', 'sm ghost', () => timeoutDialog(r, ctx, ui)));
           if (hasPerm(PERM.KICK)) bar.appendChild(actionBtn('Kick', 'sm ghost', () => kick(r, ctx, ui)));
           if (hasPerm(PERM.BAN)) bar.appendChild(actionBtn('Ban', 'sm danger', () => ban(r, ctx, ui)));
@@ -305,6 +369,39 @@ function actionBtn(label, cls, onClick) {
   const b = el('button', cls, esc(label));
   b.onclick = onClick;
   return b;
+}
+
+const iAmOrgAdminHere = () => (store.orgs || [])
+  .find((o) => o.org_id === store.ws?.org_id)?.org_role === 'admin';
+
+// An org admin correcting a colleague's name or title. Refused by the server if
+// the organisation has that field 'locked', which is the point of locked.
+async function editMemberIdentity(r, ctx, ui) {
+  const out = await ui.formModal({
+    title: 'Edit ' + (r.display_name || 'this member'),
+    note: 'A title is a description, not a permission. Roles are set separately.',
+    fields: [
+      { name: 'name', label: 'Name', value: r.display_name || '' },
+      { name: 'title', label: 'Title', value: r.title || '', placeholder: 'Interview Intern' },
+      { name: 'pronouns', label: 'Pronouns', value: r.pronouns || '' },
+    ],
+    submitLabel: 'Save',
+  });
+  if (!out) return;
+  try {
+    await api.adminSetMemberIdentity(store.ws.org_id, r.user_id, {
+      display_name: out.name.trim() || null,
+      title: out.title.trim() || null,
+      pronouns: out.pronouns.trim() || null,
+    });
+    ui.toast('Saved', 'success');
+    ctx.cache.delete('members');
+    ctx.redraw();
+  } catch (e) {
+    ui.toast(/field_locked/.test(e.message || '')
+      ? 'Your organisation has that field locked. Unlock it under People first.'
+      : e.message, 'error');
+  }
 }
 
 async function timeoutDialog(r, ctx, ui) {
