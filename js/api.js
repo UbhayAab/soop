@@ -95,6 +95,25 @@ export const api = {
   // Returns when the deletion will actually happen; reversible until then.
   deleteWorkspace: (ws) => rpc('delete_workspace', { p_workspace: ws }),
   restoreWorkspace: (ws) => rpc('restore_workspace', { p_workspace: ws }),
+  // ---------- the organisation console (0069) ----------
+  // Org-SCOPED twins of the workspace-scoped calls. An org admin who never
+  // joined a server holds authority over the organisation and, before these,
+  // none at all over its parts.
+  orgOverview: (org) => rpc('org_overview', { p_org: org }),
+  listOrgPeople: (org) => rpc('list_org_people', { p_org: org }),
+  listOrgServers: (org) => rpc('list_org_servers', { p_org: org }),
+  orgServerRoles: (org, ws) => rpc('org_list_server_roles', { p_org: org, p_workspace: ws }),
+  orgMemberRoles: (org, ws, user) => rpc('org_member_roles', { p_org: org, p_workspace: ws, p_user: user }),
+  // Membership is its own fact: holding a role proves it, but plenty of people
+  // are in a server with no roles at all.
+  orgMemberServers: (org, user) => rpc('org_member_servers', { p_org: org, p_user: user }),
+  orgSetMemberRole: (org, ws, user, role, grant) =>
+    rpc('org_set_member_role', { p_org: org, p_workspace: ws, p_user: user, p_role: role, p_grant: grant }),
+  orgSetServerMember: (org, ws, user, member) =>
+    rpc('org_set_server_member', { p_org: org, p_workspace: ws, p_user: user, p_member: member }),
+  orgCreateServer: (org, name) => rpc('org_create_server', { p_org: org, p_name: name }),
+  setOrgRole: (org, user, role) => rpc('set_org_role', { p_org: org, p_user: user, p_role: role }),
+
   // ---------- managing a server (0068) ----------
   updateWorkspace: (ws, patch = {}) => rpc('update_workspace', {
     p_workspace: ws, p_name: patch.name ?? null, p_default_channel: patch.defaultChannel ?? null,

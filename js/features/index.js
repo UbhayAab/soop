@@ -14,6 +14,8 @@ const FEATURES = [
   'status',
   'profile',
   'admin',
+  // The organisation console. A page at #/admin, not a panel.
+  'orgadmin',
   'moderation',
   'integrations',
   'messageExtras',

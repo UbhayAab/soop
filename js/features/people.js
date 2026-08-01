@@ -316,6 +316,47 @@ async function resetOne(person, btn, ctx, ui, org, force = false) {
   }
 }
 
+// The same reset, callable from anywhere that has a person and an org - the
+// organisation console needs it and has no ctx or button to hand. Kept here
+// because this is where the "already chose their own" guard lives, and having
+// two copies of that guard is how one of them ends up missing.
+export async function resetPersonPassword(person, org, ui, force = false) {
+  if (!force) {
+    const ok = await ui.confirmModal({
+      title: 'New password for ' + (person.display_name || person.name || person.email),
+      body: 'They get a fresh password that works once, and the app makes them choose '
+          + 'their own the moment they use it. Whatever they have now stops working.',
+      confirmLabel: 'Give them a new password',
+      danger: true,
+    });
+    if (!ok) return false;
+  }
+  try {
+    const r = await callAdmin({
+      action: 'reset',
+      org: org.org_id || org.id,
+      user: person.user_id,
+      force,
+    });
+    showPassword({ ...person, name: person.display_name || person.name }, r.password, ui);
+    return true;
+  } catch (e) {
+    if (e.code === 'already_chosen') {
+      const ok = await ui.confirmModal({
+        title: (person.display_name || person.name || 'They') + ' already chose their own password',
+        body: 'Replacing it throws theirs away and they will have to pick a new one. '
+            + 'Only do this if they have told you they are locked out.',
+        confirmLabel: 'Replace it anyway',
+        danger: true,
+      });
+      if (ok) return resetPersonPassword(person, org, ui, true);
+      return false;
+    }
+    ui.toast(e.message, 'error');
+    return false;
+  }
+}
+
 function showPassword(person, password, ui) {
   const box = el('div');
   box.innerHTML = `
