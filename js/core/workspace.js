@@ -3,10 +3,10 @@
 // opens it lands in exactly that Space.
 import { api, table, tryRpc } from '../api.js';
 import { sb, subscribe } from '../sb.js';
-import { store, bus } from '../store.js';
+import { store, bus, hasPerm } from '../store.js';
 import { PERM } from '../config.js';
 import { $, el, esc, initials, hueOf } from '../util.js';
-import { toast, formModal, modal, confirmModal, renderHeaderButtons } from '../ui.js';
+import { toast, formModal, modal, confirmModal, contextMenu, renderHeaderButtons } from '../ui.js';
 import { renderChannels, openChannel, refreshUnread, lastChannelId } from './channels.js';
 
 // ------------------------------------------------------------------ rail
@@ -34,7 +34,13 @@ export function renderSpaceRail() {
   const icon = (s) => {
     const b = store.spaceBadges.get(s.id);
     const active = store.ws?.id === s.id;
-    return `<div class="sicon${active ? ' active' : ''}" data-ws="${s.id}" title="${esc(s.name || '')}"
+    // An archived server, or one counting down to deletion, has to LOOK different.
+    // Painting it identically is why "I deleted it" and "it is still there" were
+    // the same screen.
+    const dead = !!(s.archived_at || s.scheduled_delete_at);
+    const why = s.scheduled_delete_at ? ' (being deleted)' : s.archived_at ? ' (archived)' : '';
+    return `<div class="sicon${active ? ' active' : ''}${dead ? ' sicon-off' : ''}" data-ws="${s.id}"
+      title="${esc((s.name || '') + why)}"
       style="--h:${hueOf(s.id)}">${esc(initials(s.name))}
       ${b?.mention_total ? `<span class="sbadge">${b.mention_total}</span>`
         : b?.unread_total ? '<span class="sdot"></span>' : ''}</div>`;
@@ -60,11 +66,31 @@ export function renderSpaceRail() {
   h += `<div class="sicon add" data-add="1" title="Create or join">+</div>`;
   r.innerHTML = h;
   r.querySelectorAll('[data-ws]').forEach((n) => {
+    const spaceOf = () => store.spaces.find((x) => x.id === n.dataset.ws);
     n.onclick = () => {
-      const s = store.spaces.find((x) => x.id === n.dataset.ws);
+      const s = spaceOf();
       if (s && s.id !== store.ws?.id) switchWorkspace(s);
     };
-    n.oncontextmenu = (e) => { e.preventDefault(); spaceMenu(e, store.spaces.find((x) => x.id === n.dataset.ws)); };
+    n.oncontextmenu = (e) => { e.preventDefault(); spaceMenu(e, spaceOf()); };
+    // Long press, because right-click is not a gesture a phone has and this menu
+    // is the only place Leave lives for somebody who is not an admin.
+    let timer = null;
+    let fired = false;
+    const cancel = () => { clearTimeout(timer); timer = null; };
+    n.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse') return;
+      fired = false;
+      timer = setTimeout(() => {
+        fired = true;
+        spaceMenu({ clientX: e.clientX, clientY: e.clientY }, spaceOf());
+      }, 500);
+    });
+    for (const evt of ['pointerup', 'pointercancel', 'pointerleave', 'pointermove']) {
+      n.addEventListener(evt, cancel);
+    }
+    // Swallow the click the long-press would otherwise also produce, or the menu
+    // opens and the Space switches underneath it.
+    n.addEventListener('click', (e) => { if (fired) { e.stopPropagation(); fired = false; } }, true);
   });
   r.querySelectorAll('[data-org]').forEach((n) => {
     n.onclick = () => orgDirectory(n.dataset.org);
@@ -72,22 +98,141 @@ export function renderSpaceRail() {
   r.querySelector('[data-add]').onclick = spaceChooser;
 }
 
+// Turn a raise from the server into a sentence. The leave path used to print
+// e.message straight into a toast, so somebody who tried to leave a server they
+// were the only admin of read the words "last_admin_cannot_leave" and reasonably
+// concluded the button was broken.
+export function serverError(e) {
+  const m = String(e?.message || '');
+  if (/last_admin_cannot_leave/.test(m)) {
+    return 'You are the only admin of this server, and the organisation has no admin either, '
+         + 'so nobody could take it on after you. Hand it over to somebody first.';
+  }
+  if (/last_admin/.test(m)) return 'You are the only admin left. Make somebody else an admin first.';
+  if (/not_in_server/.test(m)) return 'They are not in this server. Add them to it first.';
+  if (/not_scheduled/.test(m)) return 'Schedule the deletion first.';
+  if (/workspace_archived/.test(m)) return 'This server is archived, so it takes no new messages.';
+  if (/no_such_workspace/.test(m)) return 'That server no longer exists.';
+  if (/forbidden/.test(m)) return 'You do not have permission to do that here.';
+  return m || 'That did not work.';
+}
+
+// Who could take this server on. Read from workspace_members rather than the
+// roster cache, because the person leaving may be looking at a server they have
+// not opened in this session.
+async function otherMembers(wsId) {
+  const rows = await table('workspace_members', (q) => q.eq('workspace_id', wsId));
+  const ids = rows.map((r) => r.user_id).filter((id) => id !== store.me);
+  if (!ids.length) return [];
+  const profs = await table('profiles', (q) => q.in('id', ids));
+  const byId = new Map(profs.map((p) => [p.id, p]));
+  return ids.map((id) => ({
+    id,
+    name: byId.get(id)?.display_name || byId.get(id)?.username || 'someone',
+  })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// The move the old error message told you to make and gave you no way to make.
+export async function handOverDialog(s, { thenLeave = false } = {}) {
+  let people;
+  try { people = await otherMembers(s.id); }
+  catch (e) { toast(serverError(e), 'error'); return false; }
+
+  if (!people.length) {
+    await confirmModal({
+      title: 'Nobody to hand ' + (s.name || 'this server') + ' to',
+      body: 'You are the only person in it. Ask an admin of the organisation to take it over, '
+          + 'or delete the server instead.',
+      confirmLabel: 'Close',
+    });
+    return false;
+  }
+
+  const out = await formModal({
+    title: 'Hand over ' + (s.name || 'this server'),
+    note: thenLeave
+      ? 'They become an admin of this server, and then you leave it.'
+      : 'They become an admin of this server. You keep everything you have.',
+    fields: [{
+      name: 'user', label: 'Make this person an admin', type: 'select', required: true,
+      options: people.map((p) => ({ value: p.id, label: p.name })),
+    }],
+    submitLabel: thenLeave ? 'Hand over and leave' : 'Hand over',
+  });
+  if (!out) return false;
+
+  try {
+    await api.transferWorkspaceAdmin(s.id, out.user);
+    if (!thenLeave) { toast('Handed over', 'success'); return true; }
+    await api.leaveWorkspace(s.id);
+    toast('Handed over, and you have left ' + (s.name || 'the server'), 'success');
+    await loadSpaces();
+    if (store.spaces[0]) await switchWorkspace(store.spaces[0]);
+    else location.reload();
+    return true;
+  } catch (e) { toast(serverError(e), 'error'); return false; }
+}
+
+export async function leaveSpace(s) {
+  if (!s) return;
+  if (!(await confirmModal({
+    title: 'Leave ' + (s.name || 'this server') + '?',
+    body: 'You lose access immediately and need a fresh invite to come back. '
+        + 'Anything you have written stays.',
+    confirmLabel: 'Leave', danger: true,
+  }))) return;
+
+  try {
+    await api.leaveWorkspace(s.id);
+    toast('Left ' + (s.name || 'the server'));
+    await loadSpaces();
+    if (store.spaces[0]) await switchWorkspace(store.spaces[0]);
+    else location.reload();
+  } catch (e) {
+    // The one refusal that has a way out: offer it here rather than making them
+    // find the hand-over screen themselves.
+    if (/last_admin_cannot_leave/.test(String(e?.message || ''))) {
+      const ok = await confirmModal({
+        title: 'Hand it over first',
+        body: serverError(e),
+        confirmLabel: 'Choose somebody',
+      });
+      if (ok) await handOverDialog(s, { thenLeave: true });
+      return;
+    }
+    toast(serverError(e), 'error');
+  }
+}
+
+// One menu, reachable three ways: click the server name in the top bar,
+// right-click its icon in the rail, or long-press that icon on a phone. Leave
+// used to live only on the right-click, which is not a gesture a phone has.
 function spaceMenu(ev, s) {
   if (!s) return;
-  import('../ui.js').then(({ contextMenu }) => contextMenu(ev, [
-    { label: 'Invite people', onClick: () => inviteDialog(s) },
-    { label: 'Copy invite link', onClick: () => copyInvite(s) },
-    '-',
-    { label: 'Leave Space', danger: true, onClick: async () => {
-      if (!(await confirmModal({ title: 'Leave ' + s.name, body: 'You will need a new invite link to come back.', confirmLabel: 'Leave', danger: true }))) return;
-      try {
-        await api.leaveWorkspace(s.id);
-        toast('Left ' + s.name);
-        await loadSpaces();
-        if (store.spaces[0]) await switchWorkspace(store.spaces[0]);
-      } catch (e) { toast(e.message, 'error'); }
-    } },
-  ]));
+  const iAmOrgAdmin = (store.orgs || [])
+    .find((o) => o.org_id === s.org_id)?.org_role === 'admin';
+  const iRunThis = iAmOrgAdmin || (store.ws?.id === s.id && store.isAdmin);
+
+  // Built as a list rather than passed with show flags: contextMenu tests
+  // `show === false` literally, and hiding entries in place would leave the
+  // separators around them stranded.
+  const items = [];
+  const canInvite = store.ws?.id !== s.id || hasPerm(PERM.CREATE_INVITE);
+  if (canInvite) {
+    items.push({ label: 'Invite people', onClick: () => inviteDialog(s) });
+    items.push({ label: 'Copy invite link', onClick: () => copyInvite(s) });
+  }
+  if (iAmOrgAdmin || iRunThis) {
+    if (items.length) items.push('-');
+    if (iAmOrgAdmin) {
+      items.push({ label: 'Organisation settings',
+        onClick: () => bus.emit('orgadmin:open', { orgId: s.org_id }) });
+    }
+    items.push({ label: 'Hand this server over', onClick: () => handOverDialog(s) });
+  }
+  if (items.length) items.push('-');
+  items.push({ label: 'Leave this server', danger: true, onClick: () => leaveSpace(s) });
+  contextMenu(ev, items);
 }
 
 // ------------------------------------------------------------------ load
@@ -366,7 +511,24 @@ export async function switchWorkspace(target) {
   store.ws = target;
   store.current = null;
   store.currentDM = null;
-  $('spaceName').textContent = target.name || '';
+  // The server name is the menu, Discord-style. Before this the only route to
+  // Leave was a right-click on the rail icon, which nothing advertised and a
+  // phone cannot perform.
+  const nameEl = $('spaceName');
+  if (nameEl) {
+    nameEl.textContent = target.name || '';
+    nameEl.classList.add('spacename-menu');
+    nameEl.setAttribute('role', 'button');
+    nameEl.setAttribute('tabindex', '0');
+    nameEl.title = 'Server menu';
+    nameEl.onclick = (e) => spaceMenu(e, store.ws);
+    nameEl.onkeydown = (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      const r = nameEl.getBoundingClientRect();
+      spaceMenu({ clientX: r.left, clientY: r.bottom }, store.ws);
+    };
+  }
   renderSpaceRail();
 
   // Say that something is happening. An empty conversation area for ten seconds

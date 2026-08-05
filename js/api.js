@@ -95,6 +95,52 @@ export const api = {
   // Returns when the deletion will actually happen; reversible until then.
   deleteWorkspace: (ws) => rpc('delete_workspace', { p_workspace: ws }),
   restoreWorkspace: (ws) => rpc('restore_workspace', { p_workspace: ws }),
+
+  // ---------- server lifecycle (0070) ----------
+  // "Delete" that schedules seven days out is the right default and the wrong
+  // only option: an admin clearing up a typo watched the thing they deleted stay
+  // in the list. This is the second, deliberate step that actually removes it.
+  purgeWorkspaceNow: (ws) => rpc('purge_workspace_now', { p_workspace: ws }),
+  // The way out of "I am the only admin, so I cannot leave".
+  transferWorkspaceAdmin: (ws, user) =>
+    rpc('transfer_workspace_admin', { p_workspace: ws, p_user: user }),
+  // An organisation made by mistake used to be permanent: its last server could
+  // not be deleted and there was nothing that deleted the organisation itself.
+  deleteOrganization: (org) => rpc('delete_organization', { p_org: org }),
+  restoreOrganization: (org) => rpc('restore_organization', { p_org: org }),
+
+  // ---------- who can do what (0073) ----------
+  // The permission bits stay the mechanism; these are the sentences an admin
+  // actually reads. A policy can only ever narrow what a bit already allows, so
+  // reading one is never a claim that somebody CAN do a thing - only that the
+  // rules do not forbid it.
+  getPolicies: (org, ws = null) => rpc('get_policies', { p_org: org, p_workspace: ws }),
+  setOrgPolicy: (org, action, value) =>
+    rpc('set_org_policy', { p_org: org, p_action: action, p_value: value }),
+  setServerPolicy: (ws, action, value) =>
+    rpc('set_server_policy', { p_workspace: ws, p_action: action, p_value: value }),
+  // One call for "what may I do here", so the client stops re-deriving it from a
+  // bitmask it holds a stale copy of.
+  myCapabilities: (ws) => rpc('my_capabilities', { p_workspace: ws }),
+
+  // ---------- the profile page (0074) ----------
+  // Everything a profile draws in one call, including which fields the person
+  // looking at it may edit - so a locked field is drawn locked rather than
+  // offered and refused on save.
+  profilePage: (user) => rpc('get_profile_page', { p_user: user }),
+  orgManagerOptions: (org, user) => rpc('org_manager_options', { p_org: org, p_user: user }),
+  setMyProfileFields: (p) => rpc('set_my_identity', {
+    p_display_name: p.display_name ?? null, p_title: p.title ?? null,
+    p_pronouns: p.pronouns ?? null, p_avatar_key: p.avatar_key ?? null,
+    p_bio: p.bio ?? null, p_phone: p.phone ?? null, p_location: p.location ?? null,
+  }),
+  adminSetMemberProfile: (org, user, p) => rpc('admin_set_member_identity', {
+    p_org: org, p_user: user,
+    p_display_name: p.display_name ?? null, p_title: p.title ?? null,
+    p_pronouns: p.pronouns ?? null, p_department: p.department ?? null,
+    p_manager: p.manager ?? null, p_start_date: p.start_date ?? null,
+    p_clear_manager: p.clear_manager ?? false,
+  }),
   // ---------- the organisation console (0069) ----------
   // Org-SCOPED twins of the workspace-scoped calls. An org admin who never
   // joined a server holds authority over the organisation and, before these,
@@ -119,9 +165,12 @@ export const api = {
     p_workspace: ws, p_name: patch.name ?? null, p_default_channel: patch.defaultChannel ?? null,
   }),
   renameOrganization: (org, name) => rpc('rename_organization', { p_org: org, p_name: name }),
-  // The org's own servers, with whether you are in them and may join.
-  listOrgWorkspaces: (org) => rpc('list_org_workspaces', { p_org: org }),
-  joinOrgWorkspace: (ws) => rpc('join_org_workspace', { p_workspace: ws }),
+  // Removed: listOrgWorkspaces / joinOrgWorkspace. Neither list_org_workspaces
+  // nor join_org_workspace has ever existed in any migration - 0068 replaced
+  // both with list_org_spaces and join_team_space and these wrappers were left
+  // behind. Nothing called them, so they were two latent PGRST202s rather than a
+  // live bug, but a wrapper for a function that does not exist is a trap for
+  // whoever reaches for it next.
   listJoinRequests: (ws) => rpc('list_join_requests', { p_workspace: ws }),
   countJoinRequests: (ws) => rpc('count_join_requests', { p_workspace: ws }),
 

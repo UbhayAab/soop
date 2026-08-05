@@ -54,6 +54,27 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
 .tb-center { display: flex; justify-content: center; }
 .tb-right { display: flex; align-items: center; justify-content: flex-end; gap: var(--s-2); }
 
+/* The server name is a menu - Invite, hand over, Leave. Before it was, the only
+   route to Leave was a right-click on the rail icon, which nothing advertised
+   and a phone cannot perform. It has to look pressable. */
+#topbar #spaceName.spacename-menu {
+  cursor: pointer;
+  border-radius: var(--r-sm, 6px);
+  padding: 2px 6px;
+  margin-left: -6px;
+}
+#topbar #spaceName.spacename-menu:hover,
+#topbar #spaceName.spacename-menu:focus-visible {
+  background: color-mix(in srgb, var(--c-nav-text, currentColor) 12%, transparent);
+}
+#topbar #spaceName.spacename-menu::after {
+  content: '▾';
+  font-size: 0.72em;
+  opacity: 0.6;
+  margin-left: 5px;
+  vertical-align: 1px;
+}
+
 #topbar #spaceName {
   color: var(--c-nav-brand);
   font-size: var(--t-base);

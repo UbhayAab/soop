@@ -637,6 +637,15 @@ section.msgs {
 .sicon.active::after { opacity: 0; }
 .sicon.active::before { opacity: 1; transform: translateY(-50%) scaleY(1); }
 
+/* Archived, or counting down to deletion. A server in either state takes no new
+   messages, so it must not look like one that does - painting it identically is
+   what made "I deleted it" and "it is still there" the same screen. */
+.sicon-off {
+  opacity: 0.42;
+  filter: grayscale(1);
+}
+.sicon-off:hover { opacity: 0.72; }
+
 /* Add a Space: an outline tile, never a filled one, so it stays subordinate. */
 .sicon.add {
   background: transparent;

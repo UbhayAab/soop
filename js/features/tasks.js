@@ -101,13 +101,29 @@ async function assigneeOptions(keep = null) {
 // ------------------------------------------------------------------ create
 async function createDialog(msg) {
   const preset = plain(msg.body_text || '', 120);
+  // Whether this organisation lets everybody hand work out. Asked before the
+  // dialog opens so the form can say what pressing the button will actually do,
+  // rather than accepting it and quietly turning it into something else.
+  let mayAssignOthers = true;
+  const [caps] = await tryRpc('my_capabilities', { p_workspace: store.ws?.id });
+  if (caps && typeof caps['task.assign_other'] === 'boolean') {
+    mayAssignOthers = caps['task.assign_other'];
+  }
+
   const out = await uiRef.formModal({
-    title: 'Make this a task',
+    title: mayAssignOthers ? 'Make this a task' : 'Make this a task, or ask for one',
+    note: mayAssignOthers ? null
+      : 'Your organisation lets only certain people hand tasks to others. Choosing somebody '
+        + 'else sends it to them as a request, and it reaches that person only once it is '
+        + 'accepted. Choosing yourself always just works.',
     fields: [
       { name: 'title', label: 'What needs doing', value: preset, required: true,
         placeholder: 'Collect the receipts' },
       { name: 'assignee', label: 'Who is doing it', type: 'select', options: await assigneeOptions(),
-        value: store.me, hint: 'They will see it in their Later queue straight away.' },
+        value: store.me,
+        hint: mayAssignOthers
+          ? 'They will see it in their Later queue straight away.'
+          : 'Yourself: starts immediately. Anybody else: goes as a request first.' },
       { name: 'due', label: 'Due by (optional)', type: 'datetime-local',
         hint: 'They get one reminder when it falls due. Leave blank for no deadline.' },
     ],
@@ -116,13 +132,18 @@ async function createDialog(msg) {
   if (!out) return;
 
   try {
-    await rpc('create_task', {
+    const t = await rpc('create_task', {
       p_message: msg.id,
       p_title: out.title.trim() || null,
       p_assignee: out.assignee || null,
       p_due_at: out.due ? fromLocalInput(out.due) : null,
     });
-    toastFn('Task created', 'success');
+    // Say which of the two things happened. "Task created" when what actually
+    // happened is "request sent, and nobody has it yet" is the kind of small lie
+    // that makes people think the app dropped their work.
+    toastFn(t?.state === 'proposed'
+      ? 'Asked for. Somebody who can accept it will see it under Requests.'
+      : 'Task created', 'success');
     await refreshChips();
     refreshCount();
   } catch (e) { toastErr(e); }
@@ -216,11 +237,29 @@ function mount(msg, row) {
 }
 
 // ------------------------------------------------------------------ panel
+// "I asked for" was the old label on the assigned-by-me tab, which was wrong in
+// both directions once requesting exists: asking for a task and handing one out
+// are now different acts with different tabs.
 const TABS = [
   { key: 'mine', label: 'For me', empty: 'Nothing is assigned to you. That is a good thing.' },
-  { key: 'assigned', label: 'I asked for', empty: 'You have not asked anyone to do anything yet.' },
+  { key: 'blocked', label: 'Stuck', empty: 'Nothing is stuck.' },
+  { key: 'proposed', label: 'Requests', empty: 'Nobody has asked for anything.' },
+  { key: 'review', label: 'To review', empty: 'Nothing is waiting on you.' },
+  { key: 'assigned', label: 'I handed out', empty: 'You have not given anybody a task yet.' },
+  { key: 'requested', label: 'I asked for', empty: 'You have not asked for anything.' },
   { key: 'all', label: 'Everything', empty: 'No tasks in this Space yet.' },
 ];
+
+const STATE_LABEL = {
+  proposed: 'waiting for a yes',
+  accepted: 'not started',
+  in_progress: 'in progress',
+  blocked: 'stuck',
+  in_review: 'waiting on a review',
+  done: 'done',
+  rejected: 'declined',
+  cancelled: 'cancelled',
+};
 // Validated, not trusted: a stale value from an older build would make
 // TABS.find() return undefined and throw while rendering the empty state.
 let activeTab = TABS.some((t) => t.key === localStorage.getItem('hearth.tasks.tab'))
@@ -286,26 +325,126 @@ function taskCard(t) {
       ${t.due_at ? `<span class="${CLS}-due${isOverdue(t) ? ' ' + CLS + '-late' : ''}">${esc(dueLabel(t.due_at))}</span>` : ''}
     </div>
     <div class="${CLS}-meta muted">
-      <b>${esc(who)}</b> · #${esc(t.channel_name || 'channel')} ·
-      asked by ${esc(nameOf(t.created_by))} · ${esc(relTime(t.created_at))}
+      <b>${esc(who)}</b>
+      ${t.state && t.state !== 'accepted'
+        ? `<span class="${CLS}-state ${CLS}-state-${esc(t.state)}">${esc(STATE_LABEL[t.state] || t.state)}</span>`
+        : ''}
+      · #${esc(t.channel_name || 'channel')} ·
+      ${t.assigned_by && t.assigned_by !== t.created_by
+        ? `given by ${esc(nameOf(t.assigned_by))}`
+        : `asked by ${esc(nameOf(t.created_by))}`} · ${esc(relTime(t.created_at))}
     </div>
+    ${t.state === 'blocked' && t.blocker_note
+      ? `<div class="${CLS}-blocked"><b>Stuck:</b> ${esc(t.blocker_note)}
+         <span class="muted">since ${esc(relTime(t.blocked_at))}</span></div>` : ''}
+    ${t.decision === 'changes_requested' && t.note
+      ? `<div class="${CLS}-blocked"><b>Changes asked for:</b> ${esc(t.note)}</div>` : ''}
+    ${t.state === 'rejected' && t.note
+      ? `<div class="${CLS}-blocked"><b>Declined:</b> ${esc(t.note)}</div>` : ''}
     ${t.body_text ? `<div class="${CLS}-quote">${esc(plain(t.body_text, 160))}</div>` : ''}`;
 
   const bar = el('div', 'row gap ' + CLS + '-bar');
-  const mayFlip = t.assignee_id === store.me || t.created_by === store.me || hasPerm(PERM.MANAGE_MESSAGES);
-
-  if (mayFlip) {
-    const b = el('button', 'sm' + (t.done_at ? ' ghost' : ''), t.done_at ? 'Reopen' : 'Mark done');
+  const mine = t.assignee_id === store.me;
+  const mayFlip = mine || t.created_by === store.me || hasPerm(PERM.MANAGE_MESSAGES);
+  const act = (label, kind, fn) => {
+    const b = el('button', 'sm ' + kind, label);
     b.onclick = async (e) => {
       e.stopPropagation();
       b.disabled = true;
-      try {
-        await rpc('set_task_done', { p_task: t.id, p_done: !t.done_at });
-        uiRef.openPanel(PANEL, { tab: activeTab });
-        refreshCount();
-      } catch (err) { b.disabled = false; toastErr(err); }
+      try { await fn(); uiRef.openPanel(PANEL, { tab: activeTab }); refreshCount(); }
+      catch (err) { b.disabled = false; toastErr(err); }
     };
     bar.appendChild(b);
+    return b;
+  };
+
+  // A request is waiting on a decision, and nothing else about it matters until
+  // somebody makes one.
+  if (t.state === 'proposed') {
+    if (hasPerm(PERM.MANAGE_MESSAGES) || hasPerm(PERM.MODERATE)) {
+      act('Accept', '', async () => {
+        await rpc('decide_task', { p_task: t.id, p_decision: 'accept' });
+        uiRef.toast('Accepted', 'success');
+      });
+    }
+    if (t.created_by === store.me || hasPerm(PERM.MANAGE_MESSAGES) || hasPerm(PERM.MODERATE)) {
+      act('Decline', 'ghost', async () => {
+        const why = await uiRef.formModal({
+          title: 'Decline this request',
+          note: 'Whoever asked will be told. A reason is not required, but it saves them asking again.',
+          fields: [{ name: 'reason', label: 'Why', type: 'textarea', rows: 2 }],
+          submitLabel: 'Decline',
+        });
+        if (!why) throw new Error('cancelled');
+        await rpc('decide_task', { p_task: t.id, p_decision: 'decline', p_reason: why.reason || null });
+        uiRef.toast('Declined', 'success');
+      });
+    }
+  } else if (t.state === 'in_review') {
+    // The person who did the work is not offered the verdict on it.
+    const mayReview = (t.reviewer_id === store.me || hasPerm(PERM.MANAGE_MESSAGES))
+      && !(mine && t.reviewer_id !== store.me);
+    if (mayReview) {
+      act('Approve', '', async () => {
+        await rpc('review_task', { p_task: t.id, p_verdict: 'approved' });
+        uiRef.toast('Approved', 'success');
+      });
+      act('Ask for changes', 'ghost', async () => {
+        const out = await uiRef.formModal({
+          title: 'Ask for changes',
+          note: 'It goes back to them, still open.',
+          fields: [{ name: 'note', label: 'What needs doing', type: 'textarea', rows: 3, required: true }],
+          submitLabel: 'Send it back',
+        });
+        if (!out) throw new Error('cancelled');
+        await rpc('review_task', { p_task: t.id, p_verdict: 'changes_requested', p_note: out.note });
+      });
+    } else if (mine) {
+      bar.appendChild(el('span', 'muted', 'Waiting on ' + esc(nameOf(t.reviewer_id))));
+    }
+  } else if (mayFlip) {
+    if (t.state === 'blocked') {
+      act('No longer stuck', '', async () => {
+        await rpc('set_task_state', { p_task: t.id, p_state: 'unblocked' });
+      });
+    } else if (!t.done_at) {
+      // The one control this whole flow exists for. Nobody in the field makes
+      // saying "I am stuck" a first-class action; it is always a comment
+      // somebody has to notice.
+      act('I am stuck', 'ghost', async () => {
+        const out = await uiRef.formModal({
+          title: 'What are you stuck on?',
+          note: 'Whoever gave you this, and whoever asked for it, will be told.',
+          fields: [{ name: 'note', label: 'What is in the way', type: 'textarea', rows: 3, required: true,
+            placeholder: 'Waiting on the district office to send the list' }],
+          submitLabel: 'Mark it stuck',
+        });
+        if (!out) throw new Error('cancelled');
+        await rpc('set_task_state', { p_task: t.id, p_state: 'blocked', p_note: out.note });
+      });
+    }
+
+    if (!t.done_at && t.state !== 'in_review' && t.assigned_by && t.assigned_by !== store.me) {
+      act('Send for review', 'ghost', async () => {
+        await rpc('set_task_state', { p_task: t.id, p_state: 'in_review' });
+        uiRef.toast('Sent to ' + nameOf(t.assigned_by), 'success');
+      });
+    }
+
+    act(t.done_at ? 'Reopen' : 'Mark done', t.done_at ? 'ghost' : '', async () => {
+      try {
+        await rpc('set_task_done', { p_task: t.id, p_done: !t.done_at });
+      } catch (err) {
+        if (!/blocked_not_cleared/.test(err.message || '')) throw err;
+        const ok = await uiRef.confirmModal({
+          title: 'This is still marked stuck',
+          body: 'You said you were waiting on something. Finish it anyway?',
+          confirmLabel: 'Finish it anyway',
+        });
+        if (!ok) throw new Error('cancelled');
+        await rpc('set_task_done', { p_task: t.id, p_done: true, p_force: true });
+      }
+    });
 
     const ed = el('button', 'sm ghost', 'Edit');
     ed.onclick = (e) => { e.stopPropagation(); editDialog(t); };
@@ -454,7 +593,20 @@ function style() {
   border-left:2px solid var(--c-border);color:var(--c-text-2);font-size:var(--t-sm)}
 .${CLS}-bar{margin-top:var(--s-3);flex-wrap:wrap;gap:var(--s-2)}
 .${CLS}-bar button{min-height:36px}
-.${CLS}-badge{margin-left:var(--s-1);vertical-align:top}`;
+.${CLS}-badge{margin-left:var(--s-1);vertical-align:top}
+/* Stuck work has to look different from work that is merely not finished. The
+   whole point of asking somebody to say they are blocked is that somebody else
+   can see it without reading every card. */
+.${CLS}-blocked{margin-top:var(--s-3);padding:var(--s-3) var(--s-4);border-radius:var(--r-sm,6px);
+  background:color-mix(in srgb,var(--c-danger) 10%,transparent);
+  border-left:2px solid var(--c-danger);font-size:var(--t-sm);line-height:var(--t-loose)}
+.${CLS}-blocked .muted{font-size:var(--t-xs)}
+.${CLS}-state{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;
+  font-size:11px;background:var(--c-bg);border:1px solid var(--c-border);white-space:nowrap}
+.${CLS}-state-blocked{color:var(--c-danger);border-color:color-mix(in srgb,var(--c-danger) 40%,var(--c-border))}
+.${CLS}-state-proposed,.${CLS}-state-in_review{color:var(--c-accent);
+  background:var(--c-accent-quiet);border-color:transparent}
+.${CLS}-state-rejected,.${CLS}-state-cancelled{text-decoration:line-through;opacity:.75}`;
   document.head.appendChild(s);
 }
 

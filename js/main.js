@@ -191,10 +191,16 @@ async function enter() {
   // painted and the conversation had not - which is the blank screen people kept
   // reporting right after choosing their password. Somebody who belongs to
   // nothing now gets a screen that says so and can act on it.
+  // An archived server, or one counting down to deletion, takes no new messages.
+  // Opening into one is a dead room that reads as a broken app, and it is what
+  // happened right after an admin deleted a server they were standing in.
+  const live = (x) => !x.archived_at && !x.scheduled_delete_at;
   const active = store.spaces.find((x) => x.id === joinedId)
     // Straight into the organisation they just joined, not whichever Space is
     // oldest.
-    || (joinedOrg ? store.spaces.find((x) => x.org_id === joinedOrg.id) : null)
+    || (joinedOrg ? store.spaces.find((x) => x.org_id === joinedOrg.id && live(x)) : null)
+    || store.spaces.find((x) => x.slug !== 'demo' && live(x))
+    || store.spaces.find(live)
     || store.spaces.find((x) => x.slug !== 'demo')
     || store.spaces[0];
 

@@ -13,6 +13,9 @@ const FEATURES = [
   'later',
   'status',
   'profile',
+  // A person as a page at #/u/<id>. The modal card answers "who just said that";
+  // this is the staff directory entry, which is a different shape.
+  'profilepage',
   'admin',
   // The organisation console. A page at #/admin, not a panel.
   'orgadmin',

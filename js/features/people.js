@@ -50,9 +50,19 @@ function currentOrg() {
 export function canManagePeople() { return !!currentOrg(); }
 
 // ------------------------------------------------------------------ add
-function addPeopleForm(host, ctx, ui, org) {
+// Mounted in two places: inline in this tab, and in a dialog from the
+// organisation console. One implementation, because the part that must never
+// diverge is the result panel - it is the only time a password is ever shown,
+// and a second copy of it is how one of them ends up not saying so.
+//
+// `servers` is handed in by the organisation console, which reads them with
+// list_org_servers. store.spaces holds only the servers this admin is a MEMBER
+// of, and an org admin does not have to be in a server to run it - so reading
+// the list from there would hide exactly the servers they are least likely to
+// be in, which for an HR server is most of them.
+export function addPeopleForm(host, org, ui, { servers, onDone } = {}) {
   const wrap = el('div', 'admin-form');
-  const servers = (store.spaces || []).filter((s) => s.org_id === org.org_id);
+  const spaces = servers || (store.spaces || []).filter((s) => s.org_id === org.org_id);
   wrap.innerHTML = `
     <p class="muted">Paste email addresses - one per line, or straight out of a
       spreadsheet column. Names and phone numbers alongside them are ignored.</p>
@@ -61,7 +71,7 @@ function addPeopleForm(host, ctx, ui, org) {
     <div class="admin-row2">
       <label class="field"><span class="field-label">Put them in</span>
         <select id="addSpace">
-          ${servers.map((s) => `<option value="${esc(s.id)}"${s.id === store.ws?.id ? ' selected' : ''}>${esc(s.name)}</option>`).join('')}
+          ${spaces.map((s) => `<option value="${esc(s.id)}"${s.id === store.ws?.id ? ' selected' : ''}>${esc(s.name)}</option>`).join('')}
           <option value="">No server yet - they use a join link</option>
         </select></label>
       <label class="field"><span class="field-label">Their title (optional)</span>
@@ -92,8 +102,7 @@ function addPeopleForm(host, ctx, ui, org) {
       });
       renderAddResult(out, r, ui);
       wrap.querySelector('#addEmails').value = '';
-      ctx.cache.delete('people');
-      ctx.cache.delete('members');
+      onDone?.(r);
     } catch (e) {
       out.innerHTML = `<div class="autherr">${esc(e.message)}</div>`;
     } finally {
@@ -148,6 +157,21 @@ function renderAddResult(out, r, ui) {
   }
 }
 
+// The same form as a dialog, for the organisation console. That console could
+// already manage somebody, reset them and remove them, and had no way to add
+// one - so the single act that starts everything else was the one act still
+// only available in a terminal, to one person.
+export function addPeopleDialog(org, ui, { servers, onDone } = {}) {
+  const box = el('div');
+  const m = ui.modal({
+    title: 'Add people to ' + (org.name || 'this organisation'),
+    body: box,
+    wide: true,
+  });
+  addPeopleForm(box, org, ui, { servers, onDone });
+  return m;
+}
+
 // ------------------------------------------------------------------ status
 // Three groups, because they need three different actions and treating them as
 // one list is how "resend it" and "reset them" get mixed up. Resetting somebody
@@ -180,7 +204,9 @@ async function drawPeople(host, ctx, ui) {
   }
 
   host.appendChild(el('h4', 'sec', 'Add people to ' + (org.name || 'this organisation')));
-  addPeopleForm(host, ctx, ui, org);
+  addPeopleForm(host, org, ui, {
+    onDone: () => { ctx.cache.delete('people'); ctx.cache.delete('members'); },
+  });
 
   // ---------------------------------------------------------- identity policy
   // The per-organisation decision about who may change a name or a title. It

@@ -14,6 +14,9 @@ import { PERM } from '../config.js';
 import { el, esc, relTime, plain } from '../util.js';
 import { icon } from '../icons.js';
 import { drawPeople, canManagePeople } from './people.js';
+// Core, not another feature: the leave / hand-over flow belongs next to the
+// Space lifecycle that owns it, and the rail menu uses the same two functions.
+import { serverError, handOverDialog, leaveSpace } from '../core/workspace.js';
 
 const canAdmin = () => hasPerm(PERM.MANAGE_WORKSPACE) || store.isAdmin;
 
@@ -202,18 +205,23 @@ async function drawOverview(host, ctx, { ui }) {
     return b;
   };
 
-  row('Leave this server', 'You lose access immediately and need a fresh invite to come back.',
-    'Leave', 'ghost', async () => {
-      if (!(await ui.confirmModal({
-        title: 'Leave ' + (ws.name || 'this server'),
-        body: 'You lose access immediately and need a fresh invite link to come back.',
-        confirmLabel: 'Leave', danger: true,
-      }))) return;
-      try { await api.leaveWorkspace(ws.id); location.reload(); }
-      catch (e) { ui.toast(e.message, 'error'); }
-    });
+  // Handing over is listed BEFORE leaving, because for the only admin of a
+  // server it is the thing that has to happen first, and the old error message
+  // said so while offering no way to do it.
+  if (iAmOrgAdmin || store.isAdmin) {
+    row('Hand this server over',
+      'Make somebody else an admin of it. They get everything you have here.',
+      'Hand over', 'ghost', () => handOverDialog(ws));
+  }
 
-  if (iAmOrgAdmin) {
+  row('Leave this server', 'You lose access immediately and need a fresh invite to come back.',
+    'Leave', 'ghost', () => leaveSpace(ws));
+
+  // Archiving needs MANAGE_WORKSPACE or org admin - the same test the server
+  // makes. Gating it on org admin alone hid the button from the server admins it
+  // was built for.
+  const canRunServer = iAmOrgAdmin || hasPerm(PERM.MANAGE_WORKSPACE);
+  if (canRunServer) {
     const archived = !!ws.archived_at;
     row(archived ? 'Unarchive this server' : 'Archive this server',
       archived
@@ -224,7 +232,7 @@ async function drawOverview(host, ctx, { ui }) {
           await api.archiveWorkspace(ws.id, !archived);
           ui.toast(archived ? 'Server unarchived' : 'Server archived, and nothing was deleted', 'success');
           location.reload();
-        } catch (e) { ui.toast(e.message, 'error'); }
+        } catch (e) { ui.toast(serverError(e), 'error'); }
       });
 
     if (ws.scheduled_delete_at) {
@@ -232,8 +240,30 @@ async function drawOverview(host, ctx, { ui }) {
       row('This server is scheduled for deletion', `It will be destroyed on ${when}. You can still stop it.`,
         'Cancel deletion', '', async () => {
           try { await api.restoreWorkspace(ws.id); ui.toast('Deletion cancelled', 'success'); location.reload(); }
-          catch (e) { ui.toast(e.message, 'error'); }
+          catch (e) { ui.toast(serverError(e), 'error'); }
         });
+
+      // The answer to "I pressed delete and it is still there". Seven days is
+      // the right default and was the only option, so an admin clearing up a
+      // typo watched the thing they deleted stay in the list. Org admin only,
+      // and only ever as a second deliberate step.
+      if (iAmOrgAdmin) {
+        row('Or delete it now', 'Skips the seven days. Nothing brings it back.',
+          'Delete now', 'danger', async () => {
+            if (!(await ui.typeToConfirm({
+              title: 'Delete ' + (ws.name || 'this server') + ' now',
+              body: 'This destroys every channel, message and file in it immediately. '
+                  + 'There is no undo and no waiting period after this.',
+              phrase: ws.name,
+              confirmLabel: 'Delete now',
+            }))) return;
+            try {
+              await api.purgeWorkspaceNow(ws.id);
+              ui.toast('Deleted', 'success');
+              location.reload();
+            } catch (e) { ui.toast(serverError(e), 'error'); }
+          });
+      }
     } else {
       row('Delete this server',
         'Destroys every channel, message and file in it. Scheduled for seven days out, so it can be stopped.',
@@ -249,11 +279,7 @@ async function drawOverview(host, ctx, { ui }) {
             const when = await api.deleteWorkspace(ws.id);
             ui.toast(`Scheduled for deletion on ${new Date(when).toLocaleDateString()}. You can still cancel it.`, 'success');
             location.reload();
-          } catch (e) {
-            ui.toast(/last_workspace/.test(e.message || '')
-              ? 'This is the only server left in the organisation. Create another one first.'
-              : e.message, 'error');
-          }
+          } catch (e) { ui.toast(serverError(e), 'error'); }
         });
     }
   }
@@ -268,11 +294,7 @@ async function drawOverview(host, ctx, { ui }) {
           confirmLabel: 'Leave', danger: true,
         }))) return;
         try { await api.leaveOrg(ws.org_id); location.reload(); }
-        catch (e) {
-          ui.toast(/last_admin/.test(e.message || '')
-            ? 'You are the only admin. Make somebody else an admin before you leave.'
-            : e.message, 'error');
-        }
+        catch (e) { ui.toast(serverError(e), 'error'); }
       });
   }
 

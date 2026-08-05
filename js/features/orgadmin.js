@@ -15,7 +15,7 @@ import { store, bus } from '../store.js';
 import { api } from '../api.js';
 import { $, el, esc, initials, hueOf, relTime } from '../util.js';
 import { loadSpaces, switchWorkspace } from '../core/workspace.js';
-import { resetPersonPassword } from './people.js';
+import { resetPersonPassword, addPeopleDialog } from './people.js';
 
 let UI = null;
 let current = null;        // { org, overview, section }
@@ -39,6 +39,7 @@ const SECTIONS = [
   ['overview', 'Overview'],
   ['people', 'People'],
   ['servers', 'Servers'],
+  ['permissions', 'Permissions'],
   ['rules', 'Rules'],
 ];
 
@@ -48,7 +49,14 @@ export async function openAdminPage(orgId, section) {
     UI?.toast('Only an admin of an organisation can open this.', 'error');
     return;
   }
-  current = { org, section: section || current?.section || 'overview' };
+  current = {
+    org,
+    section: section || current?.section || 'overview',
+    // Which server the Permissions section is scoped to. Kept across a reopen so
+    // coming back from a toast does not silently move you from one server's
+    // rules to the whole organisation's.
+    permServer: current?.org?.org_id === org.org_id ? current?.permServer || null : null,
+  };
 
   document.body.classList.add('admin-page');
   $('chat')?.classList.add('hidden');
@@ -108,7 +116,8 @@ async function draw() {
 
   const main = page.querySelector('#apMain');
   try {
-    const painter = { overview: drawOverview, people: drawPeople, servers: drawServers, rules: drawRules }[section];
+    const painter = { overview: drawOverview, people: drawPeople, servers: drawServers,
+      permissions: drawPermissions, rules: drawRules }[section];
     await painter(main, org);
   } catch (e) {
     main.innerHTML = `<div class="loadfail">
@@ -185,9 +194,20 @@ async function drawPeople(host, org) {
   host.innerHTML = `
     <div class="ap-rowhead">
       <h2 class="ap-h2">People <span class="muted">${people.length}</span></h2>
-      <input id="apSearch" class="ap-search" placeholder="Search by name, email or title" />
+      <div class="ap-rowhead-tools">
+        <input id="apSearch" class="ap-search" placeholder="Search by name, email or title" />
+        <button class="sm" id="apAddPeople">＋ Add people</button>
+      </div>
     </div>
     <div class="ap-table" id="apPeople"></div>`;
+
+  // The servers come from list_org_servers rather than store.spaces: an org
+  // admin runs servers they are not in, and those are the ones a new starter is
+  // most likely to belong to.
+  host.querySelector('#apAddPeople').onclick = () => addPeopleDialog(org, UI, {
+    servers: live,
+    onDone: draw,
+  });
 
   const list = host.querySelector('#apPeople');
   const paint = (q = '') => {
@@ -401,7 +421,14 @@ async function managePerson(person, org, servers) {
 
 // ------------------------------------------------------------------ servers
 async function drawServers(host, org) {
-  const servers = await api.listOrgServers(org.org_id);
+  // Refetched rather than read from current.overview: this section can be the
+  // first one opened, and it needs scheduled_delete_at to know whether the
+  // organisation itself is already counting down.
+  const [servers, o] = await Promise.all([
+    api.listOrgServers(org.org_id),
+    api.orgOverview(org.org_id),
+  ]);
+  current.overview = o;
 
   host.innerHTML = `
     <div class="ap-rowhead">
@@ -423,7 +450,8 @@ async function drawServers(host, org) {
         </div>
         <div class="ap-acts">
           ${gone
-            ? `<button class="sm ghost" data-a="restore">Restore</button>`
+            ? `<button class="sm ghost" data-a="restore">Restore</button>
+               ${doomed ? '<button class="sm danger" data-a="purge">Delete now</button>' : ''}`
             : `<button class="sm ghost" data-a="open">Open</button>
                <button class="sm ghost" data-a="rename">Rename</button>
                <button class="sm ghost" data-a="archive">Archive</button>
@@ -518,12 +546,206 @@ async function drawServers(host, org) {
         UI.toast(`Scheduled for ${new Date(when).toLocaleDateString()}. You can still cancel it.`, 'success');
         await loadSpaces();
         refresh();
-      } catch (e) {
-        UI.toast(/last_workspace/.test(e.message || '')
-          ? 'This is the only live server in the organisation. Make another one first.'
-          : e.message, 'error');
-      }
+      } catch (e) { UI.toast(e.message, 'error'); }
     });
+
+    // Seven days is the right default and used to be the only option, so an
+    // admin clearing up a mistyped server watched the thing they deleted sit in
+    // this list for a week. This is the second deliberate step that ends it.
+    act('purge', async () => {
+      const ok = await UI.typeToConfirm({
+        title: 'Delete ' + s.name + ' now',
+        body: `This destroys every channel, message and file in ${s.name} immediately, rather than `
+            + 'waiting out the seven days. There is no undo after this.',
+        phrase: s.name,
+        confirmLabel: 'Delete now',
+      });
+      if (!ok) return;
+      try {
+        await api.purgeWorkspaceNow(id);
+        UI.toast('Deleted', 'success');
+        await loadSpaces();
+        refresh();
+      } catch (e) { UI.toast(e.message, 'error'); }
+    });
+  });
+
+  // The escape hatch that did not exist. An organisation created by mistake
+  // could be renamed and emptied of people and never removed - and its last
+  // server could not be deleted either, so the mistake outlived everything in
+  // it. That is what "I am an admin and I cannot delete a server" was.
+  const doomedOrg = !!current.overview?.scheduled_delete_at;
+  const box = el('div', 'ap-danger');
+  box.style.marginTop = 'var(--s-7)';
+  box.innerHTML = `
+    <div class="ap-danger-row">
+      <div>
+        <b>${doomedOrg ? 'This organisation is being deleted' : 'Delete ' + esc(org.name)}</b>
+        <div class="muted">${doomedOrg
+          ? 'Every server in it is already dark. You can still stop this.'
+          : 'Every server, channel, message and file in this organisation, and everybody\'s '
+            + 'membership of it. Scheduled seven days out so it can be stopped.'}</div>
+      </div>
+      <button class="sm ${doomedOrg ? '' : 'danger'}" id="apOrgDelete">
+        ${doomedOrg ? 'Cancel deletion' : 'Delete organisation'}</button>
+    </div>`;
+  host.appendChild(el('h2', 'ap-h2', 'The whole organisation'));
+  host.appendChild(box);
+
+  box.querySelector('#apOrgDelete').onclick = async () => {
+    if (doomedOrg) {
+      try {
+        await api.restoreOrganization(org.org_id);
+        UI.toast('Deletion cancelled. Every server is back.', 'success');
+        current.overview = null;
+        await loadSpaces();
+        refresh();
+      } catch (e) { UI.toast(e.message, 'error'); }
+      return;
+    }
+    const ok = await UI.typeToConfirm({
+      title: 'Delete ' + org.name,
+      body: `Everything in ${org.name} goes: every server, every channel, every message and file, `
+          + 'and everybody\'s place in it. It is scheduled for seven days out so you can still stop '
+          + 'it, and after that nothing brings it back.',
+      phrase: org.name,
+      confirmLabel: 'Schedule deletion',
+    });
+    if (!ok) return;
+    try {
+      const when = await api.deleteOrganization(org.org_id);
+      UI.toast(`Scheduled for ${new Date(when).toLocaleDateString()}. You can still cancel it.`, 'success');
+      await loadSpaces();
+      refresh();
+    } catch (e) { UI.toast(e.message, 'error'); }
+  };
+}
+
+// ------------------------------------------------------------------ permissions
+//
+// The screen the whole 0073 migration exists for. Every row is one sentence with
+// one dropdown, because the alternative - forty checkboxes per role over a
+// bitfield, which is what the schema actually stores - is not a screen anybody
+// running an NGO is going to use correctly.
+//
+// The wording of the loosest option matters more than it looks. A policy narrows
+// a permission and can never grant one, so "Everyone" does not mean everyone can
+// do this; it means the rules do not stand in the way and the permission still
+// decides. Calling it "Everyone" would be a lie in every row that has a bit
+// behind it, and those are most of them.
+const SCOPE_LABEL = {
+  nobody: 'Nobody at all',
+  org_admins: 'Organisation admins only',
+  server_admins: 'Server admins and above',
+  moderators: 'Moderators and above',
+  members: 'Any member',
+  everyone: 'Anyone who has the permission',
+};
+const SCOPE_LABEL_NOBIT = { ...SCOPE_LABEL, everyone: 'Anyone, including guests' };
+
+async function drawPermissions(host, org) {
+  const [pol, servers] = await Promise.all([
+    api.getPolicies(org.org_id, current.permServer || null),
+    api.listOrgServers(org.org_id),
+  ]);
+  if (!pol) throw new Error('You are not a member of this organisation.');
+  const live = servers.filter((s) => !s.archived_at);
+  const ranks = new Map(pol.scopes.map((s) => [s.key, s.rank]));
+  const ladder = pol.scopes.slice().sort((a, b) => b.rank - a.rank); // loosest first
+
+  const cats = [];
+  for (const a of pol.actions) {
+    let c = cats.find((x) => x.name === a.category);
+    if (!c) { c = { name: a.category, rows: [] }; cats.push(c); }
+    c.rows.push(a);
+  }
+
+  const optionsFor = (a, selected) => ladder
+    .filter((s) => ranks.get(s.key) >= ranks.get(a.floor))
+    .map((s) => {
+      const label = (a.bit === null ? SCOPE_LABEL_NOBIT : SCOPE_LABEL)[s.key] || s.key;
+      return `<option value="${esc(s.key)}"${s.key === selected ? ' selected' : ''}>${esc(label)}</option>`;
+    }).join('');
+
+  host.innerHTML = `
+    <div class="ap-rowhead">
+      <h2 class="ap-h2">Who can do what</h2>
+      <label class="ap-permscope">
+        <span class="muted">Showing</span>
+        <select id="apPermServer">
+          <option value="">${esc(org.name)} - everywhere</option>
+          ${live.map((s) => `<option value="${s.id}"${current.permServer === s.id ? ' selected' : ''}>
+            ${esc(s.name)}</option>`).join('')}
+        </select>
+      </label>
+    </div>
+    <p class="ap-lede">These take effect the moment you change them, for everybody in
+      ${esc(org.name)}. A setting here can only ever <b>narrow</b> what somebody's role already
+      lets them do - it never hands anybody a permission they were not given. Somebody who is
+      not allowed sees the button greyed out with the reason, rather than being let press it
+      and refused afterwards.</p>
+    ${current.permServer ? `<div class="ap-note">
+      You are looking at one server. A server can be <b>stricter</b> than the organisation and
+      never more open, so options above the organisation's setting are not offered here.
+      Clear it back to blank to hand the decision back to the organisation.</div>` : ''}
+
+    ${cats.map((c) => `
+      <h3 class="ap-h3">${esc(c.name)}</h3>
+      <div class="ap-rules">
+        ${c.rows.map((a) => {
+          const shown = current.permServer && a.scope === 'server'
+            ? (a.server_value || a.effective) : (a.org_value || a.effective);
+          const inherited = current.permServer && a.scope === 'server' && !a.server_value;
+          const orgOnly = current.permServer && a.scope === 'org';
+          return `
+          <div class="ap-rule" data-action="${esc(a.key)}">
+            <div>
+              <b>${esc(a.label)}</b>
+              ${inherited ? '<span class="ap-chip">from the organisation</span>' : ''}
+              ${orgOnly ? '<span class="ap-chip">organisation-wide</span>' : ''}
+              <div class="muted">${esc(a.hint || '')}</div>
+            </div>
+            <select data-key="${esc(a.key)}" ${!pol.can_edit || orgOnly ? 'disabled' : ''}>
+              ${current.permServer && a.scope === 'server'
+                ? `<option value=""${!a.server_value ? ' selected' : ''}>Same as the organisation</option>`
+                : ''}
+              ${optionsFor(a, shown)}
+            </select>
+          </div>`;
+        }).join('')}
+      </div>`).join('')}
+
+    ${pol.can_edit ? '' : `<div class="ap-note">
+      You can read these because they apply to you. Only an admin of ${esc(org.name)} can change them.</div>`}`;
+
+  host.querySelector('#apPermServer').onchange = (e) => {
+    current.permServer = e.target.value || null;
+    draw();
+  };
+
+  if (!pol.can_edit) return;
+  host.querySelectorAll('[data-key]').forEach((sel) => {
+    let last = sel.value;
+    sel.onchange = async () => {
+      const key = sel.dataset.key;
+      const value = sel.value === '' ? null : sel.value;
+      sel.disabled = true;
+      try {
+        if (current.permServer) await api.setServerPolicy(current.permServer, key, value);
+        else await api.setOrgPolicy(org.org_id, key, value);
+        last = sel.value;
+        UI.toast('Saved. Everybody sees this immediately.', 'success');
+        // Repaint: one change can move what a sibling row inherits.
+        await draw();
+      } catch (e) {
+        sel.value = last;
+        const m = String(e.message || '');
+        UI.toast(
+          /below_floor/.test(m) ? 'That would leave nobody able to do this.'
+          : /looser_than_org/.test(m) ? 'A server can be stricter than its organisation, never more open.'
+          : m, 'error');
+      } finally { sel.disabled = false; }
+    };
   });
 }
 
@@ -657,6 +879,8 @@ body.admin-page #chat main,body.admin-page #channelbar{display:none!important}
 .ap-grid2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-4)}
 @media(max-width:560px){.ap-grid2{grid-template-columns:1fr}}
 .ap-rowhead{display:flex;align-items:center;justify-content:space-between;gap:var(--s-4);flex-wrap:wrap}
+.ap-rowhead-tools{display:flex;align-items:center;gap:var(--s-3);flex-wrap:wrap}
+.ap-rowhead-tools button{flex:none}
 .ap-search{max-width:280px}
 .ap-table{margin-top:var(--s-4);border:1px solid var(--c-border);border-radius:var(--r-lg);overflow:hidden}
 .ap-person,.ap-server-row{display:flex;align-items:center;gap:var(--s-4);padding:var(--s-4) var(--s-5);
@@ -693,6 +917,9 @@ body.admin-page #chat main,body.admin-page #channelbar{display:none!important}
 .ap-rule{display:flex;align-items:center;justify-content:space-between;gap:var(--s-5);
   background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);padding:var(--s-4)}
 .ap-rule select{max-width:300px}
+.ap-rule select:disabled{opacity:.55;cursor:not-allowed}
+.ap-permscope{display:flex;align-items:center;gap:var(--s-3);font-size:var(--t-sm)}
+.ap-permscope select{max-width:260px}
 .ap-rule .muted{font-size:var(--t-xs);line-height:var(--t-loose);margin-top:2px}
 @media(max-width:640px){.ap-rule{flex-direction:column;align-items:stretch}.ap-rule select{max-width:none}}
 `;

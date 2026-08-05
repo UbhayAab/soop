@@ -392,11 +392,20 @@ bus.on('profile:open', async ({ userId, anchor } = {}) => {
       ${p.pronouns ? `<div class="muted">${esc(p.pronouns)}</div>` : ''}</div></div>
     <div id="pcStatus" class="muted"></div>
     <div class="pc-actions">
+      <button class="sm ghost" data-a="full">Full profile</button>
       ${userId !== store.me ? '<button class="sm" data-a="dm">Message</button>' : ''}
       ${userId !== store.me && hasPerm(PERM.KICK) ? '<button class="sm ghost" data-a="kick">Remove</button>' : ''}
       ${userId !== store.me && hasPerm(PERM.BAN) ? '<button class="sm danger" data-a="ban">Ban</button>' : ''}
     </div>`;
   const m = modal({ title: '', body: box });
+  // The card answers "who just said that" in place. Everything else about a
+  // person - their team, who they report to, which servers you share, what they
+  // are working on - is a page, because it does not fit beside a conversation
+  // and should be linkable.
+  box.querySelector('[data-a="full"]')?.addEventListener('click', () => {
+    m.close();
+    bus.emit('profile:page', { userId });
+  });
   box.querySelector('[data-a="dm"]')?.addEventListener('click', () => { m.close(); startDM(userId); });
   box.querySelector('[data-a="kick"]')?.addEventListener('click', async () => {
     if (!(await confirmModal({ title: 'Remove member', body: 'They lose access immediately.', confirmLabel: 'Remove', danger: true }))) return;
