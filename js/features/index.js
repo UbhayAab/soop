@@ -32,6 +32,15 @@ const FEATURES = [
   'ackloop',
   'forms',
   'tasks',
+  // The cheap way in to the line above: a message that hands work out gets a
+  // one-tap offer to become a task, parsed on this device with no model and no
+  // round trip. Loaded after tasks so the panel it feeds already exists.
+  'quicktask',
+  // Progress updates, blockers and the queue of work nobody owns. After tasks
+  // because it fills a slot tasks.js draws, and it needs migration 0101 - without
+  // it every RPC returns "function not found" once and the feature switches
+  // itself off rather than erroring on every card.
+  'taskprogress',
   'orientation',
   'activityReport',
   // Labelled sidebar rows for the four panels above. Without it they are only

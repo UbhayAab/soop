@@ -382,7 +382,6 @@ export function registerCoreHeader() {
 // before its own handler ran. Event names are a shared namespace.
 bus.on('profile:open', async ({ userId, anchor } = {}) => {
   if (!userId) return;
-  if (!userId) return;
   const p = store.profiles.get(userId) || {};
   const box = el('div', 'profile-card');
   box.innerHTML = `

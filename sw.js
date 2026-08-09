@@ -14,7 +14,7 @@
 // (below), but the precached copy is still what wins the 3.5s race on a slow
 // phone, so without this bump the 41 installed clients would keep serving the old
 // bundle whenever the network was slow - which is the shape of 03f8074.
-const VERSION = 'soop-v9';
+const VERSION = 'soop-v10';
 const SHELL = VERSION + '-shell';
 const VENDOR = VERSION + '-vendor';
 
@@ -35,11 +35,21 @@ const SHELL_FILES = [
   // floor, the long-press menu layout and the contrast corrections. Without it
   // in the shell an offline cold start renders those wrong.
   './css/polish.css',
+  // Embedded mode subtracts chrome the other stylesheets add, and it also locks
+  // the document scroll. Missing offline it is not fatal, but the panel scrolls
+  // its own header away, which looks exactly like the app being broken.
+  './css/embed.css',
   './js/shell.js',
   './js/theme.js',
   './js/icons.js',
   './manifest.webmanifest',
   './js/main.js',
+  // NOT optional. main.js imports this statically, so if the module is missing
+  // the whole graph fails to evaluate and an offline cold start is a blank page
+  // - for the STANDALONE app, which never uses embedded mode at all. A feature
+  // module failing offline is a degraded app because features/index.js catches
+  // it; a static import failing is a dead one.
+  './js/embed.js',
   './js/config.js',
   './js/util.js',
   './js/sb.js',

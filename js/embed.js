@@ -1,0 +1,365 @@
+// Embedded mode: Soop running as a panel inside somebody else's dashboard.
+//
+// The same build serves both jobs. There is no separate embed bundle, no fork,
+// and no second deploy - the app notices it was opened with ?embed=1 and changes
+// four things:
+//
+//   1. Identity comes from the host instead of the sign-in card. The dashboard
+//      already knows who this person is; making them type a password into a
+//      400px column beside the product they are already signed into is the whole
+//      reason people refuse to use embedded chat.
+//   2. One Space is pinned, because a dashboard is already team-specific. The
+//      rail can go, and the 60px it held goes back to the conversation.
+//   3. Chrome that only makes sense in a standalone tab is dropped: install
+//      prompts, the service worker, the org switcher.
+//   4. A postMessage bridge lets the host drive it (open this channel, sign out,
+//      change theme) and lets it report back (unread count, who signed in).
+//
+// WHY AN IFRAME AND NOT A WEB COMPONENT. Measured, not assumed: loaded in a
+// cross-site iframe at 400x900 the app boots with zero errors, every feature
+// registers, and - the part that matters - the iframe gets its OWN viewport, so
+// `@media (max-width: 860px)` fires and the narrow layout the app already has
+// applies for free. Meanwhile (hover: none) does NOT match, so the 44px thumb
+// floors stay off and the panel keeps desktop density. A web component would
+// have inherited the host page's viewport, put the app in its desktop layout
+// inside a 400px box, and inherited the host's CSS besides. The iframe is not a
+// compromise here, it is the reason this works at all.
+//
+// WHY THE ORIGIN IS PINNED IN THE URL. An embedded app has to answer "who is
+// allowed to talk to me". document.referrer is not dependable across navigations
+// and referrer policies, and replying to '*' hands any page that frames us a
+// channel it can post credentials into. So the host names itself in the iframe
+// src (&host=https://dash.example.com), that value is checked against the
+// allowlist in config.js, and every message in or out is bound to that exact
+// origin. A host not on the list gets a plain refusal rather than a half-working
+// panel.
+import { EMBED_ORIGINS, EMBED_EXCHANGE_URL } from './config.js';
+import { sb } from './sb.js';
+import { bus, store } from './store.js';
+
+const PROTO = 'soop';
+const VERSION = 1;
+
+// Filled by init(). Everything else in the file reads it and nothing else writes.
+export const embed = {
+  active: false,
+  refused: false,      // asked to embed somewhere it is not allowed; do not boot
+  host: null,          // the exact origin we will talk to, or null
+  space: null,         // Space id or name the host pinned
+  channel: null,       // channel to open once that Space is loaded
+  chrome: 'minimal',   // 'minimal' hides the rail and the standalone-only chrome
+  theme: null,         // host-forced theme, or null to let the person choose
+  waitingForAuth: false,
+};
+
+// ------------------------------------------------------------------ allowlist
+// A wildcard is allowed at the START of the hostname only: https://*.example.com
+// matches a subdomain and nothing else. Deliberately no bare '*' and no path or
+// port wildcards - "any origin may drive this panel" is not a configuration
+// anybody should be able to reach by accident.
+// Returns the NORMALISED origin when allowed, null when not. Normalised because
+// every later comparison is `ev.origin !== embed.host` with ===, and ev.origin
+// never carries a trailing slash while a hand-written query parameter easily
+// does. Stored raw, one trailing slash meant every message from the host was
+// discarded and the panel sat on its waiting screen for the full 15 seconds
+// before falling back to a password prompt, with nothing anywhere saying why.
+function allowedOrigin(value) {
+  if (!value) return null;
+  let u;
+  try { u = new URL(value); } catch { return null; }
+  const origin = u.origin;
+  const local = u.hostname === 'localhost' || u.hostname === '127.0.0.1' || u.hostname === '[::1]';
+  if (u.protocol !== 'https:' && !local) return null;
+
+  const ok = (EMBED_ORIGINS || []).some((pat) => {
+    if (typeof pat !== 'string') return false;
+    // A wildcard is only meaningful as the whole first label. Matching '*.'
+    // anywhere in the string meant `https://foo*.bar.com` parsed as something
+    // else entirely, and String.replace only takes the first occurrence besides.
+    const star = pat.indexOf('://*.');
+    if (star === -1) return pat === origin;
+    let p;
+    try { p = new URL(pat.slice(0, star + 3) + pat.slice(star + 5)); } catch { return false; }
+    // Subdomains, and not the apex. config.js promises exactly that, and an
+    // allowlist that quietly means more than it says is not an allowlist.
+    return u.protocol === p.protocol && u.port === p.port
+      && u.hostname !== p.hostname && u.hostname.endsWith('.' + p.hostname);
+  });
+  return ok ? origin : null;
+}
+
+// ------------------------------------------------------------------ transport
+function send(type, data) {
+  if (!embed.active || !embed.host) return;
+  try {
+    window.parent.postMessage({ [PROTO]: type, v: VERSION, ...(data || {}) }, embed.host);
+  } catch { /* the host went away; nothing useful to do about it */ }
+}
+export const notifyHost = send;
+
+// ------------------------------------------------------------------ auth
+// Two ways the host can hand over a person, and the difference matters.
+//
+// `session` is the blunt one: the host's BACKEND already minted a Supabase
+// session and passes both tokens straight through. Fastest, and correct only if
+// the host never lets that pair touch a place it could leak from.
+//
+// `handoff` is the one to prefer. The host's backend asks Soop's exchange
+// endpoint for a single-use, short-lived token that names the person, and passes
+// only that. This browser spends it. A stolen handoff token is worth one use
+// inside its TTL; a stolen refresh token is worth the account.
+async function applyAuth(msg) {
+  try {
+    if (msg.session?.access_token && msg.session?.refresh_token) {
+      const { error } = await sb.auth.setSession({
+        access_token: msg.session.access_token,
+        refresh_token: msg.session.refresh_token,
+      });
+      if (error) throw error;
+    } else if (msg.handoff) {
+      if (!EMBED_EXCHANGE_URL) throw new Error('no exchange endpoint configured');
+      const r = await fetch(EMBED_EXCHANGE_URL, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: msg.handoff, origin: embed.host }),
+      });
+      if (!r.ok) throw new Error('exchange refused: ' + r.status);
+      const out = await r.json();
+      if (!out?.access_token || !out?.refresh_token) throw new Error('exchange returned no session');
+      const { error } = await sb.auth.setSession({
+        access_token: out.access_token, refresh_token: out.refresh_token,
+      });
+      if (error) throw error;
+    } else {
+      throw new Error('auth message carried neither a session nor a handoff token');
+    }
+    embed.waitingForAuth = false;
+    send('signed-in', { userId: (await sb.auth.getUser()).data?.user?.id || null });
+    // main() parked on this rather than painting a sign-in card nobody in a
+    // dashboard should ever be shown.
+    bus.emit('embed:authed');
+  } catch (e) {
+    send('error', { where: 'auth', message: String(e?.message || e) });
+    bus.emit('embed:authFailed', { message: String(e?.message || e) });
+  }
+}
+
+// ------------------------------------------------------------------ inbound
+async function onMessage(ev) {
+  if (!embed.active) return;
+  // Both checks matter. The origin check is the security boundary; the shape
+  // check stops us reacting to the unrelated postMessage traffic that analytics
+  // and framework devtools spray at every frame on the page.
+  if (ev.origin !== embed.host) return;
+  const msg = ev.data;
+  if (!msg || typeof msg !== 'object' || typeof msg[PROTO] !== 'string') return;
+
+  switch (msg[PROTO]) {
+    case 'auth':
+      await applyAuth(msg);
+      break;
+
+    case 'signout':
+      await sb.auth.signOut().catch(() => {});
+      embed.waitingForAuth = true;
+      send('auth-needed', { reason: 'host-signout' });
+      break;
+
+    case 'navigate':
+      // Hash routing is the app's own, so the host does not need to know it: it
+      // names a channel or a message and this turns that into the route.
+      //
+      // THERE IS NO FREE-TEXT ROUTE, and there must never be one. This branch
+      // used to accept msg.route and write it straight to location.hash, and
+      // main.js redeems `#/join/<token>` and `#/join-org/<token>` on a hash
+      // change with no confirmation and no user gesture. So one host - a real
+      // allowlisted one, with an XSS in it, which is the whole point of an
+      // allowlist being a trust boundary rather than a guarantee - could enrol
+      // the person into an organisation they have never heard of, silently. Only
+      // ids the app resolves itself get through.
+      //
+      // The specific case is tested FIRST. Written the other way round, the
+      // `msg.channel` branch swallowed every message that also carried
+      // msg.message, so deep-linking to a message opened its channel at the
+      // bottom instead and the second branch was unreachable.
+      if (msg.channel && msg.message) {
+        location.hash = `#/m/${encodeURIComponent(msg.channel)}/${encodeURIComponent(msg.message)}`;
+      } else if (msg.channel) {
+        location.hash = '#/c/' + encodeURIComponent(msg.channel);
+      }
+      break;
+
+    case 'theme':
+      if (msg.theme) {
+        import('./theme.js').then((m) => m.setTheme(msg.theme)).catch(() => {});
+      }
+      break;
+
+    case 'tokens':
+      // Per-host colour overrides. Only custom properties are accepted, so the
+      // worst a host can do is make its own panel ugly.
+      if (msg.tokens && typeof msg.tokens === 'object') {
+        for (const [k, v] of Object.entries(msg.tokens)) {
+          if (/^--[a-z0-9-]+$/i.test(k) && typeof v === 'string' && v.length < 120) {
+            document.documentElement.style.setProperty(k, v);
+          }
+        }
+      }
+      break;
+
+    case 'ping':
+      send('pong', { at: Date.now() });
+      break;
+
+    default:
+      break;
+  }
+}
+
+// ------------------------------------------------------------------ outbound
+// The two things a host actually wants back: a badge number for its own launcher,
+// and enough of a signal to know the panel is alive and who is in it.
+function wireReports() {
+  const unread = () => {
+    let total = 0;
+    let mentions = 0;
+    for (const b of store.spaceBadges?.values() || []) {
+      total += b.unread_total || 0;
+      mentions += b.mention_total || 0;
+    }
+    send('unread', { total, mentions });
+  };
+  const where = () => send('navigated', {
+    space: store.ws?.id || null,
+    spaceName: store.ws?.name || null,
+    channel: store.current?.id || null,
+    channelName: store.current?.name || null,
+  });
+  bus.on('spaces:badges', unread);
+  bus.on('unread', unread);
+  bus.on('workspace', where);
+  bus.on('channel:open', where);
+}
+
+// ------------------------------------------------------------------ pinning
+// "The dashboard is team-specific, so the server should be that team's."
+//
+// The host names a Space by id, or by name when it does not know the id - which
+// is the ordinary case for a dashboard that was set up before anyone thought
+// about which uuid it would get. Matching by name is deliberately forgiving,
+// because "tech", "Tech" and "Tech Team" are all the same intent, and a panel
+// that silently lands in the wrong room is worse than one that says it could not
+// find the room.
+export function pinnedSpaceOf(spaces) {
+  if (!embed.space) return null;
+  const want = String(embed.space).toLowerCase().trim();
+  return spaces.find((s) => s.id === embed.space)
+    || spaces.find((s) => (s.name || '').toLowerCase().trim() === want)
+    || spaces.find((s) => (s.name || '').toLowerCase().replace(/[^a-z0-9]/g, '') === want.replace(/[^a-z0-9]/g, ''))
+    || null;
+}
+
+// ------------------------------------------------------------------ init
+// Called before anything paints, so the body class is on the element for the
+// first frame and the panel never flashes the standalone layout.
+export function initEmbed() {
+  const q = new URLSearchParams(location.search);
+
+  // FRAMED, BUT NOT AS A SANCTIONED EMBED.
+  //
+  // Anybody can put the plain app URL in an iframe. A person who already has a
+  // session then gets the entire signed-in app painted inside a page they have
+  // never heard of, with every control live: that is clickjacking, and the
+  // damage is whatever an invisible overlay can talk them into pressing - leave
+  // a Space, delete a channel, approve a request.
+  //
+  // The real fix is a response header, `Content-Security-Policy:
+  // frame-ancestors ...`, which stops the frame being drawn at all. GitHub Pages
+  // cannot send headers, and frame-ancestors is IGNORED in a <meta> tag, so on
+  // Pages there is no header answer at all. This is the script-level fallback:
+  // refuse to render, and offer the one thing that is actually useful, which is
+  // the same app in a tab of its own.
+  //
+  // It is a weaker defence than the header - a frame can be sandboxed to break
+  // the escape link - but refusing to paint is not something sandboxing undoes,
+  // and refusing is the part that matters. When the app moves somewhere that can
+  // send headers, this stays: two independent checks, neither trusting the other.
+  const framed = (() => {
+    try { return window.top !== window.self; } catch { return true; }
+  })();
+  const sanctioned = q.get('embed') === '1' && !!allowedOrigin(q.get('host'));
+  if (framed && !sanctioned) {
+    embed.refused = true;
+    const say = () => {
+      document.documentElement.classList.add('embed-refused');
+      document.body.innerHTML = '<div style="font:14px/1.6 system-ui;padding:24px;max-width:44ch">'
+        + '<b>Soop will not run inside this page.</b><br>'
+        + 'It is being shown in a frame on a site that is not set up to embed it. '
+        + '<a href="' + location.origin + location.pathname + '" target="_blank" rel="noopener">'
+        + 'Open Soop in its own tab</a>.</div>';
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', say);
+    else say();
+    console.warn('[soop] refusing to render: framed by a page that is not a configured embed');
+    return embed;
+  }
+
+  if (q.get('embed') !== '1') return embed;
+
+  const asked = q.get('host');
+  const host = allowedOrigin(asked);
+  if (!host) {
+    // Loud on purpose, and terminal. A silent fallback to the standalone app
+    // inside somebody's dashboard is how a misconfigured embed ships and nobody
+    // notices for weeks - and a sign-in card served to a page we do not trust is
+    // a password prompt in an attacker's frame.
+    //
+    // embed.refused stops main() rather than this file tearing the document down
+    // underneath it. Replacing document.body here and letting the boot carry on
+    // is what the first version did, and main() then died on the first
+    // getElementById that no longer resolved: the screen said "Soop failed to
+    // start: Cannot set properties of null", which tells the person nothing and
+    // hides the actual cause.
+    embed.refused = true;
+    const say = () => {
+      document.documentElement.classList.add('embed-refused');
+      document.body.innerHTML = '<div style="font:14px/1.6 system-ui;padding:24px;max-width:44ch">'
+        + '<b>Soop cannot be embedded here.</b><br>'
+        + 'This page did not name a host origin that Soop recognises'
+        + (asked ? ', and <code>' + String(asked).replace(/[<>&"]/g, '') + '</code> is not on the allowlist' : '')
+        + '. Add it to EMBED_ORIGINS in js/config.js.</div>';
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', say);
+    else say();
+    console.warn('[soop] embed refused: host origin not allowed:', asked);
+    return embed;
+  }
+
+  embed.active = true;
+  embed.host = host;
+  embed.space = q.get('space') || null;
+  embed.channel = q.get('channel') || null;
+  embed.chrome = q.get('chrome') === 'full' ? 'full' : 'minimal';
+  embed.theme = q.get('theme') || null;
+  embed.waitingForAuth = true;
+
+  document.documentElement.classList.add('embed');
+  if (embed.chrome === 'minimal') document.documentElement.classList.add('embed-minimal');
+
+  window.addEventListener('message', onMessage);
+  wireReports();
+
+  // Told after the listener is up, so a host that replies instantly is heard.
+  // Sent on DOMContentLoaded rather than load: the host wants to hand over
+  // credentials as early as possible, and waiting for every image is dead time
+  // the person spends looking at an empty panel.
+  const ready = () => send('ready', {
+    version: VERSION,
+    space: embed.space,
+    needsAuth: embed.waitingForAuth,
+  });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready);
+  else ready();
+
+  return embed;
+}

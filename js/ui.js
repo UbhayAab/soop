@@ -291,7 +291,23 @@ export function renderComposerButtons() {
 // ------------------------------------------------------------------ slash commands
 const slashCommands = new Map();
 // addSlashCommand({name, description, args, run(argText)})
-export function addSlashCommand(def) { slashCommands.set(def.name.replace(/^\//, ''), def); }
+// Warns on a collision, and lowercases, because runSlash() looks up lowercased
+// and a def registered with any capital letter could never be found.
+//
+// The warning is the point. This is a Map, features load through Promise.all, so
+// a name registered twice resolves to whichever module happened to finish last -
+// nondeterministically, between reloads. /me was registered by profilepage.js
+// ("open your profile") and shortcuts.js ("send an action in italics"), and
+// /roles by onboarding.js and roles.js, so the help sheet listed a description
+// that did not necessarily match what pressing it did.
+export function addSlashCommand(def) {
+  const key = def.name.replace(/^\//, '').toLowerCase();
+  if (slashCommands.has(key)) {
+    console.warn(`[soop] slash command /${key} registered twice; the later one wins, `
+      + 'and which one that is depends on network timing. Rename one.');
+  }
+  slashCommands.set(key, def);
+}
 export const listSlash = () => [...slashCommands.values()];
 export function findSlash(name) { return slashCommands.get((name || '').replace(/^\//, '')); }
 

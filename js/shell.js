@@ -23,7 +23,18 @@ import { sb } from './sb.js';
 // How many registered header buttons stay visible on the channel bar before the
 // rest collapse into the overflow. Four is about where a row stops being
 // scannable at a glance.
-const INLINE_ACTIONS = 4;
+// ONE source of truth, and it has to be a function because the answer changes
+// with the width. There were three numbers before: this constant, ui.js's own
+// inlineCap, and a CSS rule hiding `#channelbar .hdr-actions button:nth-child(n+3)`
+// below 860px. ui.js painted four, CSS showed two, and this sliced the overflow
+// menu from four - so on every phone, buttons three and four were in NEITHER
+// place. Measured with 16 registered buttons: 4 painted, 2 visible, 12 in the
+// menu, and 2 reachable nowhere at all.
+//
+// Two on a phone is the right count; the mistake was expressing it in CSS, where
+// the menu cannot see it.
+const NARROW = '(max-width: 860px)';
+const visibleActions = () => (window.matchMedia(NARROW).matches ? 2 : 4);
 
 function avatarFor(userId, size) {
   const p = store.profiles.get(userId) || store.myProfile || {};
@@ -99,7 +110,7 @@ function userMenu(ev) {
 // the menu.
 function overflowMenu(ev) {
   const all = ui.getHeaderButtons ? ui.getHeaderButtons() : [];
-  const rest = all.slice(INLINE_ACTIONS);
+  const rest = all.slice(visibleActions());
   if (!rest.length) {
     contextMenu(ev, [{ label: 'Nothing else here yet', onClick: () => {} }]);
     return;
@@ -211,6 +222,12 @@ export function initShell() {
   bus.on('dm:open', paintChannelBar);
   bus.on('status:changed', paintIdentity);
   initConnectionState();
+
+  // Rotating a phone, or dragging the docked panel wider, changes how many
+  // actions fit. Both sides move together because both read visibleActions().
+  const applyCap = () => ui.setInlineCap?.(visibleActions());
+  applyCap();
+  window.matchMedia(NARROW).addEventListener('change', applyCap);
 
   paintIdentity();
 }

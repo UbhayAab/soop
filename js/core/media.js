@@ -106,8 +106,18 @@ export function attsHtml(m) {
   if (!a.length) return '';
   return '<div class="atts">' + a.map((x) => {
     const mime = x.mime || '';
-    const ratio = x.width && x.height ? `${x.width}/${x.height}` : '4/3';
-    const w = Math.min(340, x.width || 340);
+    // Coerced, not escaped, because both of these land INSIDE a style attribute
+    // where esc() would not help anyway. Math.min already neutralised w by
+    // forcing it through arithmetic; ratio went in raw, and an attachment's
+    // width and height are written by whoever sent the message
+    // (composer.js -> p_attachments), so a value carrying a double quote closed
+    // the style attribute and opened an attribute of its own. On this origin
+    // that is a read of the session out of localStorage, which is the whole
+    // account - and inside a dashboard it is a read of the dashboard too.
+    const num = (v, d) => (Number.isFinite(+v) && +v > 0 ? +v : d);
+    const ratio = num(x.width, 0) && num(x.height, 0)
+      ? `${num(x.width, 4)}/${num(x.height, 3)}` : '4/3';
+    const w = Math.min(340, num(x.width, 340));
     if (mime.startsWith('image/')) {
       return `<div class="att-img" data-key="${esc(x.object_key)}" data-name="${esc(x.name || 'image')}"
         style="width:${w}px;aspect-ratio:${ratio}"><img loading="lazy" alt="${esc(x.name || 'image')}"></div>`;
@@ -123,7 +133,7 @@ export function attsHtml(m) {
     }
     return `<div class="att-file" data-key="${esc(x.object_key)}" data-name="${esc(x.name || 'file')}">
       <span class="att-ico">📄</span><span>${esc(x.name || 'file')}</span>
-      <span class="muted">${fmtSize(x.size || 0)}</span></div>`;
+      <span class="muted">${esc(fmtSize(x.size))}</span></div>`;
   }).join('') + '</div>';
 }
 

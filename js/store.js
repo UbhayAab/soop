@@ -72,7 +72,17 @@ export const bus = {
   off(evt, fn) { listeners.get(evt)?.delete(fn); },
   emit(evt, payload) {
     for (const fn of listeners.get(evt) || []) {
-      try { fn(payload); } catch (e) { console.error('bus handler', evt, e); }
+      // try/catch alone only covers a handler that throws SYNCHRONOUSLY. About
+      // thirty listeners in this app are async, and a rejected promise from one
+      // of those walks straight past the catch and becomes an unhandled
+      // rejection with no event name attached to it - which is why so many of
+      // them look like nothing happening rather than like an error.
+      try {
+        const r = fn(payload);
+        if (r && typeof r.then === 'function') {
+          r.catch((e) => console.error('bus handler (async)', evt, e));
+        }
+      } catch (e) { console.error('bus handler', evt, e); }
     }
   },
 };

@@ -1,19 +1,40 @@
 // Tasks out of a message.
 //
 // "Can someone collect the receipts?" gets three thumbs-up and is done by nobody.
-// This turns any message into an assignment with one person's name and a due date,
-// and - the part that matters - drops it into the assignee's EXISTING Later queue
-// rather than inventing a second inbox nobody opens.
+// This turns any message into an assignment with one person's name and a due
+// date, and keeps the ask and the commitment in the same place - the task always
+// points back at the message it came from, so the discussion about the work IS
+// the thread on that message, and there is no second place to go and read.
 //
-// Two states, open and done. No projects, no boards, no dependencies, no subtasks.
-// At 30 people the whole coordination problem is "who said they would do it and
-// have they".
+// THIS COMMENT USED TO SAY "two states, open and done. No projects, no boards, no
+// dependencies, no subtasks", and it also said tasks land in the assignee's
+// existing Later queue. Neither is true any more and the second may never have
+// been: there are eight states with a proposal round trip and a review round
+// trip, and nothing in this client calls later_add. The header is the first thing
+// anybody designing against this file reads, so it is worth more than the code.
+//
+// What is actually here:
+//   proposed    somebody asked; it is nobody's until accepted
+//   accepted    owned, not started
+//   in_progress owned and moving (the server may accept it; the client never
+//               sends it, so this state is currently unreachable from the UI)
+//   blocked     stuck, with a written reason, which is the whole point of it
+//   in_review   done by the doer, waiting on whoever handed it out
+//   done / rejected / cancelled
+//
+// The forecast on each card is arithmetic over finished tasks in this Space (see
+// js/lib/forecast.js). Nobody is asked to estimate anything, because asking does
+// not work.
+//
+// The cheap way IN is js/features/quicktask.js, which reads an ordinary sentence
+// and offers to make it one of these.
 import { rpc, tryRpc, table } from '../api.js';
 import { store, bus, nameOf, hasPerm } from '../store.js';
 import { PERM } from '../config.js';
 import { el, esc, plain, relTime, toLocalInput, fromLocalInput } from '../util.js';
 import { icon } from '../icons.js';
 import { getSub } from '../sb.js';
+import { forecast } from '../lib/forecast.js';
 
 const CLS = 'tsk';
 const PANEL = 'tasks';
@@ -21,6 +42,9 @@ const PANEL = 'tasks';
 // message_id -> the open tasks hanging off it, so a message row can show a chip
 // without a round trip per row.
 const byMessage = new Map();
+// Every task in the Space, finished ones included, kept from the last chip
+// refresh. The forecast reads it; nothing else does.
+let history = [];
 let openCount = 0;
 let uiRef = null;
 const toastFn = (...a) => uiRef?.toast(...a);
@@ -124,8 +148,13 @@ async function createDialog(msg) {
         hint: mayAssignOthers
           ? 'They will see it in their Later queue straight away.'
           : 'Yourself: starts immediately. Anybody else: goes as a request first.' },
+      // No reminder is promised here. It used to say "They get one reminder when
+      // it falls due", and nothing schedules one - not in this client and not in
+      // any RPC it calls. Promising a nudge that never arrives is worse than
+      // promising nothing, because the person stops watching for the thing
+      // themselves. Say it again when the nudge ladder actually exists.
       { name: 'due', label: 'Due by (optional)', type: 'datetime-local',
-        hint: 'They get one reminder when it falls due. Leave blank for no deadline.' },
+        hint: 'Shown on the task, and it turns red when it passes. Leave blank for no deadline.' },
     ],
     submitLabel: 'Create task',
   });
@@ -206,6 +235,13 @@ async function refreshChips() {
   const [rows] = await tryRpc('list_tasks', {
     p_workspace: store.ws.id, p_filter: 'all', p_channel: null, p_include_done: true });
   if (!Array.isArray(rows)) return;
+  // This call already asks for every task in the Space including finished ones,
+  // which is exactly the history the forecast needs. Keeping the rows means a
+  // card can say when something will land without a second round trip, and
+  // without the panel's own tab filter narrowing the reference class - "for me"
+  // would otherwise forecast one person from one person's history, which is the
+  // sample size the cascade in lib/forecast.js exists to avoid.
+  history = rows;
   byMessage.clear();
   for (const t of rows) {
     if (!byMessage.has(t.message_id)) byMessage.set(t.message_id, []);
@@ -316,6 +352,52 @@ async function renderPanel(body, ctx = {}) {
   section('Done', done);
 }
 
+// When this will actually be finished, from what this team has already finished.
+//
+// Nobody is asked to estimate anything - see lib/forecast.js for why asking does
+// not work. This is arithmetic over rows already on the client. It is shown only
+// when the answer is worth reading: a task that is going fine and has plenty of
+// room says nothing at all, because a line on every card is a line nobody reads.
+//
+// The wording avoids "p85" and every other word from the literature. "85 times
+// out of 100" is understood by somebody who has never seen a percentile, and
+// naming what it was based on is what makes the number believable - or properly
+// unbelievable when the sample is three.
+const BAND_WORD = {
+  amber: 'Running long',
+  red: 'Very likely to slip',
+  stale: 'Older than anything this team has finished',
+};
+
+function forecastLine(t) {
+  if (t.done_at || t.state === 'proposed' || t.state === 'rejected' || t.state === 'cancelled') return '';
+  let f = null;
+  try { f = forecast(history, t); } catch { return ''; }
+  if (!f) return '';
+
+  const when = (d) => d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' });
+  const band = BAND_WORD[f.band] || '';
+  let body;
+  if (f.stale) body = `Nothing this team has finished took this long. Worth asking what is holding it.`;
+  else if (f.thin) {
+    // Under twelve finished items a percentile is arithmetic theatre, so quote
+    // what actually happened. With n samples the slowest sits near the n/(n+1)
+    // percentile anyway, which makes this both honest and roughly the number a
+    // percentile would have given.
+    if (!f.n || !f.worst) return '';
+    body = `Too little finished work here to forecast. The slowest of the last ${f.n} took `
+      + `${f.worst < 2 ? 'about a day' : Math.round(f.worst) + ' days'}.`;
+  } else if (f.band === 'ok') {
+    // Fine and young. Saying so on every card is how the line stops being read.
+    return '';
+  } else {
+    body = `Most likely done ${when(f.p50At)}. 85 times out of 100, by ${when(f.p85At)}. `
+      + `From the last ${f.n} finished by ${f.basis}.`;
+  }
+  return `<div class="${CLS}-fc ${CLS}-fc-${esc(f.band)}">`
+    + (band ? `<b>${esc(band)}.</b> ` : '') + esc(body) + '</div>';
+}
+
 function taskCard(t) {
   const card = el('div', 'result ' + CLS + '-card' + (t.done_at ? ' ' + CLS + '-carddone' : ''));
   const who = t.assignee_id ? nameOf(t.assignee_id) : 'nobody yet';
@@ -341,7 +423,8 @@ function taskCard(t) {
       ? `<div class="${CLS}-blocked"><b>Changes asked for:</b> ${esc(t.note)}</div>` : ''}
     ${t.state === 'rejected' && t.note
       ? `<div class="${CLS}-blocked"><b>Declined:</b> ${esc(t.note)}</div>` : ''}
-    ${t.body_text ? `<div class="${CLS}-quote">${esc(plain(t.body_text, 160))}</div>` : ''}`;
+    ${t.body_text ? `<div class="${CLS}-quote">${esc(plain(t.body_text, 160))}</div>` : ''}
+    ${forecastLine(t)}`;
 
   const bar = el('div', 'row gap ' + CLS + '-bar');
   const mine = t.assignee_id === store.me;
@@ -474,8 +557,33 @@ function taskCard(t) {
     bar.appendChild(rm);
   }
 
+  // Progress, blockers and the chain live in taskprogress.js. This card offers
+  // the door and the empty slot; whoever answers the event fills it. If nobody
+  // does - the module failed to load, or the migration it needs has not been run
+  // - the slot stays empty and the button is simply never added, which is the
+  // behaviour every optional feature in this app has.
+  const slot = el('div', CLS + '-more');
+  slot.style.display = 'none';
+  if (!t.done_at) {
+    const more = el('button', 'sm ghost', 'Updates');
+    more.onclick = (e) => {
+      e.stopPropagation();
+      const open = slot.style.display !== 'none';
+      slot.style.display = open ? 'none' : '';
+      more.textContent = open ? 'Updates' : 'Hide updates';
+      if (!open) bus.emit('task:expand', { task: t, host: slot });
+    };
+    bar.appendChild(more);
+  }
+
   card.appendChild(bar);
-  card.onclick = () => bus.emit('message:jump', { messageId: t.message_id });
+  card.appendChild(slot);
+  // Clicking the card goes to the message the ask was made in. Anything inside
+  // the expanded slot is its own control and must not also do that.
+  card.onclick = (e) => {
+    if (e.target.closest('.' + CLS + '-more')) return;
+    bus.emit('message:jump', { messageId: t.message_id });
+  };
   return card;
 }
 
@@ -600,6 +708,17 @@ function style() {
 .${CLS}-blocked{margin-top:var(--s-3);padding:var(--s-3) var(--s-4);border-radius:var(--r-sm,6px);
   background:color-mix(in srgb,var(--c-danger) 10%,transparent);
   border-left:2px solid var(--c-danger);font-size:var(--t-sm);line-height:var(--t-loose)}
+/* The forecast. Quieter than "stuck", because it is a projection and not a
+   statement somebody made - and it only appears at all when there is something
+   worth saying, so it never becomes the line people scroll past. */
+.${CLS}-fc{margin-top:var(--s-3);font-size:var(--t-xs);line-height:var(--t-loose);
+  color:var(--c-text-2);padding-left:var(--s-4);border-left:2px solid var(--c-border)}
+.${CLS}-fc b{color:var(--c-text)}
+.${CLS}-fc-amber{border-left-color:var(--c-warn,var(--c-danger))}
+.${CLS}-fc-red,.${CLS}-fc-stale{border-left-color:var(--c-danger)}
+/* The expanded slot. Filled by taskprogress.js, empty and hidden otherwise. */
+.${CLS}-more{margin-top:var(--s-3);padding-top:var(--s-3);border-top:1px solid var(--c-border);
+  cursor:auto}
 .${CLS}-blocked .muted{font-size:var(--t-xs)}
 .${CLS}-state{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;
   font-size:11px;background:var(--c-bg);border:1px solid var(--c-border);white-space:nowrap}
@@ -618,6 +737,12 @@ export function register({ ui }) {
 
   bus.on('message:render', ({ msg, el: row }) => mount(msg, row));
   bus.on('channel:open', () => { scheduleBind(); refreshChips(); });
+  // Core replaces the 'chan' object on a recovered drop as well as on a switch,
+  // and emits this precisely so features can re-bind (channels.js). Binding only
+  // on channel:open meant that after any reconnect - a tunnel, a lift, a laptop
+  // lid - task updates stopped arriving silently and the panel showed yesterday
+  // until somebody changed channel. ackloop, forms and polls all already listen.
+  bus.on('channel:subscribed', () => { scheduleBind(); refreshChips(); });
   bus.on('workspace', () => { refreshCount(); });
   bus.on('auth', refreshCount);
   scheduleBind();

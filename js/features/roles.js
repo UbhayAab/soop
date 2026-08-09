@@ -450,7 +450,10 @@ export function register(app) {
   });
 
   ui.addSlashCommand({
-    name: 'roles',
+    // onboarding.js owns /roles, which is "pick up a role you are allowed to
+    // give yourself" and is for everybody. This one is the admin screen and
+    // needs MANAGE_ROLES, so it takes the longer name. Both were /roles.
+    name: 'manageroles',
     description: 'Manage roles and user groups',
     run: () => {
       if (!canRoles()) return ui.toast('You need the "Manage roles" permission for that', 'error');

@@ -3,9 +3,16 @@
 export const SUPABASE_URL = 'https://ybddogqphinruyunnuwx.supabase.co';
 export const PUBLISHABLE = 'sb_publishable_5gyvKj8AtZeXGDWVLYg3VA_Uwh4T4RD';
 
-// Open demo Space. Anyone who lands without an invite link is dropped in here so
-// the app is never an empty room. Real Spaces are joined via #/join/<token>.
-export const DEMO_TOKEN = 'hearth-demo-open-2026';
+// The open-demo Space token used to be exported from here. It was a LIVE
+// invite credential for a real Space with 1770 members, served to every visitor
+// in a file with no auth on it, and nothing in the client ever imported it - the
+// behaviour it once enabled was removed in "No more blank screen: an account
+// with no team gets a real screen with a join box instead of being dumped into
+// the 1770-member demo Space".
+//
+// Deleting the export is only half of it. The value is in git history and in
+// every cached copy of this file that was ever served, so the token itself has
+// to be revoked server-side. Rotating it would not help for the same reason.
 
 // Self sign-up: the two ways somebody could get an account without an operator.
 // Both are off. An account is provisioned, handed over with a password, and the
@@ -22,6 +29,54 @@ export const DEMO_TOKEN = 'hearth-demo-open-2026';
 // still fail.
 export const CODE_SIGNIN = false;
 export const GUEST_SIGNIN = false;
+
+// ------------------------------------------------------------------ embedding
+// Dashboards allowed to run Soop as a panel inside themselves. An embed names
+// its own origin in the iframe src and js/embed.js refuses to start unless that
+// value appears here, so this list is the whole answer to "who may drive this
+// panel and receive its messages".
+//
+// A leading '*.' matches subdomains of that host on the same scheme and port,
+// and nothing else. There is deliberately no bare '*': "any page may embed us"
+// is not a state anybody should be able to reach by editing one character.
+//
+// This is an allowlist, not a secret, which is why it can live in the client.
+// It is also only half the defence. A browser will still LOAD the app in a frame
+// on any page; what this stops is Soop talking to it or accepting credentials
+// from it. Serving `Content-Security-Policy: frame-ancestors <the same list>`
+// from wherever this is hosted is what stops the frame being drawn at all, and
+// it is the one that also stops clickjacking. GitHub Pages cannot set headers,
+// so on Pages this list is the only enforcement there is.
+export const EMBED_ORIGINS = [
+  // Add your dashboards here, e.g.
+  // 'https://dash.yourcompany.com',
+  // 'https://*.yourcompany.com',
+];
+
+// The demo host page, and ONLY when Soop is itself being served from a
+// development machine. Shipped unconditionally these two entries mean that on
+// the deployed app any page a person's own computer serves on port 8098 - a
+// stray project, an npm start somebody forgot - can drive their panel and be
+// handed their credentials. originAllowed also exempts localhost from the https
+// requirement, so it would not even need a certificate. The gate is on where
+// SOOP is running, not on where the frame claims to be, because the frame is the
+// thing being checked.
+const DEV = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+if (DEV) EMBED_ORIGINS.push('http://localhost:8098', 'http://127.0.0.1:8098');
+
+// Where the browser spends a one-time handoff ticket for a real session. An Edge
+// Function, because minting a session needs the service role key and that must
+// never come near a browser.
+//
+// This is the REDEEM half and it is safe to be public: a ticket is single use,
+// lives sixty seconds, and is bound to the origin it was issued for. The MINT
+// half is the same function at /mint, is called only by a dashboard's backend,
+// and is authenticated by an HMAC over the assertion.
+//
+// Blank until `supabase functions deploy soop-handoff --no-verify-jwt` has been
+// run. With no endpoint the handoff path is unavailable and a host has to pass a
+// session it minted itself, which works and is worse - see EMBED.md.
+export const EMBED_EXCHANGE_URL = SUPABASE_URL + '/functions/v1/soop-handoff';
 
 export const APP_NAME = 'Soop';
 export const APP_VENDOR = 'Redtree';

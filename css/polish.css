@@ -67,7 +67,18 @@
   #sidebar .sb-add {
     min-height: 44px;
   }
-  #spaceRail > * { min-height: 44px; }
+  /* The tiles, and ONLY the tiles. This was `#spaceRail > *`, which is every
+     child of the rail - including the 1px partition line between two
+     organisations and the small letters that label them. min-height beats
+     height, so on every touch device the partition stopped being a line and
+     became a 24x44 grey block, one per organisation boundary, and the label
+     grew from 16px to 44. Measured at 390x844: sorg-sep 24x44, sorg-label
+     44x44. That grey box is what people were seeing under their servers.
+
+     A partition is not a tap target, so it must not carry a tap floor.
+     .sicon covers all four tappable kinds - a Space, the open Space, the
+     "more servers in this org" door, and the add tile. */
+  #spaceRail > .sicon { min-height: 44px; }
   /* Registered composer tools are 34px in reading.css; the fixed three are 44.
      A row of mixed sizes reads as broken as well as being hard to hit. */
   #composerBar button.icon { min-width: 44px; height: 44px; }

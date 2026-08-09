@@ -181,6 +181,13 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
   font-weight: var(--t-bold);
   letter-spacing: -0.01em;
   white-space: nowrap;
+  /* nowrap with nothing to clip it means the name simply grows past its box.
+     Measured at 360px: "# field-team-daily-updates" took 194px of a bar that
+     also has to hold the members chip and two actions, and ran underneath them.
+     .cb-topic three rules below has always had this; the name never did. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .cb-topic {
   font-size: var(--t-sm);
@@ -208,7 +215,18 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
 }
 .cb-members:hover { background: var(--c-hover); color: var(--c-text); }
 
-#channelbar .hdr-actions { display: flex; gap: var(--s-1); }
+/* layout.css fades the last 18px of .hdr-actions to hint that the row scrolls
+   past the edge. That row is the TOP bar's, which really does overflow. This one
+   holds two buttons and never scrolls, so the hint was permanent: the second
+   button sat under the transparent end of the gradient at every width, and read
+   as disabled. The mask is the top bar's idea, so it is cleared here rather than
+   weakened there. */
+#channelbar .hdr-actions {
+  display: flex;
+  gap: var(--s-1);
+  mask-image: none;
+  -webkit-mask-image: none;
+}
 #channelbar button.icon { width: 30px; height: 30px; color: var(--c-text-2); }
 #channelbar button.icon:hover { background: var(--c-hover); color: var(--c-text); }
 #channelbar #btnInvite { height: 28px; padding: 0 var(--s-5); font-size: var(--t-sm); }
@@ -226,6 +244,12 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  /* Every other scrolling surface in the app has this; the channel list was
+     missed. Standalone it means flicking past the last channel scrolls the page
+     behind it. Embedded it means flicking past the last channel scrolls the
+     customer's DASHBOARD, which is the single most obvious way for a panel to
+     announce that it does not belong there. */
+  overscroll-behavior: contain;
   padding: var(--s-4) var(--s-3) var(--s-6);
 }
 .sb-add {
@@ -344,9 +368,13 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
   #channelbar { padding-inline: var(--s-4); }
   .cb-topic { display: none; }
   #channelbar #btnInvite { display: none; }
-  /* Only the first two contextual actions survive on a phone; the rest are
-     already reachable behind More. */
-  #channelbar .hdr-actions button:nth-child(n + 3) { display: none; }
+  /* The two-on-a-phone cap used to live here, as
+     `.hdr-actions button:nth-child(n + 3) { display: none }`. It was not wrong
+     about the number, it was wrong about the layer: the overflow menu is built
+     in JS from the same registry, and it could not see a CSS rule, so it started
+     its slice at four while CSS showed two. Buttons three and four were painted
+     and hidden and left out of the menu - present in the DOM, reachable by
+     nobody. shell.js owns the number now and both sides read it. */
 }
 
 /* ---------------------------------------------------------------- corrections

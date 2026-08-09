@@ -6,6 +6,11 @@
 <title>Soop</title>
 <meta name="description" content="Soop - invite-only team chat: channels, threads that stay out of the way, voice rooms and high-fidelity media. A Redtree product." />
 <meta name="theme-color" content="#0f1115" />
+<!-- The default sends the full URL to same-origin destinations and the origin
+     cross-origin, which for this app means the hash - and the hash names the
+     channel and the message somebody is reading. Embedded in a dashboard the
+     page URL also names the customer. Origin only, and only over https. -->
+<meta name="referrer" content="strict-origin-when-cross-origin" />
 <link rel="manifest" href="./manifest.webmanifest" />
 
 <!-- Three third-party origins sit on the path to the first message: the module
@@ -74,6 +79,10 @@
 <link rel="stylesheet" href="./css/features.css" />
 <link rel="stylesheet" href="./css/reading.css" />
 <link rel="stylesheet" href="./css/shell.css" />
+<!-- Last, because embedded mode subtracts chrome the files above put there.
+     Costs a standalone tab one request and nothing else: every rule inside is
+     scoped to html.embed, which only js/embed.js ever sets. -->
+<link rel="stylesheet" href="./css/embed.css" />
 </head>
 <body>
 <div id="app">

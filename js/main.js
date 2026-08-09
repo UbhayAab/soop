@@ -20,6 +20,7 @@ import { initTheme, openThemePicker, cycleTheme } from './theme.js';
 import { icon, logoMark } from './icons.js';
 import { initShell, paintIdentity, paintChannelBar } from './shell.js';
 import { registerFeatures } from './features/index.js';
+import { initEmbed, embed, pinnedSpaceOf, notifyHost } from './embed.js';
 
 // Any element carrying data-ico gets its SVG injected. Keeping the markup
 // declarative means index.html stays readable and the icon set can change
@@ -195,7 +196,17 @@ async function enter() {
   // Opening into one is a dead room that reads as a broken app, and it is what
   // happened right after an admin deleted a server they were standing in.
   const live = (x) => !x.archived_at && !x.scheduled_delete_at;
-  const active = store.spaces.find((x) => x.id === joinedId)
+  // Embedded, the host has already decided which room this is: a tech dashboard
+  // docks the tech server. That beats every heuristic below, because those exist
+  // to guess what somebody wanted and here nobody has to guess. It does NOT beat
+  // an invite link the person just clicked - following a link they chose and
+  // landing somewhere else is the one thing more confusing than a wrong default.
+  const pinned = embed.active && !joinedId ? pinnedSpaceOf(store.spaces) : null;
+  if (embed.active && embed.space && !pinned) {
+    notifyHost('error', { where: 'pin', message: 'no Space matching ' + embed.space });
+  }
+  const active = pinned
+    || store.spaces.find((x) => x.id === joinedId)
     // Straight into the organisation they just joined, not whichever Space is
     // oldest.
     || (joinedOrg ? store.spaces.find((x) => x.org_id === joinedOrg.id && live(x)) : null)
@@ -207,6 +218,14 @@ async function enter() {
   if (active) {
     document.body.classList.remove('no-team');
     await switchWorkspace(active);
+    // A channel the host named in the iframe src, resolved once its Space is
+    // loaded. Written into the hash so applyRoute() opens it by the one path
+    // every other route uses.
+    if (embed.active && embed.channel && !location.hash) {
+      const c = store.channels.find((x) => x.id === embed.channel)
+        || store.channels.find((x) => (x.name || '').toLowerCase() === String(embed.channel).toLowerCase());
+      if (c) location.hash = '#/c/' + c.id;
+    }
     await applyRoute();
   } else {
     renderChannels();
@@ -444,6 +463,17 @@ bus.on('thread:alsoSent', ({ message }) => {
 
 // ------------------------------------------------------------------ start
 async function main() {
+  // First, before a single pixel: whether this is a standalone tab or a panel
+  // inside a dashboard changes the layout, the identity source and which chrome
+  // exists at all, and a panel that flashes the standalone app for one frame
+  // before correcting itself looks broken in exactly the place it can least
+  // afford to.
+  initEmbed();
+  // Asked to run inside a page that is not on the allowlist. embed.js has put
+  // the reason on screen; carrying on would paint a sign-in card in a frame we
+  // have just said we do not trust.
+  if (embed.refused) return;
+
   // stash an invite arriving before sign-in so it survives the auth round trip
   const r = route();
   // The org variant is tagged so the far side of the email round trip knows
@@ -464,7 +494,12 @@ async function main() {
   // appears a second after the app paints reads as a glitch.
   await registerFeatures({ ui, api, store, bus, sb });
   renderHeaderButtons();
-  initPWA();
+  // A panel inside a dashboard is not a thing you install, and it must not be a
+  // thing that registers a service worker: the SW is scoped to the whole origin,
+  // so an embed installing one would start serving a cached shell to the
+  // standalone app in another tab, on a version the person never chose. The
+  // standalone app owns that decision.
+  if (!embed.active) initPWA();
 
   $('panelClose').onclick = closePanel;
   $('btnInvite').onclick = () => inviteDialog();
@@ -488,8 +523,50 @@ async function main() {
   });
   $('messages').addEventListener('click', () => document.body.classList.remove('nav-open'));
 
+  // Awaited nowhere, so a rejection anywhere on the sign-in path - loadSpaces,
+  // switchWorkspace, openChannel - was an unhandled rejection that main().catch
+  // could never see. What the person got was a half-drawn shell and silence.
+  const bootFailed = (e) => {
+    console.error('[soop] sign-in path failed', e);
+    toast('Something went wrong loading your Spaces. Reload to try again.', 'error');
+  };
+
   const s = await session();
-  if (s) enter(); else showAuth();
+  if (s) { enter().catch(bootFailed); return; }
+
+  // Embedded with nobody signed in yet. The dashboard already knows who this
+  // person is, so the sign-in card is the wrong answer to a question that is
+  // about to be answered for us - it just has not arrived yet. Wait for it,
+  // saying so, and only fall back to the card if the host never speaks or its
+  // handover fails. Someone who reaches that fallback can still sign in by hand,
+  // which is the right last resort and a much better one than a dead panel.
+  if (embed.active) {
+    document.documentElement.classList.add('embed-awaiting-auth');
+    const wait = el('div', 'embed-wait');
+    wait.innerHTML = '<div class="embed-wait-in"><b>Connecting you to Soop</b>'
+      + '<div style="margin-top:6px">Signing in with your dashboard account.</div></div>';
+    document.body.appendChild(wait);
+
+    const give = (msg) => {
+      wait.remove();
+      document.documentElement.classList.remove('embed-awaiting-auth');
+      if (msg) toast(msg, 'error');
+      showAuth();
+    };
+    // Long enough to cover a host that fetches a handoff token from its own
+    // backend on a slow line, short enough that a misconfigured embed does not
+    // just spin forever with no way for the person to do anything about it.
+    const giveUp = setTimeout(() => give(null), 15000);
+
+    bus.on('embed:authed', () => { clearTimeout(giveUp); wait.remove();
+      document.documentElement.classList.remove('embed-awaiting-auth');
+      enter().catch(bootFailed); });
+    bus.on('embed:authFailed', ({ message }) => { clearTimeout(giveUp);
+      give('Your dashboard could not sign you in: ' + message); });
+    return;
+  }
+
+  showAuth();
 }
 
 window.addEventListener('hashchange', () => {

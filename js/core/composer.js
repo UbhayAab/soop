@@ -134,7 +134,7 @@ function renderChips() {
     <div class="chip${a.uploading ? ' up' : ''}${a.failed ? ' failed' : ''}">
       <span>${(a.mime || '').startsWith('image/') ? '🖼' : (a.mime || '').startsWith('video/') ? '🎬' : '📄'}</span>
       <span class="chip-name">${esc(a.name || 'file')}</span>
-      <span class="muted">${fmtSize(a.size || 0)}</span>
+      <span class="muted">${esc(fmtSize(a.size))}</span>
       ${a.uploading ? `<span class="chip-prog" style="width:${Math.round((a.progress || 0) * 100)}%"></span>` : ''}
       <span class="x" data-i="${i}">✕</span></div>`).join('');
   host.querySelectorAll('.x').forEach((x) => {

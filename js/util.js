@@ -217,8 +217,18 @@ export function relTime(d) {
   return new Date(d).toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-export const fmtSize = (n) =>
-  n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : n > 1024 ? (n / 1024).toFixed(0) + ' KB' : (n || 0) + ' B';
+// Number(), and not just `n || 0` at the end, because both comparisons below are
+// FALSE against a non-numeric value - every comparison with NaN is - so a string
+// fell straight through to the last branch and came back out verbatim. Callers
+// interpolate the result into HTML, and the size on an attachment is written by
+// whoever sent the message, so "1 MB" and "<img src=x onerror=...>" took the
+// same path. Coercing here fixes it for every caller at once; escaping at the
+// call sites is done as well, because neither should be the only defence.
+export const fmtSize = (v) => {
+  const n = Number(v) || 0;
+  return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB'
+    : n > 1024 ? (n / 1024).toFixed(0) + ' KB' : n + ' B';
+};
 
 export function debounce(fn, ms) {
   let t;

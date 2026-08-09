@@ -343,7 +343,11 @@ export function register(app) {
   });
 
   app.ui.addSlashCommand({
-    name: 'me',
+    // NOT /me. In every chat product ever made /me is the IRC action verb, and
+    // shortcuts.js implements exactly that. Both were registered, the registry
+    // is a Map, and features load in parallel - so which one you got depended on
+    // which file's request came back first.
+    name: 'myprofile',
     description: 'Open your profile',
     run: () => bus.emit('profile:page', { userId: store.me }),
   });
