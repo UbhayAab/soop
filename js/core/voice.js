@@ -18,7 +18,22 @@ const RTC = {
 export const voice = {
   active: false, channel: null, local: null, muted: false, deafened: false,
   peers: new Map(), monitors: new Map(), ptt: false, pttHeld: false, beat: null,
+  // Screen sharing. `screen` is the MediaStream from getDisplayMedia when this
+  // person is sharing, and `screenSenders` is the RTCRtpSender per peer so the
+  // track can be pulled back out again without tearing the call down.
+  screen: null, screenSenders: new Map(),
+  // Who else is sharing, peer id -> MediaStream. More than one at a time is
+  // allowed; the viewer shows the most recent and offers a switcher.
+  remoteScreens: new Map(),
 };
+
+// A screen at 1280x720 is roughly 1.2 Mbit/s of upload. In a MESH that is per
+// PEER, so five other people in the room is six megabits going up a connection
+// that on Indian mobile data is often two. Capping it is not politeness, it is
+// the difference between a slightly soft screen and a call that stops carrying
+// audio - and audio is the part nobody can do without.
+const SCREEN_MAX_BITRATE = 800000;
+const SCREEN_MAX_FPS = 8;
 
 export async function joinVoice(channelId) {
   const c = store.channels.find((x) => x.id === channelId);
@@ -65,9 +80,33 @@ function makePeer(peerId, initiator) {
   const pc = new RTCPeerConnection(RTC);
   voice.peers.set(peerId, pc);
   voice.local.getTracks().forEach((t) => pc.addTrack(t, voice.local));
+  // Somebody joining a room where a share is already running has to receive it.
+  // Without this they get audio and a blank space where everybody else can see
+  // the screen, and nothing anywhere says why.
+  if (voice.screen) addScreenTo(peerId, pc);
 
   pc.onicecandidate = (e) => { if (e.candidate) signal(peerId, { kind: 'ice', data: e.candidate }); };
   pc.ontrack = (e) => {
+    // Two kinds of track arrive on the same connection now, and they need
+    // completely different homes: audio into a hidden <audio> element that
+    // autoplays, video into a viewer somebody looks at. Routing a video track
+    // into the audio element is silent and invisible, which is the worst
+    // possible failure because there is nothing to see OR hear.
+    if (e.track.kind === 'video') {
+      const stream = e.streams[0];
+      voice.remoteScreens.set(peerId, stream);
+      // The far side stopping is delivered here, not through any signal we sent.
+      e.track.addEventListener('ended', () => {
+        voice.remoteScreens.delete(peerId);
+        bus.emit('voice:screen', { peerId, on: false });
+      });
+      stream.addEventListener?.('removetrack', () => {
+        voice.remoteScreens.delete(peerId);
+        bus.emit('voice:screen', { peerId, on: false });
+      });
+      bus.emit('voice:screen', { peerId, on: true, stream });
+      return;
+    }
     let a = document.getElementById('a-' + peerId);
     if (!a) {
       a = document.createElement('audio');
@@ -91,18 +130,43 @@ function makePeer(peerId, initiator) {
   return pc;
 }
 
+// GLARE. Until screen sharing there was exactly one offer per connection, made
+// at join time by whichever side had the lower user id, so two offers could
+// never cross. Starting a share means offering again on a connection that is
+// already up, and if two people press Share within a round trip of each other
+// both sides offer at once. setRemoteDescription with an offer while in
+// have-local-offer throws, and the connection is then wedged: no more audio,
+// no error anybody sees, and the only cure is leaving and rejoining.
+//
+// This is the perfect-negotiation pattern, cut down to what this mesh needs.
+// One side is "polite" and gives way; the rule only has to be consistent and
+// opposite on the two peers, and comparing ids is both. The impolite side
+// ignores the colliding offer and its own will be answered.
+const polite = (peerId) => store.me > peerId;
+
 async function onSignal(p) {
   if (p.to !== store.me) return;
   const from = p.from;
   try {
     if (p.kind === 'offer') {
       const pc = makePeer(from, false);
+      const collision = pc.signalingState !== 'stable';
+      if (collision) {
+        if (!polite(from)) return;
+        // Rolling back drops our own half-made offer and accepts theirs. We do
+        // not resend ours: whatever prompted it (a track added) is still on the
+        // connection, so the answer we are about to make carries it anyway.
+        await pc.setLocalDescription({ type: 'rollback' });
+      }
       await pc.setRemoteDescription(p.data);
       const ans = await pc.createAnswer();
       await pc.setLocalDescription(ans);
       signal(from, { kind: 'answer', data: ans });
     } else if (p.kind === 'answer') {
-      await voice.peers.get(from)?.setRemoteDescription(p.data);
+      const pc = voice.peers.get(from);
+      // An answer arriving when we are not expecting one is a late duplicate
+      // from a rolled-back negotiation. Setting it would throw.
+      if (pc && pc.signalingState === 'have-local-offer') await pc.setRemoteDescription(p.data);
     } else if (p.kind === 'ice') {
       await voice.peers.get(from)?.addIceCandidate(p.data).catch(() => {});
     } else if (p.kind === 'bye') {
@@ -115,9 +179,100 @@ function signal(to, msg) {
   getSub('voice')?.send({ type: 'broadcast', event: 'signal', payload: { from: store.me, to, ...msg } });
 }
 
+// ------------------------------------------------------------------ screen
+// Whether this device can share at all. iOS has no web screen-capture API of any
+// kind - not in Safari, not in Chrome for iOS, which is Safari underneath - so
+// on an iPhone this is absent and the honest answer is to say so rather than
+// show a button that does nothing. Feature detection rather than sniffing the
+// user agent, because that is the thing that is actually true.
+export const canShareScreen = () =>
+  typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia;
+
+function addScreenTo(peerId, pc) {
+  const track = voice.screen?.getVideoTracks()[0];
+  if (!track) return null;
+  const sender = pc.addTrack(track, voice.screen);
+  voice.screenSenders.set(peerId, sender);
+  // Cap it. Defaults negotiate upward until something gives, and in a mesh the
+  // thing that gives is the audio nobody can do without.
+  const params = sender.getParameters();
+  params.encodings = params.encodings?.length ? params.encodings : [{}];
+  params.encodings[0].maxBitrate = SCREEN_MAX_BITRATE;
+  params.encodings[0].maxFramerate = SCREEN_MAX_FPS;
+  sender.setParameters(params).catch(() => { /* older browsers ignore encodings */ });
+  return sender;
+}
+
+// One offer per peer, serialised, because two overlapping renegotiations on the
+// same connection is the same wedge glare causes.
+const renegotiating = new Set();
+async function renegotiate(peerId) {
+  const pc = voice.peers.get(peerId);
+  if (!pc || renegotiating.has(peerId)) return;
+  renegotiating.add(peerId);
+  try {
+    if (pc.signalingState !== 'stable') return;
+    const o = await pc.createOffer();
+    await pc.setLocalDescription(o);
+    signal(peerId, { kind: 'offer', data: o });
+  } catch (e) { console.warn('renegotiate', e); } finally { renegotiating.delete(peerId); }
+}
+
+export async function startScreenShare() {
+  if (!voice.active) { toast('Join a voice room first', 'error'); return false; }
+  if (voice.screen) return true;
+  if (!canShareScreen()) {
+    toast('This device cannot share a screen. iPhones and iPads have no way to '
+      + 'do it from a browser - use a laptop, or Android.', 'error');
+    return false;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: SCREEN_MAX_FPS },
+      // Sharing system audio would arrive as a second audio track and be mixed
+      // into the same element as somebody's voice. Not worth the confusion here.
+      audio: false,
+    });
+  } catch {
+    // Cancelling the picker is by far the most common outcome and is not an
+    // error worth shouting about.
+    return false;
+  }
+  voice.screen = stream;
+  const track = stream.getVideoTracks()[0];
+  // Text on a shared screen is what people are actually looking at, so ask the
+  // encoder to keep it sharp rather than smooth.
+  if ('contentHint' in track) track.contentHint = 'detail';
+
+  // The browser's own "Stop sharing" bar is outside this app entirely, so this
+  // is the only way to hear about it. Without it the share ends for everybody
+  // else and the app still says you are sharing.
+  track.addEventListener('ended', () => { stopScreenShare(); });
+
+  for (const [peerId, pc] of voice.peers) { addScreenTo(peerId, pc); renegotiate(peerId); }
+  bus.emit('voice:sharing', { on: true, stream });
+  return true;
+}
+
+export async function stopScreenShare() {
+  if (!voice.screen) return;
+  const stream = voice.screen;
+  voice.screen = null;
+  for (const [peerId, sender] of voice.screenSenders) {
+    try { voice.peers.get(peerId)?.removeTrack(sender); } catch { /* peer already gone */ }
+    renegotiate(peerId);
+  }
+  voice.screenSenders.clear();
+  stream.getTracks().forEach((t) => t.stop());
+  bus.emit('voice:sharing', { on: false });
+}
+
 function dropPeer(id) {
   voice.peers.get(id)?.close();
   voice.peers.delete(id);
+  voice.screenSenders.delete(id);
+  if (voice.remoteScreens.delete(id)) bus.emit('voice:screen', { peerId: id, on: false });
   document.getElementById('a-' + id)?.remove();
   const m = voice.monitors.get(id);
   if (m) { cancelAnimationFrame(m.raf); m.ctx?.close?.(); voice.monitors.delete(id); }
@@ -125,6 +280,12 @@ function dropPeer(id) {
 
 export async function leaveVoice() {
   if (!voice.active) return;
+  // Before the peers are torn down, so the tracks are stopped and the browser's
+  // "you are sharing your screen" bar goes away. Leaving a call while still
+  // holding a live capture is how somebody's screen stays on their taskbar for
+  // the rest of the afternoon.
+  await stopScreenShare();
+  voice.remoteScreens.clear();
   const ch = voice.channel;
   for (const id of [...voice.peers.keys()]) { signal(id, { kind: 'bye' }); dropPeer(id); }
   clearInterval(voice.beat);

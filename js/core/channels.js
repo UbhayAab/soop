@@ -125,7 +125,14 @@ export async function renderChannels() {
   }
   if (hasPerm(PERM.MANAGE_CHANNELS)) h += '<div class="chan chan-add" data-newch="1">＋ Add channel</div>';
 
-  if (voice.length) {
+  // The heading used to render only when a voice room already existed, so a
+  // Space with none showed NOTHING about voice anywhere - no heading, no button,
+  // no hint that rooms are a thing this app has. The only way to make the first
+  // one was to guess that "Add channel" hides a Type dropdown with Voice in it.
+  // That is why the owner asked for "the option to make multiple voice channels"
+  // for a feature that had never had a limit.
+  const mayAddVoice = hasPerm(PERM.MANAGE_CHANNELS);
+  if (voice.length || mayAddVoice) {
     h += '<h3><span>Voice</span></h3><div class="navgroup">';
     for (const c of voice) {
       const parts = store.voiceParts.get(c.id) || [];
@@ -135,6 +142,9 @@ export async function renderChannels() {
         h += '<div class="vparts-nav">' + parts.map((u) =>
           `<span class="vpart-nav" data-vp="${esc(u)}">${esc(nameOf(u))}</span>`).join('') + '</div>';
       }
+    }
+    if (mayAddVoice) {
+      h += '<div class="chan chan-add" data-newvoice="1">＋ New voice room</div>';
     }
     h += '</div>';
   }
@@ -168,7 +178,9 @@ export async function renderChannels() {
     n.onclick = () => bus.emit('dm:request', { conversationId: n.dataset.dm });
   });
   host.querySelector('[data-newdm]')?.addEventListener('click', () => bus.emit('dm:new'));
-  host.querySelector('[data-newch]')?.addEventListener('click', createChannelDialog);
+  host.querySelector('[data-newch]')?.addEventListener('click', () => createChannelDialog());
+  host.querySelector('[data-newvoice]')?.addEventListener('click',
+    () => createChannelDialog({ kind: 'voice' }));
   host.querySelectorAll('h3[data-cat]').forEach((n) => {
     n.onclick = () => {
       const k = 'hearth.cat.' + n.dataset.cat;
@@ -228,12 +240,18 @@ export async function toggleMute(c) {
   } catch (e) { toast(e.message, 'error'); }
 }
 
-export async function createChannelDialog() {
+// `preset.kind` lets a caller open this already set to what they asked for. The
+// Voice section's own add button and the voice rooms panel both mean "a voice
+// room", and making somebody who pressed a speaker icon then find Voice in a
+// dropdown is the kind of small tax that stops a feature being used at all.
+export async function createChannelDialog(preset = {}) {
+  const kind = preset.kind || 'text';
   const out = await formModal({
-    title: 'Create a channel',
+    title: kind === 'voice' ? 'New voice room' : 'Create a channel',
     fields: [
-      { name: 'name', label: 'Name', required: true, placeholder: 'product-launch' },
-      { name: 'kind', label: 'Type', type: 'select', options: [
+      { name: 'name', label: 'Name', required: true,
+        placeholder: kind === 'voice' ? 'standup' : 'product-launch' },
+      { name: 'kind', label: 'Type', type: 'select', value: kind, options: [
         { value: 'text', label: 'Text' }, { value: 'voice', label: 'Voice' },
         { value: 'announcement', label: 'Announcement (only admins post)' },
         { value: 'forum', label: 'Forum (threaded posts)' },

@@ -51,6 +51,9 @@ const FEATURES = [
   // header buttons and hides fourteen.
   'voicerooms',
   'adminnav',
+  // Screen sharing. The mechanics are in core next to the peer connections;
+  // this is the button and the window you watch.
+  'screenshare',
   'offline',
   // Late, so it is registered after the features whose errors it would catch.
   'errorreport',

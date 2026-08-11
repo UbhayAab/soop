@@ -823,56 +823,145 @@ export async function copyInvite(space) {
   } catch (e) { toast(e.message, 'error'); }
 }
 
+// One link, one person.
+//
+// The old dialog defaulted to an unlimited link with a "Max uses" number box
+// nobody filled in, so in practice every invite ever handed out was reusable
+// forever by anyone it was forwarded to. For an invite-only product where an
+// account is a person, that is the wrong default in the only direction that
+// matters: a link that leaks lets strangers in, a link that is too tight only
+// costs somebody one more tap.
+//
+// So it is one use by default, and the moment you copy it, a FRESH one is
+// generated for the next person. That last part is the whole ergonomic idea:
+// inviting five people is copy, paste, copy, paste, and each of the five gets a
+// link that stops working the moment they use it.
+//
+// GENERATING A NEW LINK DOES NOT REVOKE THE OLD ONE, and that is deliberate.
+// "Refresh" revoking the previous link would break the person you sent it to
+// thirty seconds ago, which is exactly the sequence inviting several people
+// produces. Live links are listed underneath with a Revoke button, so cleaning
+// up is possible and explicit rather than a silent side effect of copying.
 export async function inviteDialog(space, isNew = false) {
   const ws = space || store.ws;
   if (!ws) return;
   const box = el('div', 'invite-box');
   box.innerHTML = `
-    ${isNew ? `<p class="muted">Your Space <b>${esc(ws.name)}</b> is live. Share this link and anyone who opens it lands right here.</p>` : ''}
+    ${isNew ? `<p class="muted">Your Space <b>${esc(ws.name)}</b> is live. Send this to the first person you want in it.</p>` : ''}
     <div class="invite-row"><input id="inviteLink" readonly value="generating…" />
       <button id="copyInvite">Copy</button></div>
+    <div class="invite-note muted" id="invNote">
+      This link lets <b>one person</b> in and then stops working.
+      Copying it makes a new one for the next person.</div>
     <div class="invite-opts">
+      <label class="field"><span class="field-label">Lets in</span>
+        <!-- Short enough to survive a 140px select on a phone. The sentence
+             above the options is where the full explanation lives. -->
+        <select id="invMax">
+          <option value="1">One person</option>
+          <option value="5">Up to 5</option>
+          <option value="25">Up to 25</option>
+          <option value="">Anyone</option></select></label>
       <label class="field"><span class="field-label">Expires</span>
         <select id="invExp">
-          <option value="">Never</option><option value="1">1 day</option>
-          <option value="7">7 days</option><option value="30">30 days</option></select></label>
-      <label class="field"><span class="field-label">Max uses</span>
-        <input id="invMax" type="number" min="1" placeholder="Unlimited" /></label>
-      <button class="ghost" id="regen">Generate new link</button>
+          <option value="7">7 days</option>
+          <option value="1">1 day</option>
+          <option value="30">30 days</option>
+          <option value="">Never</option></select></label>
+      <button class="ghost" id="regen">New link</button>
     </div>
     <div id="inviteList" class="invite-list"></div>`;
-  const m = modal({ title: 'Invite to ' + ws.name, body: box, wide: true });
+  modal({ title: 'Invite to ' + ws.name, body: box, wide: true });
 
+  const $q = (s) => box.querySelector(s);
+  const linkEl = $q('#inviteLink');
+  const copyBtn = $q('#copyInvite');
+
+  const say = () => {
+    const max = $q('#invMax').value;
+    $q('#invNote').innerHTML = max === '1'
+      ? 'This link lets <b>one person</b> in and then stops working. '
+        + 'Copying it makes a new one for the next person.'
+      : max
+        ? `This link lets <b>up to ${esc(max)} people</b> in.`
+        : '<b>Anyone</b> who gets this link can join, as many times as it is forwarded. '
+          + 'Only use this for a link you are posting somewhere you control.';
+  };
+
+  let busy = false;
   const make = async () => {
-    const days = box.querySelector('#invExp').value;
-    const max = box.querySelector('#invMax').value;
+    if (busy) return;
+    busy = true;
+    copyBtn.disabled = true;
+    linkEl.value = 'generating…';
+    const days = $q('#invExp').value;
+    const max = $q('#invMax').value;
     try {
       const token = await api.createInvite(
         ws.id, max ? +max : null,
         days ? new Date(Date.now() + +days * 86400000).toISOString() : null, null);
-      box.querySelector('#inviteLink').value = inviteLinkFor(token);
+      linkEl.value = inviteLinkFor(token);
+      copyBtn.disabled = false;
       refreshList();
-    } catch (e) { box.querySelector('#inviteLink').value = e.message; }
+    } catch (e) {
+      // A link that failed to generate must not look like a link. Leaving the
+      // previous one in the box after a failed refresh is how somebody sends the
+      // same one-use link to two people.
+      linkEl.value = '';
+      linkEl.placeholder = 'Could not make a link: ' + (e.message || 'try again');
+      toast('Could not make an invite link', 'error');
+    } finally { busy = false; }
   };
+
   const refreshList = async () => {
     const [rows] = await tryRpc('list_invites', { p_workspace: ws.id });
-    const host = box.querySelector('#inviteList');
-    if (!Array.isArray(rows) || !rows.length) { host.innerHTML = ''; return; }
-    host.innerHTML = '<div class="muted" style="margin:10px 0 4px">Active invites</div>' + rows
-      .filter((r) => !r.revoked_at)
-      .map((r) => `<div class="inv-row"><span>${r.uses || 0}${r.max_uses ? '/' + r.max_uses : ''} uses</span>
-        <span class="muted">${r.expires_at ? 'expires ' + new Date(r.expires_at).toLocaleDateString() : 'never expires'}</span>
-        <button class="icon" data-rev="${r.id}">Revoke</button></div>`).join('');
+    const host = $q('#inviteList');
+    const live = (Array.isArray(rows) ? rows : []).filter((r) => !r.revoked_at);
+    if (!live.length) { host.innerHTML = ''; return; }
+
+    const spent = (r) => r.max_uses && (r.uses || 0) >= r.max_uses;
+    host.innerHTML = '<div class="muted" style="margin:12px 0 4px">Links you have made</div>'
+      + live.map((r) => {
+        const used = r.uses || 0;
+        const state = spent(r) ? 'used up'
+          : r.max_uses ? `${used} of ${r.max_uses} used`
+            : `${used} ${used === 1 ? 'person has' : 'people have'} joined`;
+        return `<div class="inv-row${spent(r) ? ' inv-spent' : ''}">
+          <span>${esc(state)}</span>
+          <span class="muted">${r.expires_at
+            ? 'expires ' + new Date(r.expires_at).toLocaleDateString()
+            : 'never expires'}</span>
+          <button class="icon" data-rev="${esc(r.id)}">Revoke</button></div>`;
+      }).join('');
     host.querySelectorAll('[data-rev]').forEach((b) => {
       b.onclick = async () => { await api.revokeInvite(b.dataset.rev).catch(() => {}); refreshList(); };
     });
   };
 
-  box.querySelector('#copyInvite').onclick = async () => {
-    await navigator.clipboard?.writeText(box.querySelector('#inviteLink').value);
-    toast('Copied');
+  copyBtn.onclick = async () => {
+    const link = linkEl.value;
+    if (!link || busy) return;
+    try {
+      await navigator.clipboard.writeText(link);
+    } catch {
+      // No clipboard permission, which is ordinary inside an iframe and on some
+      // older phones. Select the text so it can be copied by hand, and do NOT
+      // rotate the link - they have not got it yet.
+      linkEl.focus();
+      linkEl.select();
+      toast('Could not reach the clipboard - the link is selected, copy it by hand', 'error');
+      return;
+    }
+    // Only after the clipboard genuinely has it. Rotating first and failing to
+    // copy would hand somebody a link they never received.
+    toast('Copied. Making a new link for the next person.');
+    if ($q('#invMax').value === '1') make();
   };
-  box.querySelector('#regen').onclick = make;
+
+  $q('#regen').onclick = make;
+  $q('#invMax').onchange = () => { say(); make(); };
+  $q('#invExp').onchange = make;
+  say();
   await make();
 }
 

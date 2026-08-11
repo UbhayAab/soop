@@ -359,7 +359,22 @@ body .admin-linkrow button { flex: none; }
 }
 .invite-opts button { flex: none; }
 
+/* What the link actually does, said above the options rather than inside them.
+   The old dialog expressed "one person only" as an empty number box labelled
+   Max uses, which is a control, not a sentence, and which nobody filled in - so
+   every invite ever handed out was reusable by anyone it was forwarded to. */
+.invite-note {
+  margin: var(--s-3) var(--s-1) var(--s-5);
+  font-size: var(--t-xs);
+  line-height: var(--t-loose);
+}
+.invite-note b { color: var(--c-text); }
+
 .invite-list { margin-top: var(--s-2); }
+/* A link that has been used up is not gone - it is still listed so it can be
+   revoked - but it must not look like one you could still send. */
+.inv-spent { opacity: 0.55; }
+.inv-spent span:first-child { text-decoration: line-through; }
 .inv-row {
   display: flex;
   align-items: center;

@@ -22,10 +22,16 @@
 // it. core/voice.js owns that one and hides and shows it by class on join and
 // leave; sharing it would mean two owners for one element's visibility, which is
 // the kind of thing that works until somebody drops a call at the wrong moment.
-import { store, bus, nameOf } from '../store.js';
+import { store, bus, nameOf, hasPerm } from '../store.js';
+import { PERM } from '../config.js';
 import { $, el, esc } from '../util.js';
 import { icon } from '../icons.js';
 import { voice, leaveVoice } from '../core/voice.js';
+import { createChannelDialog } from '../core/channels.js';
+
+// Opened already set to Voice, so pressing a speaker icon does not then ask you
+// which kind of channel you meant.
+const newRoom = () => createChannelDialog({ kind: 'voice' });
 
 const CLS = 'vrm';
 const PANEL = 'voice';
@@ -116,10 +122,21 @@ function renderPanel(body) {
   if (!store.ws) { body.appendChild(el('div', 'empty', 'Open a Space first.')); return; }
   if (!list.length) {
     const e = el('div', 'empty');
-    e.innerHTML = 'This Space has no voice rooms yet.<br><br>'
-      + 'Somebody who can manage channels can add one: open the channel list, '
-      + 'press <b>+</b> next to a category, and choose <b>Voice</b>.';
+    e.textContent = 'This Space has no voice rooms yet. A room is a door somebody '
+      + 'can walk through - it does not need to be booked and it does not end.';
     body.appendChild(e);
+    // The button, not the instructions. Telling somebody where a control is, is
+    // what you do when you cannot put the control here.
+    if (hasPerm(PERM.MANAGE_CHANNELS)) {
+      const add = el('button', '', 'Make the first room');
+      add.style.margin = '12px auto 0';
+      add.style.display = 'block';
+      add.onclick = () => { uiRef.closePanel(); newRoom(); };
+      body.appendChild(add);
+    } else {
+      body.appendChild(el('div', 'muted pad',
+        'Ask somebody who can manage channels to add one.'));
+    }
     return;
   }
 
@@ -152,6 +169,12 @@ function renderPanel(body) {
     }
     card.appendChild(bar);
     body.appendChild(card);
+  }
+
+  if (hasPerm(PERM.MANAGE_CHANNELS)) {
+    const add = el('button', 'ghost sm', '＋ Another room');
+    add.onclick = () => { uiRef.closePanel(); newRoom(); };
+    body.appendChild(add);
   }
 
   // Said once, at the bottom, rather than as a warning nobody reads at the top.
