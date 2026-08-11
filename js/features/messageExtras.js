@@ -167,9 +167,14 @@ function startSeen(channel) {
   if (!channel) return;
   seenChannel = channel.id;
   // Polled, not subscribed: read cursors move constantly and are not worth a
-  // broadcast each. One row every ten seconds is cheap and always fresh enough.
+  // broadcast each. Cheap per call, but 10 seconds is 360 requests an hour from
+  // a client that is doing nothing, and this is a DECORATION - "seen by 26"
+  // under your own last message. 30 seconds with the tab-visibility guard
+  // paintSeen was missing takes it to 120 an hour at most, and to zero for a
+  // phone sitting in a pocket. Nobody has ever needed a read receipt to be
+  // twenty seconds fresher.
   paintSeen();
-  seenTimer = setInterval(paintSeen, 10000);
+  seenTimer = setInterval(paintSeen, 30000);
 }
 
 function stopSeen() {
@@ -181,6 +186,9 @@ function stopSeen() {
 
 async function paintSeen() {
   if (!seenChannel) return;
+  // Nobody is looking at the receipt, so nobody needs it refreshed. The same
+  // guard the presence backstop already uses.
+  if (document.visibilityState !== 'visible') return;
   if (store.current?.id !== seenChannel) { stopSeen(); return; }
   const list = document.getElementById('messages');
   if (!list) return;

@@ -144,6 +144,42 @@ function makePeer(peerId, initiator) {
 // ignores the colliding offer and its own will be answered.
 const polite = (peerId) => store.me > peerId;
 
+// ICE candidates that arrived before there was anywhere to put them.
+//
+// addIceCandidate throws if no remote description is set yet, and the existing
+// code swallowed that with .catch(() => {}) - so a candidate that beat its offer
+// through the broadcast was simply lost. That was already a source of slow and
+// occasionally failed connects, and the rollback above makes it strictly worse:
+// during a rollback the connection legitimately has no remote description, and
+// that is exactly the window when the other side is spraying candidates.
+//
+// A lost candidate is not a visible error. It is a call that takes eight seconds
+// to connect instead of one, or does not connect at all, on some networks and
+// not others. Buffer them and drain once there is a remote description.
+const pendingIce = new Map();
+
+async function addIce(pc, from, candidate) {
+  if (!pc) return;
+  if (!pc.remoteDescription) {
+    if (!pendingIce.has(from)) pendingIce.set(from, []);
+    // Bounded, because a peer that never completes its offer would otherwise
+    // grow this forever. Fifty is far more than any real negotiation produces.
+    const q = pendingIce.get(from);
+    if (q.length < 50) q.push(candidate);
+    return;
+  }
+  try { await pc.addIceCandidate(candidate); } catch { /* stale candidate */ }
+}
+
+async function drainIce(pc, from) {
+  const q = pendingIce.get(from);
+  if (!q?.length) return;
+  pendingIce.delete(from);
+  for (const cand of q) {
+    try { await pc.addIceCandidate(cand); } catch { /* stale by now */ }
+  }
+}
+
 async function onSignal(p) {
   if (p.to !== store.me) return;
   const from = p.from;
@@ -159,6 +195,7 @@ async function onSignal(p) {
         await pc.setLocalDescription({ type: 'rollback' });
       }
       await pc.setRemoteDescription(p.data);
+      await drainIce(pc, from);
       const ans = await pc.createAnswer();
       await pc.setLocalDescription(ans);
       signal(from, { kind: 'answer', data: ans });
@@ -166,9 +203,12 @@ async function onSignal(p) {
       const pc = voice.peers.get(from);
       // An answer arriving when we are not expecting one is a late duplicate
       // from a rolled-back negotiation. Setting it would throw.
-      if (pc && pc.signalingState === 'have-local-offer') await pc.setRemoteDescription(p.data);
+      if (pc && pc.signalingState === 'have-local-offer') {
+        await pc.setRemoteDescription(p.data);
+        await drainIce(pc, from);
+      }
     } else if (p.kind === 'ice') {
-      await voice.peers.get(from)?.addIceCandidate(p.data).catch(() => {});
+      await addIce(voice.peers.get(from), from, p.data);
     } else if (p.kind === 'bye') {
       dropPeer(from);
     }
@@ -272,8 +312,12 @@ function dropPeer(id) {
   voice.peers.get(id)?.close();
   voice.peers.delete(id);
   voice.screenSenders.delete(id);
+  pendingIce.delete(id);
   if (voice.remoteScreens.delete(id)) bus.emit('voice:screen', { peerId: id, on: false });
-  document.getElementById('a-' + id)?.remove();
+  // srcObject nulled before the element goes, so the decoder is released rather
+  // than pinned by a detached node still holding a live MediaStream.
+  const a = document.getElementById('a-' + id);
+  if (a) { a.srcObject = null; a.remove(); }
   const m = voice.monitors.get(id);
   if (m) { cancelAnimationFrame(m.raf); m.ctx?.close?.(); voice.monitors.delete(id); }
 }
@@ -336,6 +380,17 @@ export async function refreshVoice() {
 
 function monitorSpeaking(id, stream) {
   try {
+    // Close the previous one first. ontrack can fire more than once for a peer -
+    // a connection rebuilt after a transient drop is the ordinary case, and
+    // renegotiation is a new one - and each call started another AudioContext
+    // and another requestAnimationFrame loop while the map kept only the latest
+    // handle. The earlier loop then ran for the rest of the session with nothing
+    // able to cancel it. Browsers cap AudioContexts per document at a small
+    // number, so after a few reconnects creation throws and the speaking
+    // indicator stops working for everybody, silently, via the catch below.
+    const old = voice.monitors.get(id);
+    if (old) { cancelAnimationFrame(old.raf); old.ctx?.close?.(); voice.monitors.delete(id); }
+
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const src = ctx.createMediaStreamSource(stream);
     const an = ctx.createAnalyser();

@@ -178,8 +178,47 @@ export function initPresence() {
     rxnLast = Date.now();
     loadReactions(ids);
   }, 9000);
-  setInterval(() => { if (store.ws) refreshUnread(); }, 15000);
-  setInterval(() => { if (store.ws) refreshVoice(); }, 20000);
+  // THE MOST EXPENSIVE LOOP IN THE APP, and it was the one nobody looked at.
+  //
+  // refreshUnread() is three network calls, not one: get_unread, then the
+  // cross-Space rollup for the rail badges, then the DM list (channels.js). At
+  // every 15 seconds that is 720 requests an hour from a client that is doing
+  // nothing, out of about 1,800 an hour in total. Measured against the Supabase
+  // free plan that is the limit which breaks FIRST, and it breaks on egress at
+  // roughly 29 people - which is smaller than this organisation already is. Not
+  // on chat, not on voice: on timers ticking in tabs nobody is looking at.
+  //
+  // Three changes, in order of how much they save.
+  //
+  // Skip when the tab is not visible. A phone in somebody's pocket with the app
+  // still open was polling all day. This costs nothing, because realtime already
+  // delivers the messages that make a badge change; the poll is a backstop for a
+  // dropped event, and a dropped event nobody can see does not need healing
+  // until they look. Coming back to the tab refreshes immediately, so the badge
+  // is right by the time it is read.
+  //
+  // Halve the rate, 15s to 30s. Realtime is the fast path.
+  //
+  // And run the expensive two thirds a quarter as often. The rail rollup and the
+  // DM list are for OTHER Spaces and OTHER conversations, which is exactly the
+  // information realtime is already pushing on its own topics.
+  let unreadTick = 0;
+  const pollUnread = () => {
+    if (!store.ws) return;
+    if (document.visibilityState !== 'visible') return;
+    refreshUnread({ full: unreadTick++ % 4 === 0 });
+  };
+  setInterval(pollUnread, 30000);
+  document.addEventListener('visibilitychange', () => {
+    // Whatever was missed while it was hidden, healed the moment it matters.
+    if (document.visibilityState === 'visible') { unreadTick = 0; pollUnread(); }
+  });
+
+  setInterval(() => {
+    if (!store.ws) return;
+    if (document.visibilityState !== 'visible') return;
+    refreshVoice();
+  }, 20000);
 
   // `state` is absent on payloads from a client that has not reloaded since the
   // typing change shipped; those are starts, which is what they always were.

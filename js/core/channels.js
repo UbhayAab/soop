@@ -1079,7 +1079,12 @@ export async function jumpToSeq(channel, seq) {
   } catch (e) { toast(e.message || 'Could not jump there', 'error'); }
 }
 
-export async function refreshUnread() {
+// Three round trips, not one, which is why the caller can now ask for only the
+// part that is about the Space actually on screen. `full` defaults to true so
+// every existing caller - a channel switch, a manual reload, unread:reload -
+// keeps behaving exactly as it did; only the idle poll in presence.js passes
+// false, and only for three ticks out of four.
+export async function refreshUnread({ full = true } = {}) {
   if (!store.ws) return;
   try {
     const rows = (await api.unread(store.ws.id)) || [];
@@ -1087,8 +1092,11 @@ export async function refreshUnread() {
     bus.emit('unread');
     renderChannels();
   } catch { /* transient */ }
+  if (!full) return;
+
   // Badges on the Space rail come from a separate cross-workspace rollup, so a
-  // message in another Space still lights up its icon.
+  // message in another Space still lights up its icon. This one is about the
+  // Spaces you are NOT looking at, which is precisely the thing that can wait.
   try {
     const summary = await api.spaceSummary();
     if (Array.isArray(summary)) {
