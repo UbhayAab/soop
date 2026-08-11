@@ -1084,13 +1084,43 @@ export async function jumpToSeq(channel, seq) {
 // every existing caller - a channel switch, a manual reload, unread:reload -
 // keeps behaving exactly as it did; only the idle poll in presence.js passes
 // false, and only for three ticks out of four.
+// A stable fingerprint of what the sidebar actually shows, so a poll that
+// learned nothing can stop before repainting.
+//
+// This is the single most expensive thing the app did while nobody was touching
+// it. renderChannels() rewrites the whole sidebar with innerHTML and then awaits
+// renderNavSections(), which issues list_topics - and topics.js caches for 1500ms,
+// so a poll every 20 or 30 seconds NEVER hits that cache. Two polls repainting
+// unconditionally was about 285 of the ~1,194 requests an hour a visible idle
+// client made, and closer to 855 when the open channel uses topics. A quarter to
+// a half of the entire idle budget, spent painting byte-identical HTML from
+// byte-identical data.
+//
+// Only the count and the mention count are in the key, because those are the
+// only fields the sidebar renders. Every path that genuinely changes the sidebar
+// - openChannel, toggleMute, category collapse, reloadChannels, switchWorkspace,
+// a new DM appearing - calls renderChannels directly and is untouched by this.
+// The Space id is in the key so a switch can never be mistaken for "nothing
+// changed", however the two Spaces' counts happen to line up.
+function unreadFingerprint(m) {
+  const parts = [store.ws?.id || ''];
+  for (const [id, u] of m) parts.push(id + ':' + (u.unread || 0) + ':' + (u.mention_count || 0));
+  return parts.sort().join('|');
+}
+
+let lastUnreadPrint = null;
+
 export async function refreshUnread({ full = true } = {}) {
   if (!store.ws) return;
   try {
     const rows = (await api.unread(store.ws.id)) || [];
     store.unread = new Map(rows.map((u) => [u.scope_id, u]));
-    bus.emit('unread');
-    renderChannels();
+    const print = unreadFingerprint(store.unread);
+    if (print !== lastUnreadPrint) {
+      lastUnreadPrint = print;
+      bus.emit('unread');
+      renderChannels();
+    }
   } catch { /* transient */ }
   if (!full) return;
 

@@ -394,9 +394,12 @@ function subscribeUser(uid) {
       // is what makes one arrive while you are reading a channel, or in your other
       // Space, or with the phone in your pocket.
       dm: (p) => {
+        // refreshUnread() defaults to full, and a full refresh already ENDS in
+        // `await refreshDMList()`. Calling it again here was a second, identical
+        // request a few milliseconds behind the first, on every incoming DM, for
+        // every recipient.
         refreshUnread();
         flashTitle();
-        import('./core/channels.js').then(({ refreshDMList }) => refreshDMList?.());
         if (p?.conversation_id && p.conversation_id === store.currentDM) {
           import('./core/dms.js').then(({ reconcileDM }) => reconcileDM?.());
         }

@@ -101,5 +101,13 @@ export const PERM = {
 // Quick-react bar: the six shown on message hover without opening the picker.
 export const QUICK_EMOJI = ['👍', '❤️', '😂', '🎉', '👀', '✅'];
 
-export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+// 50 MB, because that is the hard ceiling on the Supabase free plan: "For Free
+// projects, the limit can't exceed 50 MB." This said 100 MB, so somebody picking
+// a 90 MB video got the whole optimistic experience - the file read into memory,
+// hashed with sha256, dimensions probed - and then a server refusal at the end,
+// with the client having promised in its own error message that 100 MB was fine.
+//
+// Raise it here AND in the bucket's own limit if the project ever moves off the
+// free plan; the two have to agree or one of them is lying to somebody.
+export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 export const MESSAGE_PAGE = 50;

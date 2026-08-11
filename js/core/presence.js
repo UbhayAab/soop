@@ -209,10 +209,12 @@ export function initPresence() {
     refreshUnread({ full: unreadTick++ % 4 === 0 });
   };
   setInterval(pollUnread, 30000);
-  document.addEventListener('visibilitychange', () => {
-    // Whatever was missed while it was hidden, healed the moment it matters.
-    if (document.visibilityState === 'visible') { unreadTick = 0; pollUnread(); }
-  });
+  // The return-to-visible refresh lives in the resync handler further down,
+  // which already does exactly this alongside the heartbeat, the auth check and
+  // the socket retry. Registering a second listener here meant every tab switch
+  // ran refreshUnread TWICE - and refreshUnread defaults to full, so that is six
+  // RPCs where three were wanted. A laptop user switching tabs twenty times an
+  // hour was paying sixty requests an hour for the duplicate alone.
 
   setInterval(() => {
     if (!store.ws) return;
@@ -246,6 +248,10 @@ export function initPresence() {
     // topic and left the tab needing a reload to receive anything again.
     retryAllNow({ force: true });
     requestResync('visible');
+    // Reset the tick counter so this one is a FULL refresh: coming back is
+    // exactly when the cross-Space rail badges and the DM list are most likely
+    // to be wrong, and it is the one moment somebody is about to look at them.
+    unreadTick = 0;
     refreshUnread();
   });
 

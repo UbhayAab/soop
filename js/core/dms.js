@@ -119,8 +119,38 @@ function applyIncomingDM(conversationId, m) {
   const stick = atBottom(list);
   appendMessage(list, m, 'dm');
   if (stick) scrollDown(list); else showNewBelow();
-  api.markDMRead(conversationId, m.seq).catch(() => {});
+  // Coalesced, the same way the channel path already coalesces its own
+  // mark_read. Uncoalesced this was one RPC AND one realtime fan-out per message
+  // in a burst - somebody sending five lines in ten seconds cost five of each,
+  // to say the same thing five times. The reader's screen has already cleared
+  // its own unread state locally; the only thing this call drives is the
+  // sender's "Seen" line, and that does not need to be five updates either.
+  markDMReadSoon(conversationId, m.seq);
   bus.emit('message:new', { msg: m, dm: true });
+}
+
+// The DM half of coalescing, deliberately the same shape as markReadSoon in
+// js/core/channels.js so the two paths behave identically. Highest seq wins, one
+// call per window however many messages land inside it.
+const DM_READ_MS = 1200;
+let dmReadPending = null;
+let dmReadTimer = null;
+
+function markDMReadSoon(conversationId, seq) {
+  if (!seq) return;
+  if (!dmReadPending || dmReadPending.id !== conversationId || seq > dmReadPending.seq) {
+    dmReadPending = {
+      id: conversationId,
+      seq: Math.max(seq, dmReadPending?.id === conversationId ? dmReadPending.seq : 0),
+    };
+  }
+  if (dmReadTimer) return;
+  dmReadTimer = setTimeout(() => {
+    dmReadTimer = null;
+    const p = dmReadPending;
+    dmReadPending = null;
+    if (p) api.markDMRead(p.id, p.seq).catch(() => {});
+  }, DM_READ_MS);
 }
 
 // The DM half of RESUME. Same shape as the channel one: replay past the cursor,

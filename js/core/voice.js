@@ -354,6 +354,16 @@ function applyMicState() {
   }
 }
 
+// Who is in which room, as a comparable string. Sorted per room because the row
+// order out of the table is not guaranteed and an order change is not a change
+// anybody can see.
+function vpFingerprint(m) {
+  const parts = [];
+  for (const [ch, ids] of m) parts.push(ch + ':' + [...ids].sort().join(','));
+  return parts.sort().join('|');
+}
+let lastVoicePrint = null;
+
 export async function refreshVoice() {
   const vids = store.channels.filter((c) => c.kind === 'voice').map((c) => c.id);
   if (vids.length) {
@@ -363,7 +373,13 @@ export async function refreshVoice() {
       if (!store.voiceParts.has(r.channel_id)) store.voiceParts.set(r.channel_id, []);
       store.voiceParts.get(r.channel_id).push(r.user_id);
     }
-    renderChannels();
+    // Same reason as the unread poll in channels.js: renderChannels() rewrites
+    // the whole sidebar and then awaits renderNavSections(), which issues
+    // list_topics on every call because a 20 second poll never hits topics.js's
+    // 1500ms cache. Nobody joins or leaves a voice room most of the time, so
+    // most of these repaints drew exactly what was already on screen.
+    const print = vpFingerprint(store.voiceParts);
+    if (print !== lastVoicePrint) { lastVoicePrint = print; renderChannels(); }
   }
   // "Who is in a room" has just changed. Deliberately NOT voice:refresh: line
   // 231 binds that event to this very function, so emitting it here would be an

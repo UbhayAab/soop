@@ -114,11 +114,20 @@ function openEditor(canvasId) {
   let blocks = [];                 // last server order, used for move maths
   const nodes = new Map();         // block id -> live DOM node
 
+  // Declared before the modal so onClose can unbind it. The poll below skips
+  // entirely while the tab is hidden, and this is what brings the document back
+  // up to date the instant somebody returns to it.
+  const onVisible = () => { if (document.visibilityState === 'visible' && !closed) refresh(true); };
+
   const m = ui.modal({
     title: 'Canvas',
     body: host,
     wide: true,
-    onClose: () => { closed = true; clearTimeout(timer); },
+    onClose: () => {
+      closed = true;
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    },
   });
   m.root.classList.add('cv-modal');
   const head = m.box.querySelector('.modal-head strong');
@@ -387,9 +396,19 @@ function openEditor(canvasId) {
   }
 
   async function loop() {
-    await refresh(true);
+    // Nobody is reading the canvas, so nobody needs it refreshed. This is the
+    // highest per-unit waste in the app: 4 seconds is 900 requests an hour, and
+    // a canvas left open in a background tab kept every one of them. The moment
+    // the tab comes back it refreshes, so what is on screen is never stale -
+    // and a collaborative document is exactly the thing you want re-read on
+    // return anyway.
+    if (document.visibilityState === 'visible') await refresh(true);
     if (!closed) timer = setTimeout(loop, POLL_MS);
   }
+  // Back sooner than the next tick when somebody returns to it. Removed in the
+  // modal's own onClose, which is the one place that reliably runs however the
+  // dialog was dismissed.
+  document.addEventListener('visibilitychange', onVisible);
 
   (async () => {
     await refresh(false);
