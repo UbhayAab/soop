@@ -160,6 +160,11 @@ export async function refreshVoice() {
     }
     renderChannels();
   }
+  // "Who is in a room" has just changed. Deliberately NOT voice:refresh: line
+  // 231 binds that event to this very function, so emitting it here would be an
+  // unbounded loop. Anything outside core that paints the state of the rooms
+  // listens to this one.
+  bus.emit('voice:state');
   if (voice.active) {
     const ids = store.voiceParts.get(voice.channel.id) || [];
     $('vparts').innerHTML = ids.map((u) =>

@@ -252,16 +252,42 @@ export function renderHeaderButtons() {
 const navSections = [];
 // addNavSection({id, order, render(hostEl)}) - rendered under the channel list
 export function addNavSection(def) { navSections.push({ order: 50, ...def }); }
+// Serialised, and built detached.
+//
+// This used to clear #navExtra and then append one wrapper per section, awaiting
+// each section's render in between. Both halves are a problem. Clearing first
+// means a second call that arrives during the first one's await wipes what the
+// first has already put on screen, and the first then carries on appending into
+// a host somebody else has since rebuilt. Measured with three features listening
+// to overlapping events (workspace, channels, voice:state - all of which fire
+// together when a Space opens): seven rows rendered twenty-one times.
+//
+// So: one run at a time, and if calls arrive while it is going, do exactly one
+// more pass at the end rather than one per caller. The tree is assembled in a
+// fragment and swapped in a single assignment, so the sidebar never shows a
+// half-built list.
+let navRun = null;
+let navAgain = false;
 export async function renderNavSections() {
-  const host = $('navExtra');
-  if (!host) return;
-  host.innerHTML = '';
-  for (const s of [...navSections].sort((a, z) => a.order - z.order)) {
-    if (s.show && !s.show()) continue;
-    const wrap = el('div', 'navsec');
-    host.appendChild(wrap);
-    try { await s.render(wrap); } catch (e) { console.warn('navsec', s.id, e); }
-  }
+  if (navRun) { navAgain = true; return navRun; }
+  navRun = (async () => {
+    try {
+      do {
+        navAgain = false;
+        const host = $('navExtra');
+        if (!host) return;
+        const frag = document.createDocumentFragment();
+        for (const s of [...navSections].sort((a, z) => a.order - z.order)) {
+          if (s.show && !s.show()) continue;
+          const wrap = el('div', 'navsec');
+          frag.appendChild(wrap);
+          try { await s.render(wrap); } catch (e) { console.warn('navsec', s.id, e); }
+        }
+        host.replaceChildren(frag);
+      } while (navAgain);
+    } finally { navRun = null; }
+  })();
+  return navRun;
 }
 
 // ------------------------------------------------------------------ message actions

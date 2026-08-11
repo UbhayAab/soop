@@ -46,6 +46,11 @@ const FEATURES = [
   // Labelled sidebar rows for the four panels above. Without it they are only
   // header buttons past the inline cap, and the channel bar's overflow is dead.
   'coordnav',
+  // Voice rooms you can find on a phone, and the two admin jobs done most often.
+  // Both are sidebar rows rather than header buttons, because a phone shows two
+  // header buttons and hides fourteen.
+  'voicerooms',
+  'adminnav',
   'offline',
   // Late, so it is registered after the features whose errors it would catch.
   'errorreport',
