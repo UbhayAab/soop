@@ -811,14 +811,26 @@ export function inviteLinkFor(token) {
   return location.origin + location.pathname + '#/join/' + token;
 }
 
+// The rail's right-click shortcut. It minted an UNLIMITED, NEVER-EXPIRING link,
+// which made the one-use default in inviteDialog a fiction: the fastest path an
+// admin actually reaches for was the one with no limit on it at all. One person,
+// seven days, same as the dialog.
 export async function copyInvite(space) {
   const ws = space || store.ws;
   if (!ws) return;
   try {
-    const token = await api.createInvite(ws.id, null, null, null);
+    const token = await api.createInvite(
+      ws.id, 1, new Date(Date.now() + 7 * 86400000).toISOString(), null);
     const link = inviteLinkFor(token);
-    await navigator.clipboard?.writeText(link);
-    toast('Invite link copied');
+    // Optional chaining made a missing clipboard a silent no-op that still said
+    // "copied". Inside an iframe, and on some older phones, that is exactly what
+    // happens - and the admin then pastes whatever was on the clipboard before.
+    if (!navigator.clipboard?.writeText) {
+      toast('Could not reach the clipboard. Open Invite to see the link.', 'error');
+      return link;
+    }
+    await navigator.clipboard.writeText(link);
+    toast('One-time invite link copied. It lets one person in.');
     return link;
   } catch (e) { toast(e.message, 'error'); }
 }
@@ -897,8 +909,14 @@ export async function inviteDialog(space, isNew = false) {
     const days = $q('#invExp').value;
     const max = $q('#invMax').value;
     try {
+      // The select cannot produce a 0 today, but "0" is truthy and `max ? +max`
+      // would send it, and a link that lets nobody in is indistinguishable from
+      // a good one until somebody tries it. Validated rather than trusted, the
+      // same way the admin console does it.
+      const n = Number(max);
+      const uses = Number.isInteger(n) && n > 0 ? n : null;
       const token = await api.createInvite(
-        ws.id, max ? +max : null,
+        ws.id, uses,
         days ? new Date(Date.now() + +days * 86400000).toISOString() : null, null);
       linkEl.value = inviteLinkFor(token);
       copyBtn.disabled = false;

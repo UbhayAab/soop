@@ -584,8 +584,16 @@ async function drawInvites(host, ctx, { ui }) {
         <label class="field"><span class="field-label">Expires</span>
           <select id="admInvExp"><option value="">Never</option><option value="1">1 day</option>
             <option value="7">7 days</option><option value="30">30 days</option></select></label>
-        <label class="field"><span class="field-label">Max uses</span>
-          <input id="admInvMax" type="number" min="1" placeholder="Unlimited" /></label>
+        <!-- A select, not a number box. The box defaulted to empty, empty meant
+             unlimited, and nobody filled it in - so every invite this console
+             ever made was reusable by anyone it was forwarded to. min="1" also
+             does not stop a typed 0 being submitted, and 0 is truthy. -->
+        <label class="field"><span class="field-label">Lets in</span>
+          <select id="admInvMax">
+            <option value="1">One person</option>
+            <option value="5">Up to 5</option>
+            <option value="25">Up to 25</option>
+            <option value="">Anyone</option></select></label>
         <button id="admInvMake">Create invite</button>
       </div>
       <div class="admin-linkrow hidden" id="admInvOut">
@@ -595,8 +603,12 @@ async function drawInvites(host, ctx, { ui }) {
       const days = form.querySelector('#admInvExp').value;
       const max = form.querySelector('#admInvMax').value;
       try {
+        // Validated rather than trusted: "0" is truthy, so `max ? Number(max)`
+        // sent 0, and a link that lets nobody in looks exactly like a good one.
+        const n = Number(max);
+        const uses = Number.isInteger(n) && n > 0 ? n : null;
         const token = await api.createInvite(
-          store.ws.id, max ? Number(max) : null,
+          store.ws.id, uses,
           days ? new Date(Date.now() + Number(days) * 86400000).toISOString() : null, null);
         form.querySelector('#admInvOut').classList.remove('hidden');
         form.querySelector('#admInvLink').value = inviteLinkFor(token);
@@ -609,8 +621,18 @@ async function drawInvites(host, ctx, { ui }) {
       } catch (e) { ui.toast(e.message, 'error'); }
     };
     form.querySelector('#admInvCopy').onclick = async () => {
-      await navigator.clipboard?.writeText(form.querySelector('#admInvLink').value).catch(() => {});
-      ui.toast('Invite link copied');
+      // Said "copied" whether or not anything was: optional chaining turns a
+      // missing clipboard API into a no-op, and .catch swallowed a real refusal.
+      const link = form.querySelector('#admInvLink').value;
+      try {
+        if (!navigator.clipboard?.writeText) throw new Error('no clipboard');
+        await navigator.clipboard.writeText(link);
+        ui.toast('Invite link copied');
+      } catch {
+        const f = form.querySelector('#admInvLink');
+        f.focus(); f.select();
+        ui.toast('Could not reach the clipboard - the link is selected, copy it by hand', 'error');
+      }
     };
   }
 

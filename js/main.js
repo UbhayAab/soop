@@ -87,7 +87,7 @@ async function redeemFromRoute(r) {
       toast('You are in ' + (ws?.name || 'the Space'), 'success');
     }
   } catch (e) {
-    toast(e.message || 'That invite link is not valid', 'error');
+    toast(inviteError(e), 'error');
   }
 }
 
@@ -114,6 +114,32 @@ function takePendingInvite() {
     const { token, at } = JSON.parse(raw);
     return Date.now() - at < INVITE_TTL_MS ? token : null;
   } catch { return null; }
+}
+
+// The in-URL path reads its token from the hash and never calls
+// takePendingInvite, so the copy main() stashed before sign-in survives and gets
+// redeemed again on the next reload inside the TTL.
+function clearPendingInvite() {
+  try { localStorage.removeItem(INVITE_KEY); } catch { /* private mode */ }
+}
+
+// What somebody sees when a link has already been used. The raw value is a
+// Postgres exception string - `invite_exhausted`, or a row-level-security
+// message - shown for 3.2 seconds and then gone. It is not readable and it does
+// not say what to do, and with one-use links this is now the ORDINARY failure
+// rather than a rare one: it is what a forwarded link looks like.
+function inviteError(e) {
+  const m = String(e?.message || '');
+  if (/exhaust|max_uses|already used|uses_exceeded|no_uses/i.test(m)) {
+    return 'That invite link has already been used. Ask for a fresh one - each link lets one person in.';
+  }
+  if (/expire/i.test(m)) return 'That invite link has expired. Ask for a fresh one.';
+  if (/revoke/i.test(m)) return 'That invite link was cancelled. Ask for a fresh one.';
+  if (/not.?found|invalid|no rows/i.test(m)) return 'That invite link is not valid. Check you copied all of it.';
+  if (/failed to fetch|networkerror|load failed/i.test(m)) {
+    return 'No connection, so the invite could not be checked. Try again when you are back online.';
+  }
+  return 'That invite link did not work. Ask whoever sent it for a fresh one.';
 }
 
 // ------------------------------------------------------------------ enter
@@ -157,8 +183,26 @@ async function enter() {
         joinedId = wsRow?.id || null;
       }
     } catch (e) {
-      toast(e.message || 'That invite link is not valid', 'error');
+      toast(inviteError(e), 'error');
     }
+    // SPEND THE TOKEN EXACTLY ONCE.
+    //
+    // The hash used to be left intact here, and applyRoute() further down this
+    // same function matches `#/join/` and redeems again - so one human click on
+    // one link called redeem_invite TWICE. A third time on any reload inside the
+    // stash's 30 minute window, because the in-URL path never clears the stash
+    // that main() wrote before sign-in.
+    //
+    // With an unlimited link nobody noticed: the second redeem was a no-op that
+    // returned the same Space. The moment a link is good for one person, the
+    // first call consumes it and the second fails, so the person joins
+    // successfully and is then shown an error saying the link is not valid. If
+    // the server counts attempts rather than successes it is worse than cosmetic
+    // and the invite is genuinely burnt before anybody else can use it.
+    //
+    // Clearing the hash before applyRoute() sees it is the whole fix.
+    history.replaceState(null, '', location.pathname + location.search);
+    clearPendingInvite();
   }
   showChat();
 

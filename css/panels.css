@@ -370,6 +370,36 @@ body .admin-linkrow button { flex: none; }
 }
 .invite-note b { color: var(--c-text); }
 
+/* On a phone this row is the whole feature and it was the worst-served thing in
+   the dialog. Three separate problems, measured at 390px:
+
+   The field is about 274px wide and the URL prefix alone is roughly 292px, so
+   ZERO characters of the token were visible - which makes "the link refreshed
+   after you copied it" impossible to confirm by eye.
+
+   12.5px is under the 16px iOS zoom threshold, so tapping it zoomed the page and
+   left the admin scrolled sideways inside a bottom sheet.
+
+   And Copy, the primary action, was a 34px target in a dialog whose Revoke
+   buttons are 44px.
+
+   rtl on the input is the one trick that helps here: a URL read right-to-left
+   shows its TAIL, and the tail is the only part that differs between one link
+   and the next. The value is untouched, only its scroll position. */
+@media (hover: none) {
+  .invite-row input,
+  body .admin-linkrow input {
+    font-size: 16px;
+    direction: rtl;
+    text-align: left;
+  }
+  .invite-row button,
+  body .admin-linkrow button,
+  .invite-opts button {
+    min-height: 44px;
+  }
+}
+
 .invite-list { margin-top: var(--s-2); }
 /* A link that has been used up is not gone - it is still listed so it can be
    revoked - but it must not look like one you could still send. */
