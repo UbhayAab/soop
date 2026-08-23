@@ -1294,3 +1294,26 @@ button.chip.on {
   .tabs { padding: var(--s-2); }
   .tabs > button { min-height: 44px; }
 }
+
+/* Workspace custom emoji rendered inline by fmt(). Sized to sit on the text
+   baseline like a glyph, not like an attachment preview. */
+img.cemoji {
+  height: 22px;
+  width: 22px;
+  object-fit: contain;
+  vertical-align: -5px;
+  border-radius: var(--r-sm);
+}
+
+/* Multi-select people picker (group DMs) and the add-to-channel rows. */
+.picker-hint { padding: var(--s-1) var(--s-2); font-size: var(--t-xs); }
+.picker-row.picked { background: var(--c-selected); }
+.picker-check { margin-left: auto; opacity: 0; transition: opacity 120ms; color: var(--c-accent); font-weight: var(--t-semibold); }
+.picker-row.picked .picker-check { opacity: 1; }
+.ux-mem-addbar { padding: 0 0 var(--s-3); }
+
+/* Real faces. The .avatar class already owns size and circle shape; the image
+   variant only has to behave like a photograph inside it, plus the editor row. */
+img.avatar-img { object-fit: cover; }
+.pf-avatar-row { display: flex; align-items: center; gap: var(--s-4); padding-bottom: var(--s-4); }
+.pf-avatar-actions { display: flex; flex-direction: column; gap: var(--s-2); align-items: flex-start; }

@@ -1,8 +1,8 @@
-{
+﻿{
   "id": "./",
-  "name": "Soop",
-  "short_name": "Soop",
-  "description": "Invite-only team chat: channels and voice rooms, threads that stay out of the way, and media that never leaves the app. A Redtree product.",
+  "name": "Dek",
+  "short_name": "Dek",
+  "description": "Invite-only team chat: channels and voice rooms, threads that stay out of the way, and media that never leaves the app.",
   "start_url": "./?source=pwa",
   "scope": "./",
   "display": "standalone",
@@ -19,10 +19,10 @@
   ],
   "screenshots": [
     { "src": "./icons/shot-wide.png", "sizes": "1280x720", "type": "image/png", "form_factor": "wide", "label": "Channels, threads and voice" },
-    { "src": "./icons/shot-narrow.png", "sizes": "720x1280", "type": "image/png", "form_factor": "narrow", "label": "Soop on mobile" }
+    { "src": "./icons/shot-narrow.png", "sizes": "720x1280", "type": "image/png", "form_factor": "narrow", "label": "Dek on mobile" }
   ],
   "shortcuts": [
-    { "name": "Threads", "url": "./#/threads", "description": "Every thread you are part of" },
-    { "name": "Search", "url": "./#/search", "description": "Search all messages" }
+    { "name": "Dek", "url": "./#/threads", "description": "Every thread you are part of" },
+    { "name": "Dek", "url": "./#/search", "description": "Search all messages" }
   ]
 }

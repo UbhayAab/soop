@@ -1,4 +1,4 @@
-// The UI kit and the extension registry. Feature modules never touch the shell
+﻿// The UI kit and the extension registry. Feature modules never touch the shell
 // markup directly - they register through here, so features can be added in
 // parallel without colliding.
 import { $, el, esc } from './util.js';
@@ -23,7 +23,7 @@ export function modal({ title, body, actions = [], wide = false, onClose } = {})
   const back = el('div', 'modal-back');
   const box = el('div', 'modal' + (wide ? ' modal-wide' : ''));
   const head = el('div', 'modal-head', `<strong>${esc(title || '')}</strong>`);
-  const x = el('button', 'icon', '✕');
+  const x = el('button', 'icon', 'âœ•');
   head.appendChild(x);
   const bodyEl = el('div', 'modal-body');
   if (typeof body === 'string') bodyEl.innerHTML = body;
@@ -184,9 +184,13 @@ export async function openPanel(id, ctx = {}) {
   const aside = $('panel');
   aside.classList.remove('hidden');
   document.body.classList.add('panel-open');
+  // Android Back must close the sheet, not the app. A pushed entry per open,
+  // consumed by the popstate handler in main.js. Programmatic closes (the X)
+  // leave a harmless extra entry whose popstate finds nothing to do.
+  if (!history.state?.dekPanel) history.pushState({ dekPanel: id }, '');
   $('panelTitle').textContent = typeof def.title === 'function' ? def.title(ctx) : def.title;
   const body = $('panelContent');
-  body.innerHTML = '<div class="muted pad">loading…</div>';
+  body.innerHTML = '<div class="muted pad">loadingâ€¦</div>';
   const foot = $('panelFooter');
   foot.innerHTML = '';
   foot.classList.add('hidden');
@@ -329,7 +333,7 @@ const slashCommands = new Map();
 export function addSlashCommand(def) {
   const key = def.name.replace(/^\//, '').toLowerCase();
   if (slashCommands.has(key)) {
-    console.warn(`[soop] slash command /${key} registered twice; the later one wins, `
+    console.warn(`[Dek] slash command /${key} registered twice; the later one wins, `
       + 'and which one that is depends on network timing. Rename one.');
   }
   slashCommands.set(key, def);
@@ -413,7 +417,7 @@ export function closePopovers() {
 }
 
 // ------------------------------------------------------------------ misc
-export function spinner(text = 'loading…') { return el('div', 'muted pad', esc(text)); }
+export function spinner(text = 'loadingâ€¦') { return el('div', 'muted pad', esc(text)); }
 export function emptyState(text) { return el('div', 'empty', esc(text)); }
 
 export const ui = {

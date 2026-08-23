@@ -377,6 +377,19 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
      nobody. shell.js owns the number now and both sides read it. */
 }
 
+/* Touch ergonomics: the channel bar's icon buttons were 30x30 boxes while
+   components.css extends every icon's tap area to 44x44 around its centre. With
+   only 2px of gap the centres sat 32px apart but each extension reached 44px
+   wide, so neighbours overlapped by 12px and the later sibling won - people
+   tapping Members hit More. Full-size boxes put the centres far enough apart
+   that the extensions no longer cross; 44px fits inside the 49px bar. */
+@media (hover: none) {
+  #channelbar button.icon {
+    width: 44px;
+    height: 44px;
+  }
+}
+
 /* ---------------------------------------------------------------- corrections
    components.css gives every <button> a border, which is right for a real
    button and wrong for a quiet list affordance sitting inside the sidebar.
@@ -496,3 +509,68 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
   .connstate-btn { display: none; }
   .connstate { padding-right: var(--s-4); }
 }
+
+/* ============================================================================
+   BOTTOM TAB BAR - the phone shell.
+   A sibling of main inside the #chat flex column: normal flow means every
+   scroll container above it already reserves its height, and nothing floats
+   over the composer. Hidden by default; owns the bottom edge under 860px only,
+   never in embeds, never on the no-team or auth screens (it lives in #chat).
+   ========================================================================== */
+.tabbar { display: none; }
+
+@media (max-width: 860px) {
+  :root { --tabbar-h: calc(56px + env(safe-area-inset-bottom)); }
+.tabbar {
+    display: flex;
+    height: var(--tabbar-h);
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--c-nav-bg);
+    border-top: 1px solid var(--c-border);
+    z-index: calc(var(--z-sticky) + 5);
+  }
+  .tabbar .tab {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 44px;
+    background: none;
+    border: none;
+    color: var(--c-text-3);
+    font-size: 10px;
+    cursor: pointer;
+    position: relative;
+  }
+  .tabbar .tab.on { color: var(--c-accent); }
+  .tabbar .tab-dot {
+    position: absolute;
+    top: 7px;
+    right: calc(50% - 20px);
+    width: 8px;
+    height: 8px;
+    border-radius: var(--r-full);
+    background: var(--c-danger);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .tabbar .tab-dot.show {
+    opacity: 1;
+    min-width: 15px;
+    height: 15px;
+    line-height: 15px;
+    padding: 0 3px;
+    font-style: normal;
+    font-size: 9px;
+    color: #fff;
+    text-align: center;
+  }
+}
+
+@media (min-width: 861px) {
+  .tabbar { display: none !important; }
+}
+html.embed-minimal .tabbar,
+body.no-team .tabbar { display: none !important; }

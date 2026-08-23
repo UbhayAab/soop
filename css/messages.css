@@ -1107,7 +1107,14 @@
   display: flex;
   align-items: center;
   gap: var(--s-1);
-  flex: none;
+  /* Absorb shortfall by scrolling inside itself instead of squeezing the
+     textarea to nothing. The phone block below already did this; a narrow
+     desktop window with a mouse hit the same wall and got a one-letter-wide
+     composer, so the rule is unconditional now. */
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 /* The send arrow's resting look is components.css's (button.icon.send). The one
@@ -1331,6 +1338,11 @@
     order: -1;
     flex: 1 0 100%;
     padding-inline: var(--s-3);
+    /* iOS Safari zooms the whole page whenever a focused field's font is under
+       16px. components.css already raises generic inputs to 17px under this
+       breakpoint, but `font: inherit` up in section 10 resets THIS field back to
+       body size - the one box everyone types into, zooming on every focus. */
+    font-size: 17px;
   }
   .crow .send { margin-left: auto; }
   /* Feature modules can register any number of composer tools, and the fixed

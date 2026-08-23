@@ -1,4 +1,4 @@
-// Bootstrap: sign in, load the Space, wire the shell, register features.
+﻿// Bootstrap: sign in, load the Space, wire the shell, register features.
 import { sb, session } from './sb.js';
 import { api, tryRpc } from './api.js';
 import { store, bus, nameOf } from './store.js';
@@ -45,6 +45,10 @@ function route() {
   if ((m = h.match(/#\/join\/([^/?#]+)/))) return { kind: 'join', token: decodeURIComponent(m[1]) };
   if ((m = h.match(/#\/m\/([0-9a-f-]{36})\/(\d+)/i))) return { kind: 'message', channelId: m[1], seq: +m[2] };
   if ((m = h.match(/#\/c\/([0-9a-f-]{36})/i))) return { kind: 'channel', channelId: m[1] };
+  // The PWA manifest shortcuts have pointed here since launch; the router never
+  // matched them, so "Threads" and "Search" from an installed icon did nothing.
+  if (/^#\/threads/i.test(h)) return { kind: 'panel', panel: 'threads-list' };
+  if (/^#\/search/i.test(h)) return { kind: 'panel', panel: 'search' };
   return { kind: 'none' };
 }
 
@@ -56,6 +60,10 @@ async function applyRoute() {
   } else if (r.kind === 'message') {
     const c = store.channels.find((x) => x.id === r.channelId);
     if (c) await openChannel(c, { jumpSeq: r.seq });
+  } else if (r.kind === 'panel') {
+    // Shortcut targets land here only after boot has a UI to open into; during
+    // enter() the panel layer is not ready yet, so defer to the next tick.
+    setTimeout(() => import('./ui.js').then(({ openPanel }) => openPanel(r.panel)), 0);
   } else if (r.kind === 'joinOrg' || r.kind === 'join') {
     // An invite opened by somebody who is ALREADY signed in and has the app on
     // screen. A URL that differs only in its fragment does not reload the page,
@@ -153,6 +161,11 @@ async function enter() {
   // waiting on a bad line, and none of it is needed to show what they already
   // had. Measured on Slow 3G / 4x CPU: 15.4s to a painted message without this.
   store.me = s.user.id;
+  // iOS evicts IndexedDB caches after seven days of not being "important".
+  // Offline drafts, the outbox and the cold-start page cache all live there, so
+  // ask for persistence once, right after a real sign-in proves this is a real
+  // user and not a drive-by tab.
+  try { navigator.storage?.persist?.().catch(() => {}); } catch { /* no storage manager */ }
   // Showing the shell here is safe precisely because there IS a cached page:
   // only a user who has already signed in and finished any forced password
   // setup can have one. If the check below disagrees, showAuth() takes the
@@ -317,7 +330,7 @@ export function showNoTeam(msg) {
     const btn = $('joinGo');
     btn.disabled = true;
     const was = btn.textContent;
-    btn.textContent = '…';
+    btn.textContent = 'â€¦';
     $('joinErr').classList.add('hidden');
     try {
       // Accept every shape the same link arrives in: the full URL, the hash
@@ -415,11 +428,11 @@ function flashTitle() {
   clearInterval(titleTimer);
   let on = false;
   titleTimer = setInterval(() => {
-    document.title = (on = !on) ? '● Soop' : 'Soop';
+    document.title = (on = !on) ? 'â— Dek' : 'Dek';
   }, 900);
   document.addEventListener('visibilitychange', function once() {
     clearInterval(titleTimer);
-    document.title = 'Soop';
+    document.title = 'Dek';
     document.removeEventListener('visibilitychange', once);
   });
 }
@@ -427,7 +440,7 @@ function flashTitle() {
 // ------------------------------------------------------------------ quick switcher
 function quickSwitcher() {
   const box = el('div', 'switcher');
-  box.innerHTML = '<input id="qsInput" placeholder="Jump to a channel, person or command…" /><div id="qsRows"></div>';
+  box.innerHTML = '<input id="qsInput" placeholder="Jump to a channel, person or commandâ€¦" /><div id="qsRows"></div>';
   const m = modal({ title: '', body: box, wide: true });
   const input = box.querySelector('#qsInput');
   const rows = box.querySelector('#qsRows');
@@ -548,8 +561,34 @@ async function main() {
   // standalone app owns that decision.
   if (!embed.active) initPWA();
 
+  // The phone shell. After features register so badge counts read real stores,
+  // and skipped entirely inside a dashboard embed where a thumb bar is noise.
+  if (!embed.active) {
+    import('./tabbar.js').then(({ initTabBar }) => { initTabBar(); $('tabbar')?.classList.remove('hidden'); }).catch(() => {});
+  }
+
   $('panelClose').onclick = closePanel;
   $('btnInvite').onclick = () => inviteDialog();
+  if ($('markAllRead')) {
+    $('markAllRead').onclick = async () => {
+      if (!store.ws) return;
+      const gen = openGen;
+      for (const c of store.channels) {
+        if (gen !== openGen) break;
+        try { await api.markRead('channel', c.id, c.last_seq || store.cursor); } catch (e) { console.warn('mark all read', e?.message || e); }
+      }
+      refreshUnread();
+      bus.emit('unread:reload');
+      updateTotalUnread();
+      toast('All channels marked as read');
+    };
+  }
+
+  function updateTotalUnread() {
+    let total = 0;
+    for (const v of store.unread.values()) total += v.unread || 0;
+    $('totalUnread').textContent = total;
+  }
   $('btnSpaces').onclick = spaceChooser;
   $('btnMembersCount').onclick = () => openPanel('members');
 
@@ -564,7 +603,23 @@ async function main() {
 
   // Mobile: the sidebar is off-canvas until asked for, and any navigation
   // inside it should close it again.
-  $('navToggle').onclick = () => document.body.classList.toggle('nav-open');
+  $('navToggle').onclick = () => {
+    const opening = !document.body.classList.contains('nav-open');
+    document.body.classList.toggle('nav-open');
+    // Hardware Back closes the drawer before it kills the app. Same contract as
+    // the panel sheet: one pushed entry per open, consumed by popstate below.
+    if (opening && !history.state?.dekPanel) history.pushState({ dekDrawer: 1 }, '');
+  };
+  // The Back button's whole new job: peel the topmost mobile surface instead of
+  // exiting. Panel first (it overlays the drawer), then drawer, then fall
+  // through to the browser default.
+  window.addEventListener('popstate', () => {
+    if (document.body.classList.contains('panel-open')) {
+      import('./ui.js').then(({ closePanel }) => closePanel());
+    } else if (document.body.classList.contains('nav-open')) {
+      document.body.classList.remove('nav-open');
+    }
+  });
   $('sidebar').addEventListener('click', (e) => {
     if (e.target.closest('.chan')) document.body.classList.remove('nav-open');
   });
@@ -574,7 +629,7 @@ async function main() {
   // switchWorkspace, openChannel - was an unhandled rejection that main().catch
   // could never see. What the person got was a half-drawn shell and silence.
   const bootFailed = (e) => {
-    console.error('[soop] sign-in path failed', e);
+    console.error('[dek] sign-in path failed', e);
     toast('Something went wrong loading your Spaces. Reload to try again.', 'error');
   };
 
@@ -590,7 +645,7 @@ async function main() {
   if (embed.active) {
     document.documentElement.classList.add('embed-awaiting-auth');
     const wait = el('div', 'embed-wait');
-    wait.innerHTML = '<div class="embed-wait-in"><b>Connecting you to Soop</b>'
+    wait.innerHTML = '<div class="embed-wait-in"><b>Connecting you to Dek</b>'
       + '<div style="margin-top:6px">Signing in with your dashboard account.</div></div>';
     document.body.appendChild(wait);
 
@@ -616,11 +671,23 @@ async function main() {
   showAuth();
 }
 
+window.addEventListener('popstate', (e) => {
+  if (history.state && history.state.dekPanel) {
+    closePanel();
+    e.preventDefault();
+    history.pushState(null, '');
+  } else if (document.body.classList.contains('nav-open')) {
+    document.body.classList.remove('nav-open');
+    e.preventDefault();
+    history.pushState(null, '');
+  }
+});
+
 window.addEventListener('hashchange', () => {
   if (store.me) applyRoute();
 });
 
 main().catch((e) => {
   console.error(e);
-  document.body.innerHTML = `<pre style="padding:20px;color:#f88">Soop failed to start:\n${esc(e.stack || e.message)}</pre>`;
+  document.body.innerHTML = `<pre style="padding:20px;color:#f88">Dek failed to start:\n${esc(e.stack || e.message)}</pre>`;
 });

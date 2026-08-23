@@ -1,4 +1,4 @@
-// Embedded mode: Soop running as a panel inside somebody else's dashboard.
+﻿// Embedded mode: Dek running as a panel inside somebody else's dashboard.
 //
 // The same build serves both jobs. There is no separate embed bundle, no fork,
 // and no second deploy - the app notices it was opened with ?embed=1 and changes
@@ -37,7 +37,7 @@ import { EMBED_ORIGINS, EMBED_EXCHANGE_URL } from './config.js';
 import { sb } from './sb.js';
 import { bus, store } from './store.js';
 
-const PROTO = 'soop';
+const PROTO = 'Dek';
 const VERSION = 1;
 
 // Filled by init(). Everything else in the file reads it and nothing else writes.
@@ -104,7 +104,7 @@ export const notifyHost = send;
 // session and passes both tokens straight through. Fastest, and correct only if
 // the host never lets that pair touch a place it could leak from.
 //
-// `handoff` is the one to prefer. The host's backend asks Soop's exchange
+// `handoff` is the one to prefer. The host's backend asks Dek's exchange
 // endpoint for a single-use, short-lived token that names the person, and passes
 // only that. This browser spends it. A stolen handoff token is worth one use
 // inside its TTL; a stolen refresh token is worth the account.
@@ -293,14 +293,14 @@ export function initEmbed() {
     const say = () => {
       document.documentElement.classList.add('embed-refused');
       document.body.innerHTML = '<div style="font:14px/1.6 system-ui;padding:24px;max-width:44ch">'
-        + '<b>Soop will not run inside this page.</b><br>'
+        + '<b>Dek will not run inside this page.</b><br>'
         + 'It is being shown in a frame on a site that is not set up to embed it. '
         + '<a href="' + location.origin + location.pathname + '" target="_blank" rel="noopener">'
-        + 'Open Soop in its own tab</a>.</div>';
+        + 'Open Dek in its own tab</a>.</div>';
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', say);
     else say();
-    console.warn('[soop] refusing to render: framed by a page that is not a configured embed');
+    console.warn('[Dek] refusing to render: framed by a page that is not a configured embed');
     return embed;
   }
 
@@ -317,21 +317,21 @@ export function initEmbed() {
     // embed.refused stops main() rather than this file tearing the document down
     // underneath it. Replacing document.body here and letting the boot carry on
     // is what the first version did, and main() then died on the first
-    // getElementById that no longer resolved: the screen said "Soop failed to
+    // getElementById that no longer resolved: the screen said "Dek failed to
     // start: Cannot set properties of null", which tells the person nothing and
     // hides the actual cause.
     embed.refused = true;
     const say = () => {
       document.documentElement.classList.add('embed-refused');
       document.body.innerHTML = '<div style="font:14px/1.6 system-ui;padding:24px;max-width:44ch">'
-        + '<b>Soop cannot be embedded here.</b><br>'
-        + 'This page did not name a host origin that Soop recognises'
+        + '<b>Dek cannot be embedded here.</b><br>'
+        + 'This page did not name a host origin that Dek recognises'
         + (asked ? ', and <code>' + String(asked).replace(/[<>&"]/g, '') + '</code> is not on the allowlist' : '')
         + '. Add it to EMBED_ORIGINS in js/config.js.</div>';
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', say);
     else say();
-    console.warn('[soop] embed refused: host origin not allowed:', asked);
+    console.warn('[Dek] embed refused: host origin not allowed:', asked);
     return embed;
   }
 

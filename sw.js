@@ -1,4 +1,4 @@
-// Soop service worker.
+﻿// Dek service worker.
 //
 // Rules that matter:
 //  - Never cache Supabase (auth, realtime, RPC, storage). A stale message list or
@@ -14,7 +14,7 @@
 // (below), but the precached copy is still what wins the 3.5s race on a slow
 // phone, so without this bump the 41 installed clients would keep serving the old
 // bundle whenever the network was slow - which is the shape of 03f8074.
-const VERSION = 'soop-v10';
+const VERSION = 'dek-v11';
 const SHELL = VERSION + '-shell';
 const VENDOR = VERSION + '-vendor';
 
@@ -201,19 +201,32 @@ self.addEventListener('fetch', (e) => {
 self.addEventListener('push', (e) => {
   let d = {};
   try { d = e.data?.json() || {}; } catch { d = { body: e.data?.text() || '' }; }
-  const title = d.title || 'Soop';
-  e.waitUntil(self.registration.showNotification(title, {
+  const title = d.title || 'Dek';
+  // Collapse per conversation when the sender did not choose a tag, so five
+  // messages in one channel replace one another instead of stacking five deep.
+  const conv = (d.url || '').match(/#\/m\/([^/]+)/);
+  const tag = d.tag || (conv ? 'dek-msg-' + conv[1] : 'dek');
+  const show = self.registration.showNotification(title, {
     body: d.body || '',
     icon: './icons/icon-192.png',
     badge: './icons/icon-192.png',
-    tag: d.tag || 'soop',
+    tag,
     data: d,
     renotify: true,
-  }));
+  });
+  // The badging dot. An exact count is unknowable here without trusting the
+  // payload; one is enough to say "something is waiting" on the launcher icon.
+  const badge = (typeof self.navigator.setAppBadge === 'function')
+    ? self.navigator.setAppBadge(1).catch(() => {})
+    : Promise.resolve();
+  e.waitUntil(Promise.all([show, badge]));
 });
 
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
+  if (typeof self.navigator.clearAppBadge === 'function') {
+    self.navigator.clearAppBadge().catch(() => {});
+  }
   const target = e.notification.data?.url || './';
   e.waitUntil((async () => {
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
