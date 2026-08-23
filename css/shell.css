@@ -563,9 +563,15 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
     line-height: 15px;
     padding: 0 3px;
     font-style: normal;
-    font-size: 9px;
+    font-size: 10px;
     color: #fff;
     text-align: center;
+  }
+  /* Keyboard parity: tabs are buttons; focus must be as visible as on desktop. */
+  .tabbar .tab:focus-visible {
+    outline: 2px solid var(--c-accent);
+    outline-offset: -2px;
+    border-radius: var(--r-md);
   }
 }
 

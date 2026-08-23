@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "soop",
   "version": "1.0.0",
   "description": "",
@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/UbhayAab/soop#readme",
   "devDependencies": {
-    "playwright": "^1.62.1"
+    "playwright": "^1.62.1",
+    "wrangler": "^4.125.0"
   }
 }
