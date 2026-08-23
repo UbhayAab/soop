@@ -127,7 +127,7 @@ const SANITIZE = {
   ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 's', 'code', 'pre', 'a', 'ul', 'ol', 'li',
     'blockquote', 'span', 'h1', 'h2', 'h3', 'hr', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'img'],
   ALLOWED_ATTR: ['href', 'class', 'target', 'rel', 'src', 'alt', 'data-emoji',
-    'data-hl', 'data-hl-src'],
+    'data-key', 'data-hl', 'data-hl-src'],
 };
 
 // ---------------------------------------------------------------- plain fast path
@@ -138,7 +138,7 @@ const SANITIZE = {
 // Anything that even LOOKS like markup, a link, an email, a mention or a channel
 // takes the real path; a false negative only costs speed, a false positive would
 // mean unrendered markdown, so the test errs hard towards the slow path.
-const MD_CHARS = /[\\`*_~[\]()<>|#@&!"']/;
+const MD_CHARS = /[\\`*_~[\]()<>|#@&!:"'/]/;
 const LINKY = /https?:|www\.|\.[a-z]{2,}([/?#]|$)/i;
 const LINE_MARK = /(^|\n)[ \t]*([-+]\s|\d+[.)]\s|={2,}|-{2,}|:{3})/;
 const isPlain = (t) => t.length < 2000 && !MD_CHARS.test(t) && !LINKY.test(t) && !LINE_MARK.test(t);
@@ -163,12 +163,70 @@ export function fmt(text, opts = {}) {
     return `<p data-md-src="${esc(encodeURIComponent(text))}">${esc(text).replace(/\n/g, '<br>\n')}</p>`;
   }
   const men = [];
-  let toks = text.replace(/(^|\s)(@[\w][\w.-]*)/g, (m, pre, tag) => {
-    men.push({ kind: 'user', raw: tag });
-    return pre + '⁣M' + (men.length - 1) + '⁣';
-  });
+  // User mentions: when the caller supplies nameSet (lowercase usernames and
+  // display names from the roster), match them longest-first so "Asha Kumar"
+  // survives whole. Without it, fall back to the no-space regex - correct for
+  // handles, silently truncating for display names.
+  const tokenizeUser = (src) => {
+    if (!opts.nameSet || !opts.nameSet.size) {
+      return src.replace(/(^|\s)(@[\w][\w.-]*)/g, (m, pre, tag) => {
+        men.push({ kind: 'user', raw: tag });
+        return pre + '⁣M' + (men.length - 1) + '⁣';
+      });
+    }
+    const names = [...opts.nameSet].sort((a, z) => z.length - a.length);
+    const lower = src.toLowerCase();
+    let out = '';
+    let i = 0;
+    while (i < src.length) {
+      const at = lower.indexOf('@', i);
+      if (at === -1) { out += src.slice(i); break; }
+      // A mention opens at the start of the string or after whitespace, same
+      // precondition the old regex enforced with (^|\s).
+      const openEdge = at === 0 || /\s/.test(src[at - 1]);
+      let hit = null;
+      if (openEdge) {
+        for (const n of names) {
+          if (!lower.startsWith(n, at + 1)) continue;
+          const end = at + 1 + n.length;
+          const ch = src[end];
+          if (ch !== undefined && !/[\s.,!?;:)'"\]]/.test(ch)) continue;
+          hit = n;
+          break;
+        }
+      }
+      if (!hit) {
+        // Not a roster name. Still wrap a well-formed @handle so group handles
+        // and unknown names keep the visual tag instead of melting into text.
+        const gm = /^@[a-z0-9][a-z0-9._-]*/i.exec(src.slice(at));
+        if (openEdge && gm && (src[at + gm[0].length] === undefined
+          || /[\s.,!?;:)'"\]]/.test(src[at + gm[0].length]))) {
+          out += src.slice(i, at);
+          men.push({ kind: 'user', raw: gm[0] });
+          out += '⁣M' + (men.length - 1) + '⁣';
+          i = at + gm[0].length;
+          continue;
+        }
+        out += src[at]; i = at + 1; continue;
+      }
+      out += src.slice(i, at);
+      const raw = src.slice(at, at + 1 + hit.length);
+      men.push({ kind: 'user', raw });
+      out += '⁣M' + (men.length - 1) + '⁣';
+      i = at + 1 + hit.length;
+    }
+    return out;
+  };
+  let toks = tokenizeUser(text);
   toks = toks.replace(/(^|\s)(#[a-z0-9][a-z0-9_-]*)/gi, (m, pre, tag) => {
     men.push({ kind: 'channel', raw: tag });
+    return pre + '⁣M' + (men.length - 1) + '⁣';
+  });
+  // :custom_emoji: shortcodes. Guarded against clock times - "12:30:45" holds
+  // ":30:" and nobody means the number thirty by it.
+  toks = toks.replace(/(^|\s):([a-z0-9_+-]{2,30}):/gi, (m, pre, nm) => {
+    if (/^\d+$/.test(nm)) return m;
+    men.push({ kind: 'emoji', raw: ':' + nm + ':' });
     return pre + '⁣M' + (men.length - 1) + '⁣';
   });
   let html = md.render(toks);
@@ -176,6 +234,15 @@ export function fmt(text, opts = {}) {
   html = html.replace(/⁣M(\d+)⁣/g, (m, i) => {
     const t = men[+i];
     if (!t) return '';
+    if (t.kind === 'emoji') {
+      const name = t.raw.slice(1, -1);
+      const key = opts.emojiKeys && opts.emojiKeys.get(name.toLowerCase());
+      // Known shortcode becomes a placeholder image that hydrateCustomEmoji
+      // fills with a signed URL; anything else stays honest literal text.
+      return key
+        ? `<img class="cemoji" alt="${esc(t.raw)}" data-emoji="${esc(name)}" data-key="${esc(key)}">`
+        : esc(t.raw);
+    }
     if (t.kind === 'channel') {
       const name = t.raw.slice(1);
       const ch = (opts.channels || []).find((c) => c.name === name);

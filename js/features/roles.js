@@ -11,7 +11,7 @@
 // not hold, and you cannot touch a role at or above your own rank). This module
 // does not try to predict those rules - it surfaces the server's own message.
 import { api, table } from '../api.js';
-import { store, hasPerm } from '../store.js';
+import { store, hasPerm, bus } from '../store.js';
 import { PERM } from '../config.js';
 import { el, esc } from '../util.js';
 import { icon } from '../icons.js';
@@ -371,7 +371,7 @@ async function renderPanel(body, app) {
       if (canRoles()) {
         const edit = el('button', 'sm ghost', 'Members');
         edit.onclick = () => pickPeople(app, 'Members of @' + g.handle, members.map((m) => m.user_id), async (ids) => {
-          try { await api.setUserGroupMembers(g.id, ids); ui.toast('Group updated', 'success'); redraw(); }
+          try { await api.setUserGroupMembers(g.id, ids); ui.toast('Group updated', 'success'); bus.emit('groups:changed'); redraw(); }
           catch (e) { ui.toast(e.message, 'error'); }
         });
         row.appendChild(edit);
@@ -425,6 +425,7 @@ async function createGroup(app, redraw) {
   try {
     await api.createUserGroup(store.ws.id, handle, out.name.trim());
     ui.toast('Group created', 'success');
+    bus.emit('groups:changed');
     redraw();
   } catch (e) { ui.toast(e.message, 'error'); }
 }

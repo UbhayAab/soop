@@ -1,4 +1,4 @@
-// The durable outbox: unsent messages, on this phone, surviving the tab.
+﻿// The durable outbox: unsent messages, on this phone, surviving the tab.
 //
 // WHY this is not a JS array. A send today lives in a closure and a DOM node.
 // Android kills backgrounded PWAs hard - Xiaomi and Samsung are the two worst
@@ -14,9 +14,9 @@
 // synchronous but a handful of queued messages fits, and losing the queue is
 // worse than blocking for a millisecond.
 
-const DB_NAME = 'soop-outbox';
+const DB_NAME = 'Dek-outbox';
 const STORE = 'sends';
-const LS_KEY = 'soop.outbox.v1';
+const LS_KEY = 'Dek.outbox.v1';
 
 // ------------------------------------------------------------------ backend
 let dbPromise = null;

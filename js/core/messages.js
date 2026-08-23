@@ -7,9 +7,30 @@ import { store, bus, nameOf, profileOf } from '../store.js';
 import { $, el, esc, fmt, timeOf, dayOf, plain, hueOf, initials } from '../util.js';
 import { QUICK_EMOJI } from '../config.js';
 import { getMessageActions, toast, contextMenu } from '../ui.js';
-import { attsHtml, hydrateMedia } from './media.js';
+import { attsHtml, hydrateMedia, mediaUrl } from './media.js';
 import * as pagecache from '../lib/pagecache.js';
-import { openEmojiPicker } from './emoji.js';
+import { openEmojiPicker, customEmojiKeys, hydrateCustomEmoji } from './emoji.js';
+
+// Second paint phase for faces: avatarHtml emits <img class="avatar-img"> with
+// the storage key but no src. Fill it from the same signed-URL cache the
+// attachment viewer uses (mediaUrl dedupes by key, so fifty rows sharing one
+// face cost one mint). A dead key degrades back to coloured initials instead
+// of a broken image.
+export async function hydrateAvatars(root) {
+  const imgs = root.querySelectorAll('img.avatar-img[data-akey]:not([data-ha])');
+  if (!imgs.length) return;
+  for (const img of imgs) {
+    img.dataset.ha = '1';
+    const url = await mediaUrl(img.dataset.akey).catch(() => null);
+    if (!url || !img.isConnected) {
+      const p = profileOf(img.dataset.user);
+      const name = p?.display_name || p?.username || '?';
+      img.replaceWith(el('div', 'avatar', esc(initials(name))));
+      continue;
+    }
+    img.src = url;
+  }
+}
 import { icon } from '../icons.js';
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
@@ -18,6 +39,13 @@ export function avatarHtml(userId, size = 36) {
   const p = profileOf(userId);
   const name = p?.display_name || p?.username || '?';
   const h = hueOf(userId || name);
+  // A stored face beats initials. The image paints as a placeholder with its
+  // storage key and hydrateAvatars fills the signed URL on the same second pass
+  // that fills attachments and custom emoji - one paint, no per-row awaits.
+  if (p?.avatar_key) {
+    return `<img class="avatar avatar-img" style="width:${size}px;height:${size}px"
+      data-akey="${esc(p.avatar_key)}" data-user="${esc(userId || '')}" alt="${esc(name)}" />`;
+  }
   return `<div class="avatar" style="width:${size}px;height:${size}px;background:hsl(${h} 45% 32%)"
     title="${esc(name)}" data-user="${esc(userId || '')}">${esc(initials(name))}</div>`;
 }
@@ -32,7 +60,14 @@ function fmtOpts() {
   const p = store.myProfile;
   if (p?.username) meNames.add(p.username.toLowerCase());
   if (p?.display_name) meNames.add(p.display_name.toLowerCase());
-  return { channels: store.channels, meNames };
+  // The full roster as lowercase tokens so fmt() can match mentions containing
+  // spaces ("@Asha Kumar") instead of cutting them at the first word.
+  const nameSet = new Set();
+  for (const q of store.profiles.values()) {
+    if (q.username) nameSet.add(q.username.toLowerCase());
+    if (q.display_name) nameSet.add(q.display_name.toLowerCase());
+  }
+  return { channels: store.channels, meNames, nameSet, emojiKeys: customEmojiKeys() };
 }
 
 // Build one message row. `opts.context` is 'channel' | 'thread' | 'dm' | 'static'
@@ -119,6 +154,8 @@ export function buildMessage(m, opts = {}) {
   }
 
   if (Array.isArray(m.attachments) && m.attachments.length) hydrateMedia(row);
+  hydrateCustomEmoji(row).catch(() => {});
+  hydrateAvatars(row).catch(() => {});
   if (m.reply_to_id) fillQuote(row, m.reply_to_id);
   if (m.id) {
     store.msgCache.set(m.id, m);

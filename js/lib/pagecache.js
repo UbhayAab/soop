@@ -1,4 +1,4 @@
-// The last page of each channel, kept on this phone, so reopening a channel
+﻿// The last page of each channel, kept on this phone, so reopening a channel
 // paints before the network is touched.
 //
 // WHY. Measured on the real app: clicking a channel in the sidebar puts the
@@ -26,7 +26,7 @@
 // The key carries the signed-in user id. A shared phone must never paint one
 // person's channel to the next person who signs in.
 
-const DB_NAME = 'soop-pages';
+const DB_NAME = 'Dek-pages';
 const STORE = 'pages';
 const VERSION = 2;              // bump to invalidate every stored snapshot
 const MAX_MSGS = 50;            // one page, which is what the app asks for

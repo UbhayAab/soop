@@ -2,6 +2,57 @@
 // Self-contained (no CDN emoji data) so it works offline and inside the PWA.
 import { el, esc } from '../util.js';
 import { popover } from '../ui.js';
+import { api } from '../api.js';
+import { store, bus } from '../store.js';
+import { mediaUrl } from './media.js';
+
+// ---- workspace custom emoji -------------------------------------------------
+// Upload, admin listing and storage all worked; the two missing halves were a
+// consumer in the message renderer and any way for the picker to see them. This
+// registry is that bridge: one cached list_custom_emoji read per Space per
+// minute, exposed as a sync map for fmt() and hydrated into real URLs through
+// the same signed-URL mint the attachment viewer uses.
+const customByName = new Map();   // lowercase name -> {name, image_key}
+let customFetchedAt = 0;
+
+export async function refreshCustomEmoji(force = false) {
+  if (!force && Date.now() - customFetchedAt < 60000) return;
+  const ws = store.ws && store.ws.id;
+  if (!ws) return;
+  try {
+    const rows = await api.listCustomEmoji(ws);
+    const next = new Map();
+    for (const e of rows || []) {
+      if (e && e.name && e.image_key) next.set(String(e.name).toLowerCase(), { name: e.name, image_key: e.image_key });
+    }
+    customByName.clear();
+    for (const [k, v] of next) customByName.set(k, v);
+    customFetchedAt = Date.now();
+    bus.emit('customEmoji:changed');
+  } catch {
+    /* Keep whatever cache exists; unknown :names: render as literal text. */
+  }
+}
+bus.on('channel:open', () => refreshCustomEmoji());
+
+export function customEmojiKeys() {
+  return customByName;
+}
+
+// Second paint phase for rendered messages: fmt() emits <img class="cemoji">
+// with a data-key but no src, because signed URLs are minted asynchronously and
+// expire. Fill them the same way attachments get filled. A dead URL or a bad
+// key degrades back to the literal ":name:" text instead of a broken image.
+export async function hydrateCustomEmoji(root) {
+  const imgs = root.querySelectorAll('img.cemoji[data-key]:not([data-hy])');
+  if (!imgs.length) return;
+  for (const img of imgs) {
+    img.dataset.hy = '1';
+    const url = await mediaUrl(img.dataset.key).catch(() => null);
+    if (url && img.isConnected) img.src = url;
+    else img.replaceWith(document.createTextNode(img.alt || ''));
+  }
+}
 
 export const EMOJI_GROUPS = [
   ['Smileys', '😀 grin|smile,😃 smiley,😄 laugh,😁 beam,😆 lol,😅 sweat,🤣 rofl,😂 joy|lol|cry,🙂 slight,🙃 upside,😉 wink,😊 blush,😇 halo|angel,🥰 love|hearts,😍 heart eyes|love,🤩 star struck|wow,😘 kiss,😗 kissing,😚 kiss,😙 kiss,😋 yum|tasty,😛 tongue,😜 wink tongue,🤪 zany|crazy,😝 squint tongue,🤑 money,🤗 hug,🤭 oops,🤫 shh|quiet,🤔 think|thinking|hmm,🤐 zipper,🤨 raised brow|suspicious,😐 neutral,😑 expressionless,😶 no mouth,😏 smirk,😒 unamused,🙄 eye roll,😬 grimace|awkward,🤥 lying,😌 relieved,😔 pensive|sad,😪 sleepy,🤤 drool,😴 sleep|zzz,😷 mask,🤒 sick|fever,🤕 hurt|bandage,🤢 nauseated,🤮 vomit,🤧 sneeze,🥵 hot,🥶 cold,🥴 woozy,😵 dizzy,🤯 mind blown|explode,🤠 cowboy,🥳 party|celebrate,😎 cool|sunglasses,🤓 nerd|geek,🧐 monocle,😕 confused,😟 worried,🙁 frown,😮 open mouth|wow,😯 hushed,😲 astonished|shock,😳 flushed|blush,🥺 pleading|please,😦 frowning,😧 anguished,😨 fearful,😰 anxious,😥 sad,😢 cry,😭 sob|crying,😱 scream|fear,😖 confounded,😣 persevere,😞 disappointed,😓 downcast,😩 weary,😫 tired,🥱 yawn|bored,😤 triumph|angry,😡 rage|angry,😠 angry,🤬 cursing|swear,😈 devil|smiling imp,👿 imp,💀 skull|dead,☠️ skull crossbones,💩 poop,🤡 clown,👻 ghost,👽 alien,🤖 robot|bot'],
@@ -70,13 +121,49 @@ export function openEmojiPicker(anchor, onPick, opts = {}) {
   }
   groups.push(...parsed);
 
+  // No explicit custom list handed in? Load the workspace registry ourselves and
+  // splice a Custom tab in when it lands. Every existing call site passes
+  // nothing, which is why uploaded emoji were invisible in the picker until now.
+  if (!opts.custom?.length) {
+    refreshCustomEmoji().then(() => {
+      if (!document.contains(box)) return;
+      const rows = [...customByName.values()];
+      if (!rows.length) return;
+      const idx = rec.length ? 1 : 0;
+      groups.splice(idx, 0, {
+        name: 'Custom',
+        items: rows.map((c) => ({ ch: ':' + c.name + ':', key: c.image_key, name: c.name, kw: c.name })),
+      });
+      tabs.innerHTML = '';
+      groups.forEach((g2, j) => {
+        const t2 = el('button', 'emoji-tab', esc(g2.name));
+        t2.type = 'button';
+        t2.onclick = () => drawGroup(j);
+        tabs.appendChild(t2);
+      });
+      drawGroup(0);
+    }).catch(() => {});
+  }
+
   const drawGrid = (items) => {
     grid.innerHTML = '';
     for (const e of items) {
       const b = el('button', 'emoji-cell');
       b.type = 'button';
       b.title = e.name;
-      b.innerHTML = e.url ? `<img src="${esc(e.url)}" alt="${esc(e.name)}">` : esc(e.ch);
+      if (e.key) {
+        // Storage-backed cell: placeholder first, signed URL second.
+        b.textContent = '🖼';
+        mediaUrl(e.key).then((u) => {
+          if (!u || !b.isConnected) return;
+          const im = el('img');
+          im.alt = e.name;
+          im.src = u;
+          b.replaceChildren(im);
+        }).catch(() => {});
+      } else {
+        b.innerHTML = e.url ? `<img src="${esc(e.url)}" alt="${esc(e.name)}">` : esc(e.ch);
+      }
       b.onclick = () => { noteEmoji(e.ch); onPick(e.ch); pop.close(); };
       grid.appendChild(b);
     }
@@ -94,10 +181,14 @@ export function openEmojiPicker(anchor, onPick, opts = {}) {
   });
 
   search.oninput = () => {
-    const q = search.value.trim();
+    const q = search.value.trim().toLowerCase();
     if (!q) return drawGroup(0);
     [...tabs.children].forEach((t) => t.classList.remove('active'));
-    drawGrid(searchEmoji(q));
+    const cus = [...customByName.values()]
+      .filter((c) => c.name.toLowerCase().includes(q))
+      .slice(0, 20)
+      .map((c) => ({ ch: ':' + c.name + ':', key: c.image_key, name: c.name, kw: c.name }));
+    drawGrid([...searchEmoji(q), ...cus]);
   };
   search.onkeydown = (e) => {
     if (e.key === 'Enter') {

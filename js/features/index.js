@@ -55,6 +55,9 @@ const FEATURES = [
   // this is the button and the window you watch.
   'screenshare',
   'offline',
+  // Voice notes: MediaRecorder -> audio attachment. Field staff's most-used
+  // gesture on WhatsApp; without it the record of what was said lives outside.
+  'voicenotes',
   // Late, so it is registered after the features whose errors it would catch.
   'errorreport',
   // Last on purpose: it re-registers a few core panels by id and decorates what

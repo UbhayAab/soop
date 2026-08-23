@@ -15,10 +15,12 @@
 // four. Two connection banners is worse than one, and two wrappers around
 // window.fetch is a bug waiting to happen.
 
-import { store, bus, nameOf } from '../store.js';
+import { store, bus, nameOf, hasPerm } from '../store.js';
 import { $, el, esc, plain, debounce, relTime } from '../util.js';
 import { icon } from '../icons.js';
-import { table } from '../api.js';
+import { table, api } from '../api.js';
+import { PERM } from '../config.js';
+import { modal } from '../ui.js';
 import { avatarHtml, applyEdit } from '../core/messages.js';
 import { openChannel } from '../core/channels.js';
 
@@ -1136,6 +1138,19 @@ function registerMembersPanel(ui) {
       const list = el('div', 'ux-memlist');
       body.append(search, list);
 
+      // The door a private channel never had. createChannelDialog mints a
+      // private channel with exactly one member and no path to a second; the
+      // wrapper for the server call existed with zero callers. Anyone allowed to
+      // manage channels gets the button here, where the people already are.
+      if (store.current && !store.current.conversation_id && hasPerm(PERM.MANAGE_CHANNELS)) {
+        const bar = el('div', 'ux-mem-addbar');
+        const addBtn = el('button', 'sm', '+ Add to this channel');
+        addBtn.type = 'button';
+        addBtn.onclick = () => addPeopleToCurrentChannel(ui);
+        bar.appendChild(addBtn);
+        body.insertBefore(bar, list);
+      }
+
       let showAll = false;
       const CAP = 50;
 
@@ -1207,6 +1222,58 @@ function registerMembersPanel(ui) {
       setTimeout(() => search.focus(), 30);
     },
   });
+}
+
+// One-at-a-time adds with immediate feedback. The server call is per user, and
+// a duplicate add surfaces as its own friendly row state instead of an error
+// dialog - the person doing the adding is holding a list, not filing a form.
+function addPeopleToCurrentChannel(ui) {
+  const ch = store.current;
+  if (!ch) return;
+  const box = el('div');
+  const search = el('input');
+  search.placeholder = 'Search people to add';
+  search.setAttribute('aria-label', 'Search people to add');
+  const rows = el('div', 'picker-rows');
+  box.append(search, rows);
+
+  const draw = (q = '') => {
+    const ql = q.trim().toLowerCase();
+    const hit = [...store.profiles.values()]
+      .filter((p) => p.id !== store.me)
+      .filter((p) => !ql || (p.display_name || '').toLowerCase().includes(ql)
+        || (p.username || '').toLowerCase().includes(ql))
+      .slice(0, 30);
+    rows.innerHTML = '';
+    if (!hit.length) { rows.appendChild(el('div', 'empty', 'Nobody matches.')); return; }
+    for (const p of hit) {
+      const r = el('div', 'picker-row');
+      r.innerHTML = `${avatarHtml(p.id, 26)}<span>${esc(p.display_name || p.username)}</span>`;
+      const b = el('button', 'sm ghost', 'Add');
+      b.type = 'button';
+      b.onclick = async (ev) => {
+        ev.stopPropagation();
+        b.disabled = true;
+        try {
+          await api.addChannelMember(ch.id, p.id);
+          b.textContent = 'Added ✓';
+          ui.toast(`Added to #${ch.name}`, 'success');
+        } catch (e) {
+          if (/duplicate|already|member/i.test(e.message || '')) {
+            b.textContent = 'Already in ✓';
+          } else {
+            b.disabled = false;
+            ui.toast(e.message || 'Could not add', 'error');
+          }
+        }
+      };
+      r.appendChild(b);
+      rows.appendChild(r);
+    }
+  };
+  search.addEventListener('input', debounce(() => draw(search.value), 120));
+  draw();
+  modal({ title: 'Add people to #' + (ch.name || 'channel'), body: box });
 }
 
 // ==========================================================================

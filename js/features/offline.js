@@ -1,4 +1,4 @@
-// Offline resilience: a durable outbox, readable delivery state, and a
+﻿// Offline resilience: a durable outbox, readable delivery state, and a
 // connection strip that speaks plain language.
 //
 // The deployment this is written for is Android phones on Indian mobile data in
@@ -56,7 +56,7 @@ const SLOW_PAINT_MS = 900;
 // discarding somebody's message because a JWT aged out is not.
 const RETRY_STATUS = new Set([401, 408, 425, 429, 500, 502, 503, 504, 522, 524]);
 const SEND_RPC = /\/rest\/v1\/rpc\/(send_message|send_dm)(\?|$)/;
-const DRAFT_KEY = 'soop.drafts.v1';
+const DRAFT_KEY = 'Dek.drafts.v1';
 
 // The reads that decide whether the app can open at all. get_bootstrap is the
 // whole workspace in one blob, the workspaces table is the Space rail, and
@@ -977,7 +977,7 @@ function paintBar() {
   } else if (netFails >= 2) {
     cls = 'ob-wait';
     glyph = icon('clock');
-    text = 'Reconnecting…';
+    text = 'Reconnectingâ€¦';
   } else if (broken) {
     cls = 'ob-down';
     glyph = icon('close');
@@ -985,7 +985,7 @@ function paintBar() {
   } else if (waiting) {
     cls = 'ob-wait';
     glyph = icon('clock');
-    text = `Sending ${n(waiting, 'message', 'messages')}…`;
+    text = `Sending ${n(waiting, 'message', 'messages')}â€¦`;
   } else if (recovered && Date.now() - recovered < 2600) {
     cls = 'ob-up';
     glyph = icon('check');
@@ -1019,7 +1019,7 @@ function showOutbox() {
       const label = r.state === 'failed' ? `Not sent - ${r.error || 'rejected'}`
         : navigator.onLine ? 'Waiting to send' : 'Waiting for internet';
       line.innerHTML = `<div class="ob-body"><div>${esc(r.text || '(attachment only)')}</div>
-        <div class="ob-meta">${esc(label)} · ${r.attempts || 0} ${r.attempts === 1 ? 'try' : 'tries'}</div></div>`;
+        <div class="ob-meta">${esc(label)} Â· ${r.attempts || 0} ${r.attempts === 1 ? 'try' : 'tries'}</div></div>`;
       const again = el('button', 'sm', 'Try now');
       again.onclick = () => { retryOne(r.nonce); };
       line.appendChild(again);

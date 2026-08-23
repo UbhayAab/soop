@@ -6,7 +6,7 @@
 import { $, el, esc } from './util.js';
 import { popover, toast } from './ui.js';
 
-const KEY = 'hearth.theme';
+const KEY = 'dak.theme';
 
 export const THEMES = [
   {
@@ -38,7 +38,15 @@ export const THEMES = [
 const media = window.matchMedia('(prefers-color-scheme: dark)');
 
 export const storedTheme = () => {
-  try { return localStorage.getItem(KEY) || 'system'; } catch { return 'system'; }
+  try {
+    var val = localStorage.getItem(KEY);
+    // Migrate from old hearth.theme key if present
+    if (val === null) {
+      val = localStorage.getItem('hearth.theme');
+      if (val) localStorage.setItem(KEY, val);
+    }
+    return val || 'system';
+  } catch { return 'system'; }
 };
 
 // What is actually painted right now (never returns 'system').
@@ -51,7 +59,9 @@ export const effectiveTheme = () => {
 export function applyTheme(choice) {
   const resolved = choice === 'system' ? (media.matches ? 'dark' : 'light') : choice;
   document.documentElement.setAttribute('data-theme', resolved);
-  document.documentElement.setAttribute('data-theme-choice', choice);
+  // `data-theme-choice` was written here and read by nothing in the entire app;
+  // a selector that never existed. The choice itself persists in localStorage
+  // under hearth.theme, which is what the picker and boot actually read.
 
   // Keep the mobile browser chrome in step with the app, otherwise a light theme
   // sits under a black status bar and looks broken on a phone.

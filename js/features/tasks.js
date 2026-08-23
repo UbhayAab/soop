@@ -28,7 +28,7 @@
 //
 // The cheap way IN is js/features/quicktask.js, which reads an ordinary sentence
 // and offers to make it one of these.
-import { rpc, tryRpc, table } from '../api.js';
+import { rpc, tryRpc, table, api } from '../api.js';
 import { store, bus, nameOf, hasPerm } from '../store.js';
 import { PERM } from '../config.js';
 import { el, esc, plain, relTime, toLocalInput, fromLocalInput } from '../util.js';
@@ -146,7 +146,7 @@ async function createDialog(msg) {
       { name: 'assignee', label: 'Who is doing it', type: 'select', options: await assigneeOptions(),
         value: store.me,
         hint: mayAssignOthers
-          ? 'They will see it in their Later queue straight away.'
+          ? 'They will see it in their Tasks list straight away.'
           : 'Yourself: starts immediately. Anybody else: goes as a request first.' },
       // No reminder is promised here. It used to say "They get one reminder when
       // it falls due", and nothing schedules one - not in this client and not in
@@ -173,6 +173,21 @@ async function createDialog(msg) {
     toastFn(t?.state === 'proposed'
       ? 'Asked for. Somebody who can accept it will see it under Requests.'
       : 'Task created', 'success');
+    // Assignment announcement. Until a server trigger exists, THIS is what
+    // actually reaches the assignee: an ordinary message riding the ordinary
+    // mention path, so badge, activity feed and any future push all fire. The
+    // resolver handles display names with spaces ("@Asha Kumar") natively.
+    const chan = msg.channel_id || store.current?.id;
+    if (t && t.state !== 'proposed' && out.assignee && out.assignee !== store.me && chan) {
+      const text = `📌 Task for @${nameOf(out.assignee) || 'you'}: ${t.title || out.title.trim()}`
+        + (t.due_at ? ` - due ${dueLabel(t.due_at)}` : '');
+      api.send({
+        channel: chan,
+        nonce: crypto.randomUUID(),
+        text,
+        mentions: bus.resolveMentions ? bus.resolveMentions(text) : [],
+      }).catch(() => { /* the task itself succeeded; the ping is best-effort */ });
+    }
     await refreshChips();
     refreshCount();
   } catch (e) { toastErr(e); }
@@ -491,6 +506,16 @@ function taskCard(t) {
         await rpc('set_task_state', { p_task: t.id, p_state: 'unblocked' });
       });
     } else if (!t.done_at) {
+      // "I have started" was a defined state no button could reach: a task
+      // picked up five minutes ago looked identical to one untouched for two
+      // weeks. The server accepted in_progress all along; the UI just never
+      // sent it.
+      if (t.state === 'accepted') {
+        act('Start work', '', async () => {
+          await rpc('set_task_state', { p_task: t.id, p_state: 'in_progress' });
+          uiRef.toast('Marked as started', 'success');
+        });
+      }
       // The one control this whole flow exists for. Nobody in the field makes
       // saying "I am stuck" a first-class action; it is always a comment
       // somebody has to notice.
@@ -747,6 +772,53 @@ export function register({ ui }) {
   bus.on('auth', refreshCount);
   scheduleBind();
   refreshCount();
+
+  // Due-date nudges. The dates were parsed, stored and painted red while doing
+  // nothing at the moment they mattered; this makes them speak while the app is
+  // open. Once per task per due stamp, deduped in localStorage, visible-tab only.
+  // A server cron (migration 0102) will eventually cover closed laptops; this
+  // covers every session that exists today.
+  const REMIND_KEY = 'hearth.task.reminded';
+  let reminded = [];
+  try { reminded = JSON.parse(localStorage.getItem(REMIND_KEY) || '[]'); } catch { reminded = []; }
+  const remindedSet = new Set(Array.isArray(reminded) ? reminded : []);
+  let ticks = 0;
+  setInterval(async () => {
+    if (!store.ws || document.visibilityState !== 'visible') return;
+    // The assignee badge had no pulse either: counts moved only on your own
+    // actions or a broadcast inside the one open channel. Every other tick a
+    // slow visible-tab poll keeps it honest without costing anything offline.
+    if (++ticks % 2 === 0) refreshCount();
+    try {
+      const [rows] = await tryRpc('list_tasks', {
+        p_workspace: store.ws.id, p_filter: 'all', p_channel: null, p_include_done: false });
+      if (!Array.isArray(rows)) return;
+      const now = Date.now();
+      let dirty = false;
+      for (const t of rows) {
+        if (t.assignee_id !== store.me || !t.due_at || t.done_at) continue;
+        const due = new Date(t.due_at).getTime();
+        if (Number.isNaN(due)) continue;
+        const late = now - due;
+        const soon = due - now;
+        // Speak once when it comes within ten minutes, and again for a day
+        // after it slips - not forever, or the badge becomes wallpaper.
+        if (!(late >= 0 && late < 86400000) && !(soon > 0 && soon <= 600000)) continue;
+        const key = t.id + ':' + t.due_at;
+        if (remindedSet.has(key)) continue;
+        remindedSet.add(key);
+        dirty = true;
+        toastFn(late >= 0 ? `Overdue: ${t.title}` : `Due in ${Math.ceil(soon / 60000)} min: ${t.title}`);
+      }
+      if (remindedSet.size > 300) {
+        const keep = [...remindedSet].slice(-200);
+        remindedSet.clear();
+        keep.forEach((k) => remindedSet.add(k));
+        dirty = true;
+      }
+      if (dirty) localStorage.setItem(REMIND_KEY, JSON.stringify([...remindedSet]));
+    } catch { /* offline or unversioned RPC: stay silent */ }
+  }, 60000);
 
   ui.addMessageAction({
     id: 'make-task',

@@ -264,6 +264,21 @@ export function register(app) {
           // value straight out of it, synchronously.
           store.drafts.set(d.scope_type + ':' + d.scope_id, d.body_text);
           scope.open();
+          if (d.scope_type === 'thread') {
+            // A thread draft has to land in the THREAD composer. Writing it into
+            // #composer left saved text one Enter away from being posted to the
+            // whole channel - the wrong audience for what was meant as a private
+            // reply. The thread panel body renders after its message fetch lands,
+            // so poll briefly rather than assume the textarea already exists.
+            let tries = 0;
+            const seed = () => {
+              const t = document.getElementById('threadComposer');
+              if (t) { t.value = d.body_text; t.focus(); t.dispatchEvent(new Event('input', { bubbles: true })); return; }
+              if (++tries < 20) setTimeout(seed, 50);
+            };
+            setTimeout(seed, 0);
+            return;
+          }
           const c = document.getElementById('composer');
           if (c) { c.value = d.body_text; c.focus(); }
         };

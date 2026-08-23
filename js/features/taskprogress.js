@@ -1,4 +1,4 @@
-// Saying how a task is going, and saying what is in the way.
+﻿// Saying how a task is going, and saying what is in the way.
 //
 // The task system already has states, and a state change is a fine record of
 // what happened but a poor record of WHY. "Blocked" with one mutable note cannot
@@ -41,7 +41,7 @@ async function call(fn, args) {
   const [out, err] = await tryRpc(fn, args);
   if (err && isMissing(err)) {
     available = false;
-    console.info('[soop] task progress needs migration 0101; the feature is off until then');
+    console.info('[Dek] task progress needs migration 0101; the feature is off until then');
   }
   return [out, err];
 }
@@ -121,7 +121,7 @@ async function updateDialog(task) {
 }
 
 const shortTitle = (t) => (t.title || 'this').length > 32
-  ? (t.title || '').slice(0, 30) + '…' : (t.title || 'this');
+  ? (t.title || '').slice(0, 30) + 'â€¦' : (t.title || 'this');
 
 async function peopleOptions() {
   const out = [];
@@ -135,7 +135,7 @@ async function peopleOptions() {
 // ------------------------------------------------------------------ history
 // What happened, oldest first, because a story read backwards is not a story.
 async function renderHistory(host, task) {
-  host.innerHTML = `<div class="muted pad">loading…</div>`;
+  host.innerHTML = `<div class="muted pad">loadingâ€¦</div>`;
   const [events, err] = await call('list_task_events', { p_task: task.id });
   if (err || !Array.isArray(events)) {
     host.innerHTML = available
@@ -187,7 +187,7 @@ async function renderChain(host, task) {
 const TRIAGE_PANEL = 'triage';
 
 async function renderTriage(body) {
-  body.innerHTML = '<div class="muted pad">loading…</div>';
+  body.innerHTML = '<div class="muted pad">loadingâ€¦</div>';
   if (!store.ws) { body.innerHTML = '<div class="empty">Open a Space first.</div>'; return; }
   const [rows, err] = await call('list_triage', { p_workspace: store.ws.id });
   if (err || !Array.isArray(rows)) {

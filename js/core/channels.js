@@ -1,4 +1,4 @@
-// Channel list (categories, text, voice, DMs) and the open-channel lifecycle:
+﻿// Channel list (categories, text, voice, DMs) and the open-channel lifecycle:
 // load a page, subscribe to realtime, page upward on scroll, reconcile any
 // broadcast the at-most-once transport dropped.
 import { sb, subscribe, unsubscribe } from '../sb.js';
@@ -97,7 +97,7 @@ export async function renderChannels() {
     const unread = u?.unread > 0;
     const mc = u?.mention_count || 0;
     const muted = store.notify.get(c.id)?.notify_level === 'nothing';
-    const icon = c.kind === 'announcement' ? '📢' : c.kind === 'forum' ? '🗂' : c.is_private ? '🔒' : '#';
+    const icon = c.kind === 'announcement' ? 'ðŸ“¢' : c.kind === 'forum' ? 'ðŸ—‚' : c.is_private ? 'ðŸ”’' : '#';
     return `<div class="chan${store.current?.id === c.id ? ' active' : ''}${unread ? ' unread' : ''}${muted ? ' muted-ch' : ''}"
       data-ch="${c.id}"><span class="ch-ico">${icon}</span><span class="ch-name">${esc(c.name)}</span>
       ${mc ? `<span class="badge">${mc}</span>` : unread ? '<span class="dot-unread"></span>' : ''}</div>`;
@@ -120,10 +120,10 @@ export async function renderChannels() {
     const list = byCat.get(cat.id) || [];
     if (!list.length) continue;
     const collapsed = localStorage.getItem('hearth.cat.' + cat.id) === '0';
-    h += `<h3 data-cat="${cat.id}"><span>${collapsed ? '▸' : '▾'} ${esc(cat.name)}</span></h3>
+    h += `<h3 data-cat="${cat.id}"><span>${collapsed ? 'â–¸' : 'â–¾'} ${esc(cat.name)}</span></h3>
       <div class="navgroup" ${collapsed ? 'style="display:none"' : ''}>${list.map(chanRow).join('')}</div>`;
   }
-  if (hasPerm(PERM.MANAGE_CHANNELS)) h += '<div class="chan chan-add" data-newch="1">＋ Add channel</div>';
+  if (hasPerm(PERM.MANAGE_CHANNELS)) h += '<div class="chan chan-add" data-newch="1">ï¼‹ Add channel</div>';
 
   // The heading used to render only when a voice room already existed, so a
   // Space with none showed NOTHING about voice anywhere - no heading, no button,
@@ -136,7 +136,7 @@ export async function renderChannels() {
     h += '<h3><span>Voice</span></h3><div class="navgroup">';
     for (const c of voice) {
       const parts = store.voiceParts.get(c.id) || [];
-      h += `<div class="chan vchan" data-voice="${c.id}"><span class="ch-ico">🔊</span>
+      h += `<div class="chan vchan" data-voice="${c.id}"><span class="ch-ico">ðŸ”Š</span>
         <span class="ch-name">${esc(c.name)}</span>${parts.length ? `<span class="live">${parts.length}</span>` : ''}</div>`;
       if (parts.length) {
         h += '<div class="vparts-nav">' + parts.map((u) =>
@@ -144,7 +144,7 @@ export async function renderChannels() {
       }
     }
     if (mayAddVoice) {
-      h += '<div class="chan chan-add" data-newvoice="1">＋ New voice room</div>';
+      h += '<div class="chan chan-add" data-newvoice="1">ï¼‹ New voice room</div>';
     }
     h += '</div>';
   }
@@ -163,7 +163,7 @@ export async function renderChannels() {
       data-dm="${d.conversation_id}"><span class="ch-ico">@</span><span class="ch-name">${esc(label)}</span>
       ${unread ? (count ? `<span class="badge">${count}</span>` : '<span class="dot-unread"></span>') : ''}</div>`;
   }
-  h += '<div class="chan chan-add" data-newdm="1">＋ New message</div></div>';
+  h += '<div class="chan chan-add" data-newdm="1">ï¼‹ New message</div></div>';
 
   host.innerHTML = h;
 
@@ -196,7 +196,7 @@ function channelMenu(ev, c) {
   if (!c) return;
   const muted = store.notify.get(c.id)?.notify_level === 'nothing';
   contextMenu(ev, [
-    { label: muted ? 'Unmute channel' : 'Mute channel', onClick: () => toggleMute(c) },
+    { label: muted ? 'Unmute channelâ€¦' : 'Mute channelâ€¦', onClick: (ev2) => muteChannelMenu(c, ev2) },
     { label: 'Mark as read', onClick: () => api.markRead('channel', c.id, c.last_seq || 0).then(() => refreshUnread()) },
     { label: 'Copy link', onClick: () => {
       navigator.clipboard?.writeText(location.origin + location.pathname + '#/c/' + c.id);
@@ -238,6 +238,32 @@ export async function toggleMute(c) {
     renderChannels();
     toast(muted ? 'Unmuted' : 'Muted');
   } catch (e) { toast(e.message, 'error'); }
+}
+
+// Muting had exactly two states, forever or nothing - the server's mutedUntil
+// parameter was passed null by every caller in the app. "For an hour" is what
+// people actually want during a meeting or a depot dispatch.
+export function muteChannelMenu(c, ev) {
+  const muted = store.notify.get(c.id)?.notify_level === 'nothing';
+  const apply = async (level, untilIso, label) => {
+    try {
+      await api.setNotifyLevel('channel', c.id, level, untilIso);
+      store.notify.set(c.id, { notify_level: level });
+      renderChannels();
+      toast(label);
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  const items = muted
+    ? [{ label: 'Unmute', onClick: () => apply('inherit', null, 'Unmuted') }]
+    : [
+      { label: 'Mute for 1 hour', onClick: () => apply('nothing', new Date(Date.now() + 3600000).toISOString(), 'Muted for an hour') },
+      { label: 'Mute until tomorrow at 8am', onClick: () => {
+        const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0);
+        apply('nothing', d.toISOString(), 'Muted until 8am');
+      } },
+      { label: 'Mute until I turn it back on', onClick: () => apply('nothing', null, 'Muted') },
+    ];
+  contextMenu(ev, items);
 }
 
 // `preset.kind` lets a caller open this already set to what they asked for. The
@@ -347,7 +373,7 @@ function paintPage(list, ordered, { head = HEAD_ROWS } = {}) {
 // channel is painted from disk into the (still hidden) chat shell. When
 // openChannel() reaches it a few seconds later it finds the rows already there,
 // keeps them, and only folds in what changed.
-const LAST_CH_KEY = 'soop.lastChannel';
+const LAST_CH_KEY = 'Dek.lastChannel';
 let prepainted = null;          // { id, uid } already on screen from the cache
 
 function rememberLastChannel(c) {
@@ -447,7 +473,7 @@ export async function openChannel(c, opts = {}) {
   } else if (cached) {
     paintCached(list, cached);
   } else {
-    list.innerHTML = `<div class="loading-space"><span class="spin"></span>Opening #${esc(c.name)}…</div>`;
+    list.innerHTML = `<div class="loading-space"><span class="spin"></span>Opening #${esc(c.name)}â€¦</div>`;
     cached = await pagecache.recall(store.me, c.id);
     if (gen !== openGen) return;
     if (cached) paintCached(list, cached);
@@ -480,7 +506,7 @@ export async function openChannel(c, opts = {}) {
       if (btn) {
         btn.onclick = () => {
           btn.disabled = true;
-          btn.textContent = 'Loading…';
+          btn.textContent = 'Loadingâ€¦';
           openChannel(c).catch(() => { btn.disabled = false; btn.textContent = 'Try again'; });
         };
       }
@@ -704,7 +730,7 @@ function advanceOnEvent(eventSeq) {
 //   local + count === incoming -> apply
 //   local + count  >  incoming -> already applied, ignore
 //   local + count  <  incoming -> A GAP. Fill it before applying.
-// Soop implemented the middle one (Math.max on the cursor) and used it for the
+// Dek implemented the middle one (Math.max on the cursor) and used it for the
 // third, which quietly advanced the cursor PAST the missing span. reconcile()
 // then asked for events after the new cursor and nobody ever asked for the
 // dropped ones again. They came back only on a reload. This is that fix: hold
@@ -819,8 +845,8 @@ export function showNewBelow(n = 1) {
     host.appendChild(b);
   }
   b.textContent = newBelowCount === 1
-    ? '1 new message ↓'
-    : `${newBelowCount} new messages ↓`;
+    ? '1 new message â†“'
+    : `${newBelowCount} new messages â†“`;
 }
 
 export function clearNewBelow() {

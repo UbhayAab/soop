@@ -14,6 +14,7 @@ import { setReply } from './composer.js';
 import { openThread } from './threads.js';
 import { openChannel } from './channels.js';
 import { startDM } from './dms.js';
+import { isMsgPinned, notePinChange } from '../features/messageExtras.js';
 
 const mine = (m) => m.author_id === store.me;
 
@@ -35,7 +36,7 @@ export function registerCoreActions() {
 }
 
 function moreMenu(m, ev) {
-  const isPinned = false;
+  const pinOn = isMsgPinned(m.id);
   contextMenu(ev, [
     { label: 'Forward to a channel', onClick: () => forwardDialog(m) },
     { label: 'Copy link to message', onClick: () => copyLink(m) },
@@ -44,7 +45,17 @@ function moreMenu(m, ev) {
     { label: 'Bookmark', onClick: () => api.saveItem(m.id).then(() => toast('Saved')).catch((e) => toast(e.message, 'error')) },
     { label: 'Mark unread from here', onClick: () => api.markUnread('channel', store.current.id, m.seq).then(() => { toast('Marked unread'); bus.emit('unread:reload'); }).catch((e) => toast(e.message, 'error')) },
     '-',
-    { label: 'Pin to channel', show: hasPerm(PERM.MANAGE_MESSAGES) || mine(m), onClick: () => api.pin(m.id).then(() => toast('Pinned')).catch((e) => toast(e.message, 'error')) },
+    {
+      label: pinOn ? 'Unpin from channel' : 'Pin to channel',
+      show: hasPerm(PERM.MANAGE_MESSAGES) || mine(m),
+      onClick: async () => {
+        try {
+          await (pinOn ? api.unpin : api.pin)(m.id);
+          notePinChange(m.id, !pinOn);
+          toast(pinOn ? 'Unpinned' : 'Pinned');
+        } catch (e) { toast(e.message, 'error'); }
+      },
+    },
     { label: 'Mark urgent', show: mine(m) || hasPerm(PERM.MANAGE_MESSAGES), onClick: () => api.setPriority(m.id, 'urgent').then(() => toast('Marked urgent')).catch((e) => toast(e.message, 'error')) },
     { label: 'Acknowledge', onClick: () => api.ack(m.id).then(() => toast('Acknowledged')).catch((e) => toast(e.message, 'error')) },
     '-',
@@ -272,7 +283,30 @@ registerPanel({
   id: 'activity',
   title: 'Activity',
   async render(body) {
-    body.innerHTML = '<div class="muted pad">loading…</div>';
+    body.innerHTML = '<div class="muted pad">loading.</div>';
+    // "I have read everything" did not exist: the only two states were badge-
+    // everywhere or opening each channel by hand. One button, top of the inbox.
+    if (store.unread.size) {
+      const bar = el('div', 'row gap');
+      bar.style.padding = '0 var(--s-4) var(--s-3)';
+      const markAll = el('button', 'sm ghost', 'Mark everything read');
+      markAll.type = 'button';
+      markAll.onclick = async () => {
+        markAll.disabled = true;
+        let n = 0;
+        for (const c of store.channels) {
+          const u = store.unread.get(c.id);
+          if (!u || (!u.unread && !u.mention_count)) continue;
+          try { await api.markRead('channel', c.id, c.last_seq || 0); n++; } catch { /* one failure must not stop the sweep */ }
+        }
+        bus.emit('unread:reload');
+        toast(n ? `${n} channels marked read` : 'Already all read');
+        markAll.disabled = false;
+      };
+      bar.appendChild(markAll);
+      body.innerHTML = '';
+      body.appendChild(bar);
+    }
     const [rows, err] = await tryRpc('get_activity', { p_workspace: store.ws.id, p_limit: 50 });
     if (err) { body.innerHTML = `<div class="empty">${esc(err.message)}</div>`; return; }
     if (!rows?.length) {
@@ -393,6 +427,7 @@ bus.on('profile:open', async ({ userId, anchor } = {}) => {
     <div class="pc-actions">
       <button class="sm ghost" data-a="full">Full profile</button>
       ${userId !== store.me ? '<button class="sm" data-a="dm">Message</button>' : ''}
+      ${userId !== store.me ? '<button class="sm ghost" data-a="block">Block</button>' : ''}
       ${userId !== store.me && hasPerm(PERM.KICK) ? '<button class="sm ghost" data-a="kick">Remove</button>' : ''}
       ${userId !== store.me && hasPerm(PERM.BAN) ? '<button class="sm danger" data-a="ban">Ban</button>' : ''}
     </div>`;
@@ -406,6 +441,17 @@ bus.on('profile:open', async ({ userId, anchor } = {}) => {
     bus.emit('profile:page', { userId });
   });
   box.querySelector('[data-a="dm"]')?.addEventListener('click', () => { m.close(); startDM(userId); });
+  box.querySelector('[data-a="block"]')?.addEventListener('click', async () => {
+    // Personal boundary, not an admin action: the moderation empty state told
+    // people to press a button that did not exist anywhere. api.blockUser had
+    // been waiting with zero callers since it was written.
+    if (!(await confirmModal({
+      title: 'Block ' + (p.display_name || p.username || 'this person') + '?',
+      body: 'You stop seeing their messages and they cannot DM you. An admin can undo this later.',
+      confirmLabel: 'Block',
+    }))) return;
+    try { await api.blockUser(userId); m.close(); toast('Blocked'); } catch (e) { toast(e.message, 'error'); }
+  });
   box.querySelector('[data-a="kick"]')?.addEventListener('click', async () => {
     if (!(await confirmModal({ title: 'Remove member', body: 'They lose access immediately.', confirmLabel: 'Remove', danger: true }))) return;
     try { await api.kick(store.ws.id, userId); m.close(); toast('Removed'); } catch (e) { toast(e.message, 'error'); }

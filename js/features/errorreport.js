@@ -1,4 +1,4 @@
-// Somewhere for a broken screen to be reported from.
+﻿// Somewhere for a broken screen to be reported from.
 //
 // For four days the only channel was somebody describing a blank screen over
 // WhatsApp, and every one of those took a round of questions to place: which
@@ -57,7 +57,7 @@ function show(err, ui) {
   barEl.innerHTML = `
     <span class="errbar-txt">Something went wrong on this screen.</span>
     <button class="errbar-btn" data-a="report">Send a report</button>
-    <button class="errbar-x" data-a="close" aria-label="Dismiss">✕</button>`;
+    <button class="errbar-x" data-a="close" aria-label="Dismiss">âœ•</button>`;
   document.body.appendChild(barEl);
 
   barEl.querySelector('[data-a="close"]').onclick = () => { barEl?.remove(); barEl = null; };
@@ -75,7 +75,7 @@ function show(err, ui) {
 // nothing, and it goes down the channel people already use.
 function openReport(info, ui) {
   const lines = [
-    'Soop problem report',
+    'Dek problem report',
     `time     ${info.when}`,
     `screen   ${info.screen}${info.space ? ' / ' + info.space : ''}${info.channel ? ' / #' + info.channel : ''}`,
     `route    ${info.route || '(none)'}`,
@@ -88,7 +88,7 @@ function openReport(info, ui) {
 
   const box = el('div');
   box.innerHTML = `
-    <p>Copy this and send it to whoever set up your Soop account. It says what
+    <p>Copy this and send it to whoever set up your Dek account. It says what
       screen you were on and what went wrong.</p>
     <p class="muted fineprint">It contains no messages and nothing you have written.</p>
     <textarea id="errReport" rows="10" readonly>${esc(lines)}</textarea>`;
@@ -102,7 +102,7 @@ function openReport(info, ui) {
         const t = body.querySelector('#errReport');
         t.select();
         await navigator.clipboard?.writeText(lines).catch(() => {});
-        ui.toast('Copied. Paste it to whoever runs your Soop.');
+        ui.toast('Copied. Paste it to whoever runs your Dek.');
         close();
       },
     }],

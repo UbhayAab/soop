@@ -216,10 +216,14 @@ async function refreshReceipts(conversationId) {
 }
 
 export async function startDM(userId) {
+  // create_dm has always accepted an array; the only caller ever passed one id,
+  // so three people who needed one conversation had to create a whole channel
+  // instead and went back to WhatsApp. Accept either shape.
+  const ids = Array.isArray(userId) ? userId : [userId];
   try {
-    const conv = await api.createDM(store.ws.id, [userId]);
+    const conv = await api.createDM(store.ws.id, ids);
     if (!store.dms.find((d) => d.conversation_id === conv.id)) {
-      store.dms.push({ conversation_id: conv.id, kind: conv.kind, other_user_ids: [userId, store.me], unread: 0 });
+      store.dms.push({ conversation_id: conv.id, kind: conv.kind, other_user_ids: [...ids, store.me], unread: 0 });
     }
     await openDM(conv.id);
     renderChannels();
@@ -235,12 +239,29 @@ export async function startDM(userId) {
   }
 }
 
+const GROUP_DM_CAP = 9;
+
 export function newDMDialog() {
   const box = el('div', 'picker-list');
   const search = el('input');
   search.placeholder = 'Search people';
+  const hint = el('div', 'picker-hint muted', 'Pick one for a direct message, or several for a group.');
   const list = el('div', 'picker-rows');
-  box.append(search, list);
+  const go = el('button', 'sm', 'Start conversation');
+  go.type = 'button';
+  go.disabled = true;
+  box.append(search, hint, list, go);
+
+  const picked = new Set();
+
+  const paintHint = () => {
+    const n = picked.size;
+    go.textContent = n > 1 ? `Start group (${n})` : n === 1 ? 'Start conversation' : 'Start conversation';
+    go.disabled = n === 0;
+    hint.textContent = n >= GROUP_DM_CAP
+      ? `Group size caps at ${GROUP_DM_CAP}.`
+      : n > 1 ? `${n} selected - this will be a group.` : 'Pick one for a direct message, or several for a group.';
+  };
 
   const draw = (q = '') => {
     const rows = [...store.profiles.values()]
@@ -249,21 +270,34 @@ export function newDMDialog() {
         || (p.username || '').toLowerCase().includes(q.toLowerCase()));
     list.innerHTML = '';
     if (!rows.length) { list.appendChild(el('div', 'empty', 'Nobody else here yet. Invite someone first.')); return; }
-    for (const p of rows) {
-      const r = el('div', 'picker-row');
+    for (const p of rows.slice(0, 60)) {
+      const r = el('div', 'picker-row' + (picked.has(p.id) ? ' picked' : ''));
       r.innerHTML = `${avatarHtml(p.id, 26)}<span>${esc(p.display_name || p.username)}</span>
-        ${store.online.has(p.id) ? '<span class="dot on"></span>' : ''}`;
-      r.onclick = () => { m.close(); startDM(p.id); };
+        ${store.online.has(p.id) ? '<span class="dot on"></span>' : '<span class="picker-check">✓</span>'}`;
+      r.onclick = () => {
+        if (picked.has(p.id)) picked.delete(p.id);
+        else if (picked.size < GROUP_DM_CAP) picked.add(p.id);
+        paintHint();
+        draw(search.value);
+      };
       list.appendChild(r);
     }
   };
   const m = modal({ title: 'New message', body: box });
+  go.onclick = () => { if (picked.size) { m.close(); startDM([...picked]); } };
   search.oninput = () => draw(search.value);
   draw();
 }
 
 bus.on('dm:request', ({ conversationId }) => openDM(conversationId));
 bus.on('dm:new', newDMDialog);
+// The `read` broadcast on the dm topic emits this, but nothing listened - so the
+// Seen line was painted exactly once per open and then froze forever while the
+// other person kept reading. Re-run the receipts fetch whenever it fires for the
+// conversation actually on screen.
+bus.on('dm:receipts', ({ conversationId }) => {
+  if (store.currentDM === conversationId) refreshReceipts(conversationId);
+});
 
 // Every resync trigger - rejoin, visibility, network, backstop - reaches DMs too.
 bus.on('delivery:resync', () => { if (store.currentDM) reconcileDM(); });

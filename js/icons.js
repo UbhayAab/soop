@@ -1,6 +1,6 @@
-// A hand-built inline SVG icon set.
+﻿// A hand-built inline SVG icon set.
 //
-// The chrome used emoji (💬 🔔 🔖 🔍 📌 👥). Emoji are rendered by the operating
+// The chrome used emoji (ðŸ’¬ ðŸ”” ðŸ”– ðŸ” ðŸ“Œ ðŸ‘¥). Emoji are rendered by the operating
 // system, so the same button is a flat glyph on Windows, a glossy 3D blob on
 // Android and something else again on a Mac - three different products in three
 // screenshots. These are drawn once, inherit currentColor so they follow the
@@ -101,7 +101,7 @@ export const hasIcon = (name) => !!ICONS[name];
 
 // The wordmark, used on the sign-in screen and as the fallback Space glyph.
 //
-// This was a flame, because the product was called Hearth. Under the name Soop
+// This was a flame, because the product was called Hearth. Under the name Dak
 // a fireplace means nothing, and a mark that has to be explained is not a mark.
 // So it says what the product is instead: one conversation, and a second one
 // growing out of it without covering it up. That is the thread contract, which
@@ -113,7 +113,7 @@ export function logoMark(size = 40) {
   return `<svg class="logo-mark" width="${size}" height="${size}" viewBox="0 0 48 48"
     aria-hidden="true" focusable="false">
     <defs>
-      <linearGradient id="soopMark" x1="0" y1="0" x2="1" y2="1">
+      <linearGradient id="dakMark" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0%" stop-color="#ff8a4c"/>
         <stop offset="60%" stop-color="#f05a3c"/>
         <stop offset="100%" stop-color="#d93b52"/>
@@ -122,7 +122,7 @@ export function logoMark(size = 40) {
     <rect x="1" y="1" width="46" height="46" rx="13" fill="var(--c-nav-bg, #1a1030)"/>
     <!-- the room: a full bubble with its tail at the lower left -->
     <path d="M10 17a7 7 0 0 1 7-7h11a7 7 0 0 1 7 7v5a7 7 0 0 1-7 7h-8.6L13 34.4a1 1 0 0 1-1.6-.8V29a7 7 0 0 1-1.4-4.2z"
-      fill="url(#soopMark)"/>
+      fill="url(#dakMark)"/>
     <!-- the thread: offset, overlapping, never obscuring the message it answers -->
     <path d="M25 26.5a5.5 5.5 0 0 1 5.5-5.5h5A5.5 5.5 0 0 1 41 26.5v3.8a5.5 5.5 0 0 1-5.5 5.5H35v3.1a.8.8 0 0 1-1.3.6l-4.3-3.7h-.9a5.5 5.5 0 0 1-5.5-5.5z"
       fill="#fff2e8"/>

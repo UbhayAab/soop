@@ -14,11 +14,33 @@ import { store, bus } from '../store.js';
 import { api } from '../api.js';
 import { sb } from '../sb.js';
 import { el, esc } from '../util.js';
+import { uploadFile } from '../core/media.js';
+import { avatarHtml } from '../core/messages.js';
 
 const RULE_NOTE = {
   admins: 'Your organisation has this set by an admin. Ask them to change it.',
   locked: 'Your organisation has locked this field.',
 };
+
+// A face circle wants a square source; a 3MB camera photo as a 56px avatar is
+// bandwidth nobody should pay. Center-crop to 256px JPEG client-side, keep the
+// original only if that somehow fails or comes out bigger.
+async function downscaleAvatar(file) {
+  try {
+    const bmp = await createImageBitmap(file);
+    const side = Math.min(bmp.width, bmp.height);
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, 256, 256);
+    bmp.close?.();
+    const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
+    if (blob && blob.size < file.size) {
+      return new File([blob], (file.name || 'avatar').replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
+    }
+  } catch { /* no createImageBitmap on this engine: send the original */ }
+  return file;
+}
 
 export async function openProfileEditor(ui) {
   let rules = { name: 'anyone', title: 'anyone', pronouns: 'anyone', avatar: 'anyone' };
@@ -35,11 +57,66 @@ export async function openProfileEditor(ui) {
     </label>`;
 
   box.innerHTML = `
+    <div class="pf-avatar-row">
+      <span id="pfAvatarPreview">${avatarHtml(store.me, 56)}</span>
+      <div class="pf-avatar-actions">
+        ${rules.avatar === 'anyone'
+          ? `<button class="sm ghost" id="pfAvatarBtn" type="button">${me.avatar_key ? 'Change photo' : 'Add photo'}</button>`
+          : `<span class="field-hint">${esc(RULE_NOTE[rules.avatar] || '')}</span>`}
+      </div>
+    </div>
     ${field('pfName', 'Your name', me.display_name, rules.name, 'How you want to be listed')}
     ${field('pfTitle', 'Your title', me.title, rules.title, 'Interview Intern')}
     ${field('pfPronouns', 'Pronouns', me.pronouns, rules.pronouns, 'she/her, he/him, they/them')}
     <p class="muted fineprint">Your title is a description, not a permission. Changing it
       does not change what you can do.</p>`;
+
+  // The upload path sends the WHOLE current profile: set_profile's contract for
+  // unspecified fields (keep vs clear) lives in SQL this repo does not hold,
+  // and betting faces on an unverified null was how the Later-queue lie
+  // happened. Full payload, zero ambiguity.
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'image/*';
+  fileInput.hidden = true;
+  box.appendChild(fileInput);
+  box.querySelector('#pfAvatarBtn')?.addEventListener('click', () => fileInput.click());
+  fileInput.onchange = async () => {
+    const f = fileInput.files?.[0];
+    if (!f) return;
+    const btn = box.querySelector('#pfAvatarBtn');
+    const oldLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Uploading…';
+    try {
+      const small = await downscaleAvatar(f);
+      const up = await uploadFile(small);
+      await api.setProfile({
+        display_name: me.display_name ?? null,
+        title: me.title ?? null,
+        pronouns: me.pronouns ?? null,
+        avatar_key: up.object_key,
+        status_text: me.status_text ?? null,
+        status_emoji: me.status_emoji ?? null,
+        timezone: store.myProfile?.timezone || me.timezone || undefined,
+      });
+      store.myProfile = { ...(store.myProfile || {}), avatar_key: up.object_key, id: store.me };
+      store.profiles.set(store.me, { ...(store.profiles.get(store.me) || {}), avatar_key: up.object_key });
+      const prev = box.querySelector('#pfAvatarPreview');
+      if (prev) prev.innerHTML = avatarHtml(store.me, 56);
+      const { hydrateAvatars } = await import('../core/messages.js');
+      hydrateAvatars(prev).catch(() => {});
+      btn.textContent = 'Change photo';
+      btn.disabled = false;
+      ui.toast('Photo saved', 'success');
+      bus.emit('profiles');
+      bus.emit('status:changed');
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = oldLabel;
+      ui.toast(e.message || 'Could not upload that photo', 'error');
+    }
+  };
 
   const anyEditable = ['name', 'title', 'pronouns'].some((k) => rules[k] === 'anyone');
   const actions = [];

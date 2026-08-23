@@ -594,6 +594,10 @@ async function drawInvites(host, ctx, { ui }) {
             <option value="5">Up to 5</option>
             <option value="25">Up to 25</option>
             <option value="">Anyone</option></select></label>
+        <label class="field"><span class="field-label">Joins as</span>
+          <select id="admInvRole">
+            <option value="">Member</option>
+            <option value="moderator">Moderator</option></select></label>
         <button id="admInvMake">Create invite</button>
       </div>
       <div class="admin-linkrow hidden" id="admInvOut">
@@ -607,9 +611,10 @@ async function drawInvites(host, ctx, { ui }) {
         // sent 0, and a link that lets nobody in looks exactly like a good one.
         const n = Number(max);
         const uses = Number.isInteger(n) && n > 0 ? n : null;
+        const role = form.querySelector('#admInvRole').value || null;
         const token = await api.createInvite(
           store.ws.id, uses,
-          days ? new Date(Date.now() + Number(days) * 86400000).toISOString() : null, null);
+          days ? new Date(Date.now() + Number(days) * 86400000).toISOString() : null, role);
         form.querySelector('#admInvOut').classList.remove('hidden');
         form.querySelector('#admInvLink').value = inviteLinkFor(token);
         ui.toast('Invite created', 'success');
@@ -737,7 +742,7 @@ export function register(app) {
   ui.registerPanel({
     id: 'admin',
     title: 'Admin console',
-    async render(body) {
+    async render(body, pctx) {
       body.innerHTML = '';
       const root = el('div', 'admin-root');
       body.appendChild(root);
@@ -757,9 +762,12 @@ export function register(app) {
       root.append(tabsEl, tabBody);
 
       // One cache per open panel. ctx.redraw() repaints the active tab from
-      // whatever survived the invalidation an action just did.
+      // whatever survived the invalidation an action just did. The tab a caller
+      // asked for wins ('/admin invites' should not dump you on Overview), but
+      // only when it is one this console actually has.
+      const wanted = pctx?.tab;
+      let active = TABS.some((t) => t[0] === wanted) ? wanted : 'overview';
       const ctx = { cache: new Map(), redraw: null };
-      let active = 'overview';
 
       const draw = async () => {
         tabBody.innerHTML = '<div class="muted pad">loading…</div>';

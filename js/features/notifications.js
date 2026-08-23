@@ -64,7 +64,18 @@ function inQuietHours() {
   const s = prefs.quiet_start;
   const e = prefs.quiet_end;
   if (s == null || e == null || s === e) return false;
-  const h = new Date().getHours();
+  // The hour must be the person's own. A device clock lies for anyone whose
+  // phone was set once and never updated on travel; the profile carries a
+  // timezone (set_profile defaults it) so quiet hours mean the same thing on a
+  // laptop in another zone.
+  let h;
+  try {
+    h = Number(new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit', hour12: false, timeZone: store.myProfile?.timezone || undefined,
+    }).format(new Date()));
+  } catch {
+    h = new Date().getHours();
+  }
   return s < e ? h >= s && h < e : h >= s || h < e;
 }
 

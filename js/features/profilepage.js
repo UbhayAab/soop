@@ -1,4 +1,4 @@
-// A person, as a PAGE, at #/u/<id>.
+﻿// A person, as a PAGE, at #/u/<id>.
 //
 // The existing profile is a card in a modal: name, pronouns, a presence dot, the
 // roles you happen to share. That answers "who just said that" and stops. In an
@@ -74,14 +74,14 @@ const refresh = () => draw();
 async function draw() {
   if (!mounted) return;
   const page = $('profilePage');
-  page.innerHTML = '<div class="loading-space"><span class="spin"></span>Loading…</div>';
+  page.innerHTML = '<div class="loading-space"><span class="spin"></span>Loadingâ€¦</div>';
 
   let p;
   try {
     p = await api.profilePage(current.userId);
   } catch (e) {
     page.innerHTML = `<div class="pp-top">
-        <button class="ap-back" id="ppBack">← Back to Soop</button>
+        <button class="ap-back" id="ppBack">â† Back to Dek</button>
       </div>
       <div class="loadfail">
         <h2>Could not open this profile</h2>
@@ -113,7 +113,7 @@ async function draw() {
 
   page.innerHTML = `
     <header class="pp-top">
-      <button class="ap-back" id="ppBack">← Back to Soop</button>
+      <button class="ap-back" id="ppBack">â† Back to Dek</button>
     </header>
 
     <div class="pp-body">
@@ -124,8 +124,8 @@ async function draw() {
             ${p.pronouns ? `<span class="pp-pronouns">${esc(p.pronouns)}</span>` : ''}</h1>
           ${p.title ? `<p class="pp-title">${esc(p.title)}</p>` : ''}
           <p class="pp-presence"><span class="pp-dot ${presence.cls}"></span>${esc(presence.text)}
-            ${p.status_text ? ` · ${esc(p.status_emoji || '')} ${esc(p.status_text)}` : ''}
-            ${time ? ` · ${esc(time)} their time` : ''}</p>
+            ${p.status_text ? ` Â· ${esc(p.status_emoji || '')} ${esc(p.status_text)}` : ''}
+            ${time ? ` Â· ${esc(time)} their time` : ''}</p>
         </div>
         <div class="pp-hero-acts">
           ${can.message ? '<button class="sm" id="ppMessage">Message</button>' : ''}
@@ -150,7 +150,7 @@ async function draw() {
             <a href="mailto:${esc(p.email)}">${esc(p.email)}</a></dd></div>` : ''}
           ${p.phone ? `<div class="pp-detail"><dt>Phone</dt><dd>
             <a href="tel:${esc(p.phone)}">${esc(p.phone)}</a></dd></div>` : ''}
-          ${detail('On Soop since', p.created_at ? relTime(p.created_at) : null)}
+          ${detail('On Dek since', p.created_at ? relTime(p.created_at) : null)}
         </dl>
         ${!p.email && !p.phone && !p.department && !p.location && !p.start_date
           ? '<p class="muted">Nothing filled in yet.</p>' : ''}

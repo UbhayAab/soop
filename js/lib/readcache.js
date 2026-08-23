@@ -1,4 +1,4 @@
-// The last answer the server gave, kept on this phone so the app can OPEN with
+﻿// The last answer the server gave, kept on this phone so the app can OPEN with
 // no network.
 //
 // WHY this exists. Without it, a cold start with no signal is worse than a blank
@@ -18,7 +18,7 @@
 // The key carries the signed-in user id, so a second person signing in on a
 // shared phone can never be served the first person's Space list.
 
-const DB_NAME = 'soop-reads';
+const DB_NAME = 'Dek-reads';
 const STORE = 'reads';
 // A bootstrap blob for a 600-member Space is a few hundred KB. Two megabytes per
 // record is generous and still bounded; anything larger is not worth the write.
