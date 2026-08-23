@@ -977,7 +977,7 @@ function paintBar() {
   } else if (netFails >= 2) {
     cls = 'ob-wait';
     glyph = icon('clock');
-    text = 'Reconnectingâ€¦';
+    text = 'Reconnecting…';
   } else if (broken) {
     cls = 'ob-down';
     glyph = icon('close');
@@ -985,7 +985,7 @@ function paintBar() {
   } else if (waiting) {
     cls = 'ob-wait';
     glyph = icon('clock');
-    text = `Sending ${n(waiting, 'message', 'messages')}â€¦`;
+    text = `Sending ${n(waiting, 'message', 'messages')}…`;
   } else if (recovered && Date.now() - recovered < 2600) {
     cls = 'ob-up';
     glyph = icon('check');
@@ -1019,7 +1019,7 @@ function showOutbox() {
       const label = r.state === 'failed' ? `Not sent - ${r.error || 'rejected'}`
         : navigator.onLine ? 'Waiting to send' : 'Waiting for internet';
       line.innerHTML = `<div class="ob-body"><div>${esc(r.text || '(attachment only)')}</div>
-        <div class="ob-meta">${esc(label)} Â· ${r.attempts || 0} ${r.attempts === 1 ? 'try' : 'tries'}</div></div>`;
+        <div class="ob-meta">${esc(label)} · ${r.attempts || 0} ${r.attempts === 1 ? 'try' : 'tries'}</div></div>`;
       const again = el('button', 'sm', 'Try now');
       again.onclick = () => { retryOne(r.nonce); };
       line.appendChild(again);

@@ -67,7 +67,7 @@ export async function promptInstall() {
   if (deferredPrompt) {
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') toast('Installingâ€¦');
+    if (outcome === 'accepted') toast('Installing…');
     deferredPrompt = null;
     paintInstallButton();
     return;
@@ -86,7 +86,7 @@ function iosSheet() {
     title: 'Add Dek to your Home Screen',
     body: `
       <ol class="ios-steps">
-        <li>Tap the <b>Share</b> button <span class="ios-ico">ô€ˆ‚</span> at the bottom of Safari.</li>
+        <li>Tap the <b>Share</b> button <span class="ios-ico">📤</span> at the bottom of Safari.</li>
         <li>Scroll down and tap <b>Add to Home Screen</b>.</li>
         <li>Tap <b>Add</b>. Dek opens full screen, like an app.</li>
       </ol>

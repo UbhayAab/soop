@@ -97,7 +97,7 @@ export async function renderChannels() {
     const unread = u?.unread > 0;
     const mc = u?.mention_count || 0;
     const muted = store.notify.get(c.id)?.notify_level === 'nothing';
-    const icon = c.kind === 'announcement' ? 'ðŸ“¢' : c.kind === 'forum' ? 'ðŸ—‚' : c.is_private ? 'ðŸ”’' : '#';
+    const icon = c.kind === 'announcement' ? '📢' : c.kind === 'forum' ? '🗂' : c.is_private ? '🔒' : '#';
     return `<div class="chan${store.current?.id === c.id ? ' active' : ''}${unread ? ' unread' : ''}${muted ? ' muted-ch' : ''}"
       data-ch="${c.id}"><span class="ch-ico">${icon}</span><span class="ch-name">${esc(c.name)}</span>
       ${mc ? `<span class="badge">${mc}</span>` : unread ? '<span class="dot-unread"></span>' : ''}</div>`;
@@ -120,10 +120,10 @@ export async function renderChannels() {
     const list = byCat.get(cat.id) || [];
     if (!list.length) continue;
     const collapsed = localStorage.getItem('hearth.cat.' + cat.id) === '0';
-    h += `<h3 data-cat="${cat.id}"><span>${collapsed ? 'â–¸' : 'â–¾'} ${esc(cat.name)}</span></h3>
+    h += `<h3 data-cat="${cat.id}"><span>${collapsed ? '▸' : '▾'} ${esc(cat.name)}</span></h3>
       <div class="navgroup" ${collapsed ? 'style="display:none"' : ''}>${list.map(chanRow).join('')}</div>`;
   }
-  if (hasPerm(PERM.MANAGE_CHANNELS)) h += '<div class="chan chan-add" data-newch="1">ï¼‹ Add channel</div>';
+  if (hasPerm(PERM.MANAGE_CHANNELS)) h += '<div class="chan chan-add" data-newch="1">＋ Add channel</div>';
 
   // The heading used to render only when a voice room already existed, so a
   // Space with none showed NOTHING about voice anywhere - no heading, no button,
@@ -136,7 +136,7 @@ export async function renderChannels() {
     h += '<h3><span>Voice</span></h3><div class="navgroup">';
     for (const c of voice) {
       const parts = store.voiceParts.get(c.id) || [];
-      h += `<div class="chan vchan" data-voice="${c.id}"><span class="ch-ico">ðŸ”Š</span>
+      h += `<div class="chan vchan" data-voice="${c.id}"><span class="ch-ico">🔊</span>
         <span class="ch-name">${esc(c.name)}</span>${parts.length ? `<span class="live">${parts.length}</span>` : ''}</div>`;
       if (parts.length) {
         h += '<div class="vparts-nav">' + parts.map((u) =>
@@ -144,7 +144,7 @@ export async function renderChannels() {
       }
     }
     if (mayAddVoice) {
-      h += '<div class="chan chan-add" data-newvoice="1">ï¼‹ New voice room</div>';
+      h += '<div class="chan chan-add" data-newvoice="1">＋ New voice room</div>';
     }
     h += '</div>';
   }
@@ -163,7 +163,7 @@ export async function renderChannels() {
       data-dm="${d.conversation_id}"><span class="ch-ico">@</span><span class="ch-name">${esc(label)}</span>
       ${unread ? (count ? `<span class="badge">${count}</span>` : '<span class="dot-unread"></span>') : ''}</div>`;
   }
-  h += '<div class="chan chan-add" data-newdm="1">ï¼‹ New message</div></div>';
+  h += '<div class="chan chan-add" data-newdm="1">＋ New message</div></div>';
 
   host.innerHTML = h;
 
@@ -196,7 +196,7 @@ function channelMenu(ev, c) {
   if (!c) return;
   const muted = store.notify.get(c.id)?.notify_level === 'nothing';
   contextMenu(ev, [
-    { label: muted ? 'Unmute channelâ€¦' : 'Mute channelâ€¦', onClick: (ev2) => muteChannelMenu(c, ev2) },
+    { label: muted ? 'Unmute channel…' : 'Mute channel…', onClick: (ev2) => muteChannelMenu(c, ev2) },
     { label: 'Mark as read', onClick: () => api.markRead('channel', c.id, c.last_seq || 0).then(() => refreshUnread()) },
     { label: 'Copy link', onClick: () => {
       navigator.clipboard?.writeText(location.origin + location.pathname + '#/c/' + c.id);
@@ -473,7 +473,7 @@ export async function openChannel(c, opts = {}) {
   } else if (cached) {
     paintCached(list, cached);
   } else {
-    list.innerHTML = `<div class="loading-space"><span class="spin"></span>Opening #${esc(c.name)}â€¦</div>`;
+    list.innerHTML = `<div class="loading-space"><span class="spin"></span>Opening #${esc(c.name)}…</div>`;
     cached = await pagecache.recall(store.me, c.id);
     if (gen !== openGen) return;
     if (cached) paintCached(list, cached);
@@ -506,7 +506,7 @@ export async function openChannel(c, opts = {}) {
       if (btn) {
         btn.onclick = () => {
           btn.disabled = true;
-          btn.textContent = 'Loadingâ€¦';
+          btn.textContent = 'Loading…';
           openChannel(c).catch(() => { btn.disabled = false; btn.textContent = 'Try again'; });
         };
       }
@@ -845,8 +845,8 @@ export function showNewBelow(n = 1) {
     host.appendChild(b);
   }
   b.textContent = newBelowCount === 1
-    ? '1 new message â†“'
-    : `${newBelowCount} new messages â†“`;
+    ? '1 new message ↓'
+    : `${newBelowCount} new messages ↓`;
 }
 
 export function clearNewBelow() {

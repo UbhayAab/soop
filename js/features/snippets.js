@@ -83,14 +83,14 @@ function fenceFor(code) {
 
 function snippetBlock(s) {
   const code = s.code || '';
-  const shown = code.length > 1400 ? code.slice(0, 1400) + '\nâ€¦ (truncated)' : code;
+  const shown = code.length > 1400 ? code.slice(0, 1400) + '\n… (truncated)' : code;
   const fence = fenceFor(shown);
   const lang = s.language && s.language !== 'text' ? s.language : '';
   return `${fence}${lang}\n${shown}\n${fence}`;
 }
 
 function snippetMessage(s) {
-  return `ðŸ“Ž **${s.title}** Â· snippet\n\n${snippetBlock(s)}\n\n[Open snippet](#/snippet/${s.id})`;
+  return `📎 **${s.title}** · snippet\n\n${snippetBlock(s)}\n\n[Open snippet](#/snippet/${s.id})`;
 }
 
 // ------------------------------------------------------------------ create
@@ -175,7 +175,7 @@ function panel(ui) {
     id: PANEL,
     title: 'Snippets',
     async render(body) {
-      body.innerHTML = '<div class="muted pad">loadingâ€¦</div>';
+      body.innerHTML = '<div class="muted pad">loading…</div>';
       const [rows, err] = await tryRpc('list_my_snippets', {});
       if (err) {
         body.innerHTML = `<div class="empty">Could not load your snippets.<br>${esc(err.message)}</div>`;
@@ -206,7 +206,7 @@ function card(s) {
   box.innerHTML = `<div class="snip-head"><b>${esc(s.title)}</b>
       <span class="snip-lang">${esc(s.language || 'text')}</span>
       <span class="muted">${esc(relTime(s.created_at))}</span></div>
-    <pre class="snip-pre">${esc(preview)}${code.split('\n').length > 8 ? '\nâ€¦' : ''}</pre>`;
+    <pre class="snip-pre">${esc(preview)}${code.split('\n').length > 8 ? '\n…' : ''}</pre>`;
 
   const bar = el('div', 'row gap snip-bar');
   const add = (label, title, fn) => {
@@ -249,8 +249,8 @@ export function register({ ui, api }) {
       const s = (q || '').toLowerCase();
       if (s && !'snippet'.startsWith(s) && !'code'.startsWith(s)) return [];
       return [
-        { label: 'New snippet', hint: 'Save and share code', icon: 'ðŸ“Ž', run: () => snippetDialog() },
-        { label: 'My snippets', hint: 'Everything you have saved', icon: 'ðŸ“Ž', run: () => ui.openPanel(PANEL, {}) },
+        { label: 'New snippet', hint: 'Save and share code', icon: '📎', run: () => snippetDialog() },
+        { label: 'My snippets', hint: 'Everything you have saved', icon: '📎', run: () => ui.openPanel(PANEL, {}) },
       ];
     },
   });

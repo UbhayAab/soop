@@ -121,7 +121,7 @@ async function updateDialog(task) {
 }
 
 const shortTitle = (t) => (t.title || 'this').length > 32
-  ? (t.title || '').slice(0, 30) + 'â€¦' : (t.title || 'this');
+  ? (t.title || '').slice(0, 30) + '…' : (t.title || 'this');
 
 async function peopleOptions() {
   const out = [];
@@ -135,7 +135,7 @@ async function peopleOptions() {
 // ------------------------------------------------------------------ history
 // What happened, oldest first, because a story read backwards is not a story.
 async function renderHistory(host, task) {
-  host.innerHTML = `<div class="muted pad">loadingâ€¦</div>`;
+  host.innerHTML = `<div class="muted pad">loading…</div>`;
   const [events, err] = await call('list_task_events', { p_task: task.id });
   if (err || !Array.isArray(events)) {
     host.innerHTML = available
@@ -187,7 +187,7 @@ async function renderChain(host, task) {
 const TRIAGE_PANEL = 'triage';
 
 async function renderTriage(body) {
-  body.innerHTML = '<div class="muted pad">loadingâ€¦</div>';
+  body.innerHTML = '<div class="muted pad">loading…</div>';
   if (!store.ws) { body.innerHTML = '<div class="empty">Open a Space first.</div>'; return; }
   const [rows, err] = await call('list_triage', { p_workspace: store.ws.id });
   if (err || !Array.isArray(rows)) {

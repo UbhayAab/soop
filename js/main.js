@@ -330,7 +330,7 @@ export function showNoTeam(msg) {
     const btn = $('joinGo');
     btn.disabled = true;
     const was = btn.textContent;
-    btn.textContent = 'â€¦';
+    btn.textContent = '…';
     $('joinErr').classList.add('hidden');
     try {
       // Accept every shape the same link arrives in: the full URL, the hash
@@ -428,7 +428,7 @@ function flashTitle() {
   clearInterval(titleTimer);
   let on = false;
   titleTimer = setInterval(() => {
-    document.title = (on = !on) ? 'â— Dek' : 'Dek';
+    document.title = (on = !on) ? '● Dek' : 'Dek';
   }, 900);
   document.addEventListener('visibilitychange', function once() {
     clearInterval(titleTimer);
@@ -440,7 +440,7 @@ function flashTitle() {
 // ------------------------------------------------------------------ quick switcher
 function quickSwitcher() {
   const box = el('div', 'switcher');
-  box.innerHTML = '<input id="qsInput" placeholder="Jump to a channel, person or commandâ€¦" /><div id="qsRows"></div>';
+  box.innerHTML = '<input id="qsInput" placeholder="Jump to a channel, person or command…" /><div id="qsRows"></div>';
   const m = modal({ title: '', body: box, wide: true });
   const input = box.querySelector('#qsInput');
   const rows = box.querySelector('#qsRows');

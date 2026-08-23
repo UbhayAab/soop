@@ -1,6 +1,6 @@
 ﻿// A hand-built inline SVG icon set.
 //
-// The chrome used emoji (ðŸ’¬ ðŸ”” ðŸ”– ðŸ” ðŸ“Œ ðŸ‘¥). Emoji are rendered by the operating
+// The chrome used emoji (💬 🔔 🔖 🔍 📌 👥). Emoji are rendered by the operating
 // system, so the same button is a flat glyph on Windows, a glossy 3D blob on
 // Android and something else again on a Mac - three different products in three
 // screenshots. These are drawn once, inherit currentColor so they follow the

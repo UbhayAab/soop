@@ -110,7 +110,7 @@ export const PERM = {
 };
 
 // Quick-react bar: the six shown on message hover without opening the picker.
-export const QUICK_EMOJI = ['ðŸ‘', 'â¤ï¸', 'ðŸ˜‚', 'ðŸŽ‰', 'ðŸ‘€', 'âœ…'];
+export const QUICK_EMOJI = ['👍', '❤️', '😂', '🎉', '👀', '✅'];
 
 // 50 MB, because that is the hard ceiling on the Supabase free plan: "For Free
 // projects, the limit can't exceed 50 MB." This said 100 MB, so somebody picking

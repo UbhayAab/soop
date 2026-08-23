@@ -90,7 +90,7 @@ async function draw() {
 
   page.innerHTML = `
     <header class="ap-top">
-      <button class="ap-back" id="apBack">â† Back to Dek</button>
+      <button class="ap-back" id="apBack">← Back to Dek</button>
       <div class="ap-title">
         <span class="ap-mark" style="--h:${hueOf(org.org_id)}">${esc(initials(org.name))}</span>
         <div>
@@ -102,7 +102,7 @@ async function draw() {
     <div class="ap-body">
       <nav class="ap-nav">${SECTIONS.map(([id, label]) =>
         `<button data-sec="${id}" class="${id === section ? 'on' : ''}">${esc(label)}</button>`).join('')}</nav>
-      <main class="ap-main" id="apMain"><div class="loading-space"><span class="spin"></span>Loadingâ€¦</div></main>
+      <main class="ap-main" id="apMain"><div class="loading-space"><span class="spin"></span>Loading…</div></main>
     </div>`;
 
   page.querySelector('#apBack').onclick = closeAdminPage;
@@ -196,7 +196,7 @@ async function drawPeople(host, org) {
       <h2 class="ap-h2">People <span class="muted">${people.length}</span></h2>
       <div class="ap-rowhead-tools">
         <input id="apSearch" class="ap-search" placeholder="Search by name, email or title" />
-        <button class="sm" id="apAddPeople">ï¼‹ Add people</button>
+        <button class="sm" id="apAddPeople">＋ Add people</button>
       </div>
     </div>
     <div class="ap-table" id="apPeople"></div>`;
@@ -242,7 +242,7 @@ async function drawPeople(host, org) {
 // One person, everything an admin can do to them, in one place.
 async function managePerson(person, org, servers) {
   const box = el('div', 'ap-manage');
-  box.innerHTML = '<div class="loading-space"><span class="spin"></span>Loadingâ€¦</div>';
+  box.innerHTML = '<div class="loading-space"><span class="spin"></span>Loading…</div>';
   const m = UI.modal({ title: person.display_name || person.email, body: box, wide: true });
 
   const paint = async () => {
@@ -271,7 +271,7 @@ async function managePerson(person, org, servers) {
         <div>
           <b>${esc(fresh.display_name || '(no name)')}</b>
           <div class="muted">${esc(fresh.email || '')}</div>
-          <div class="muted">${esc(STATE_LABEL[fresh.state])} Â· in ${fresh.servers} server${fresh.servers === 1 ? '' : 's'}</div>
+          <div class="muted">${esc(STATE_LABEL[fresh.state])} · in ${fresh.servers} server${fresh.servers === 1 ? '' : 's'}</div>
         </div>
       </div>
 
@@ -433,7 +433,7 @@ async function drawServers(host, org) {
   host.innerHTML = `
     <div class="ap-rowhead">
       <h2 class="ap-h2">Servers <span class="muted">${servers.filter((s) => !s.archived_at).length} live</span></h2>
-      <button class="sm" id="apNewServer">ï¼‹ New server</button>
+      <button class="sm" id="apNewServer">＋ New server</button>
     </div>
     <div class="ap-table">${servers.map((s) => {
       const doomed = !!s.scheduled_delete_at;
@@ -446,7 +446,7 @@ async function drawServers(host, org) {
           ${doomed ? `<span class="ap-chip warn">deleting ${esc(relTime(s.scheduled_delete_at))}</span>`
             : gone ? '<span class="ap-chip">archived</span>' : ''}
           ${s.join_policy === 'open' ? '' : '<span class="ap-chip">invite only</span>'}
-          <div class="muted ap-person-sub">${s.members} member${s.members === 1 ? '' : 's'} Â· ${s.channels} channel${s.channels === 1 ? '' : 's'}</div>
+          <div class="muted ap-person-sub">${s.members} member${s.members === 1 ? '' : 's'} · ${s.channels} channel${s.channels === 1 ? '' : 's'}</div>
         </div>
         <div class="ap-acts">
           ${gone
@@ -819,7 +819,7 @@ export function register(app) {
 
   app.ui.addHeaderButton({
     id: 'orgadmin',
-    label: app.ui.icon ? app.ui.icon('settings') : 'âš™',
+    label: app.ui.icon ? app.ui.icon('settings') : '⚙',
     title: 'Organisation settings',
     order: 190,
     show: () => isOrgAdmin(store.ws?.org_id),

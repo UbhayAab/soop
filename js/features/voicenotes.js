@@ -99,7 +99,7 @@ async function onStop() {
   const ext = /mp4/.test(blob.type) ? 'm4a' : /ogg/.test(blob.type) ? 'ogg' : 'webm';
   const dur = Math.round((Date.now() - startedAt) / 1000);
   const file = new File([blob], `voice-note-${fmt(dur).replace(':', 'm')}s.${ext}`, { type: blob.type });
-  toast('Sending voice noteâ€¦');
+  toast('Sending voice note…');
   try {
     const up = await uploadFile(file);
     await api.send({

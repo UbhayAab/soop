@@ -57,7 +57,7 @@ function show(err, ui) {
   barEl.innerHTML = `
     <span class="errbar-txt">Something went wrong on this screen.</span>
     <button class="errbar-btn" data-a="report">Send a report</button>
-    <button class="errbar-x" data-a="close" aria-label="Dismiss">âœ•</button>`;
+    <button class="errbar-x" data-a="close" aria-label="Dismiss">✕</button>`;
   document.body.appendChild(barEl);
 
   barEl.querySelector('[data-a="close"]').onclick = () => { barEl?.remove(); barEl = null; };

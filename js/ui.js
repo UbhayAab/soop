@@ -23,7 +23,7 @@ export function modal({ title, body, actions = [], wide = false, onClose } = {})
   const back = el('div', 'modal-back');
   const box = el('div', 'modal' + (wide ? ' modal-wide' : ''));
   const head = el('div', 'modal-head', `<strong>${esc(title || '')}</strong>`);
-  const x = el('button', 'icon', 'âœ•');
+  const x = el('button', 'icon', '✕');
   head.appendChild(x);
   const bodyEl = el('div', 'modal-body');
   if (typeof body === 'string') bodyEl.innerHTML = body;
@@ -190,7 +190,7 @@ export async function openPanel(id, ctx = {}) {
   if (!history.state?.dekPanel) history.pushState({ dekPanel: id }, '');
   $('panelTitle').textContent = typeof def.title === 'function' ? def.title(ctx) : def.title;
   const body = $('panelContent');
-  body.innerHTML = '<div class="muted pad">loadingâ€¦</div>';
+  body.innerHTML = '<div class="muted pad">loading…</div>';
   const foot = $('panelFooter');
   foot.innerHTML = '';
   foot.classList.add('hidden');
@@ -417,7 +417,7 @@ export function closePopovers() {
 }
 
 // ------------------------------------------------------------------ misc
-export function spinner(text = 'loadingâ€¦') { return el('div', 'muted pad', esc(text)); }
+export function spinner(text = 'loading…') { return el('div', 'muted pad', esc(text)); }
 export function emptyState(text) { return el('div', 'empty', esc(text)); }
 
 export const ui = {
