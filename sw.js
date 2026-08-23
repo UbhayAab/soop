@@ -7,14 +7,15 @@
 //    posts SKIP_WAITING.
 //  - The esm.sh dependencies are cached so the app opens offline instead of
 //    hanging on a module import.
-// Bumped for the delivery, scroll and layout fixes. The module URLs carry no
+// Bumped for the delivery, scroll and layout fixes; most recently so the
+// feature modules join the precache (below). The module URLs carry no
 // version of their own, so this string is the only cache-bust lever the app has:
 // activate() deletes every cache key that does not start with VERSION, which is
 // what drops the precached v7 copies of these files. Code is network-first
 // (below), but the precached copy is still what wins the 3.5s race on a slow
 // phone, so without this bump the 41 installed clients would keep serving the old
 // bundle whenever the network was slow - which is the shape of 03f8074.
-const VERSION = 'dek-v11';
+const VERSION = 'dek-v12';
 const SHELL = VERSION + '-shell';
 const VENDOR = VERSION + '-vendor';
 
@@ -66,8 +67,31 @@ const SHELL_FILES = [
   // a phone that says "could not load, try again" and one that shows a raw
   // exception where the conversation was, so it belongs in the shell too.
   './js/features/uxfix.js',
+  // Every registered feature module. features/index.js imports these dynamically
+  // and swallows fetch failures by design, so a feature missing from this cache
+  // does not break anything online - but offline it silently vanishes: no DM
+  // list, no tasks, no tab bar. KEEP IN SYNC with FEATURES in
+  // js/features/index.js; a stale entry here costs nothing (install skips 404s),
+  // a missing one costs the feature on every offline cold start.
+  ...['dmlist', 'polls', 'events', 'canvases', 'topics', 'forum', 'later',
+    'status', 'profile', 'profilepage', 'admin', 'orgadmin', 'moderation',
+    'integrations', 'messageExtras', 'onboarding', 'roles', 'snippets',
+    'bookmarks', 'notifications', 'shortcuts', 'ackloop', 'forms', 'tasks',
+    'quicktask', 'taskprogress', 'orientation', 'activityReport', 'coordnav',
+    'voicerooms', 'adminnav', 'screenshare', 'errorreport', 'voicenotes',
+  ].map((n) => `./js/features/${n}.js`),
+  // tabbar.js is a dynamic import in main.js with a silent catch; uncached it
+  // means an installed phone opens with no navigation at all.
+  './js/tabbar.js',
   './js/lib/outbox.js',
   './js/lib/readcache.js',
+  // Static dependencies of tasks/quicktask/taskprogress above - if the feature
+  // file is cached but its import is not, the dynamic import still throws and
+  // the feature still vanishes.
+  './js/lib/asks.js',
+  './js/lib/forecast.js',
+  // Same shape: adminnav.js statically imports this support module.
+  './js/features/people.js',
   // The last page of each channel is painted from here BEFORE the network is
   // touched, so it has to be in the shell or an offline cold start has nothing
   // to draw.
