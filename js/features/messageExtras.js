@@ -7,8 +7,8 @@
 // and the list still renders exactly as before.
 import { table, tryRpc } from '../api.js';
 import { store, bus, nameOf, hasPerm } from '../store.js';
-import { PERM } from '../config.js';
-import { el, esc, plain, relTime, toLocalInput, fromLocalInput, debounce } from '../util.js';
+import { PERM, SUPABASE_URL } from '../config.js';
+import { el, esc, plain, relTime, toLocalInput, fromLocalInput, debounce, hueOf } from '../util.js';
 import { icon } from '../icons.js';
 
 // Set in register(); everything below is module scope so the helpers stay flat.
@@ -371,6 +371,21 @@ async function renderScheduled(body) {
 
 // ------------------------------------------------------------------ 4. hover extras
 const pinnedByChannel = new Map();   // channel_id -> Set(message_id)
+// Read access for the core overflow menu, which otherwise hard-coded its pin
+// state to false and offered no unpin at all. Write path stays here so the
+// cache and the hover buttons can never drift apart again.
+export function isMsgPinned(id) {
+  const set = store.current ? pinnedByChannel.get(store.current.id) : null;
+  return !!(set && set.has(id));
+}
+export function notePinChange(id, on) {
+  const ch = store.current;
+  if (!ch || !id) return;
+  let set = pinnedByChannel.get(ch.id);
+  if (!set) { set = new Set(); pinnedByChannel.set(ch.id, set); }
+  if (on) set.add(id); else set.delete(id);
+  syncPinButtons();
+}
 
 const canPin = (m) => hasPerm(PERM.MANAGE_MESSAGES) || m.author_id === store.me;
 
@@ -500,7 +515,7 @@ function loneUrl(text) {
 }
 
 function registerLinkCards() {
-  bus.on('message:render', ({ msg, el: row }) => {
+  bus.on('message:render', async ({ msg, el: row }) => {
     const u = loneUrl(msg?.body_text);
     if (!u) return;
     const host = row.querySelector('.mbody');
@@ -513,17 +528,35 @@ function registerLinkCards() {
     const path = (u.pathname === '/' ? '' : u.pathname) + u.search;
     card.innerHTML = `<span class="mx-fav"></span>
       <span class="mx-link-txt">
-        <span class="mx-link-host">${esc(u.hostname.replace(/^www\./, ''))}</span>
+        <span class="mx-link-host">${esc(u.hostname.replace(/^www\., /))}</span>
         <span class="mx-link-url">${esc(path || u.href)}</span>
       </span>
       <span class="mx-link-out" title="Opens in a new tab">↗</span>`;
 
-    // The remote page is deliberately never fetched: CORS would block it anyway,
-    // and a client-side fetch would tell every linked site who is reading. The
-    // favicon goes in as a background image so an unreachable icon service fails
-    // silently instead of logging a broken <img>.
-    card.querySelector('.mx-fav').style.backgroundImage =
-      `url("https://www.google.com/s2/favicons?domain=${encodeURIComponent(u.hostname)}&sz=64")`;
+    // No third-party favicon service, ever. google.com/s2 was told every
+    // hostname anybody linked - a private-browsing mode leak and a signal to a
+    // third party this product's privacy story cannot afford. A local letter
+    // chip needs no network and no permission.
+    const letterChip = (host) => {
+      const h = host.replace(/^www\./, '');
+      const ch = (h[0] || '?').toUpperCase();
+      const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='64' height='64' fill='hsl(${hueOf(h)} 45% 32%)'/><text x='32' y='44' font-size='34' fill='white' text-anchor='middle' font-family='sans-serif'>${ch}</text></svg>`;
+      return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+    };
+    try {
+      const resp = await fetch(SUPABASE_URL + '/functions/v1/dek-unfurl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: u.href }),
+      });
+      const data = await resp.json();
+      card.querySelector('.mx-fav').style.backgroundImage =
+        data && data.image ? `url("${data.image}")` : letterChip(u.hostname);
+    } catch (e) {
+      console.error('[link unfurl]', e);
+      card.querySelector('.mx-fav').style.backgroundImage = letterChip(u.hostname);
+    }
+
     host.insertBefore(card, host.querySelector('.rxns'));
   });
 }
