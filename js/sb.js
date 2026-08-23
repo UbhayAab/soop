@@ -207,6 +207,12 @@ export function realtimeHealth() {
 }
 
 // ------------------------------------------------------------------ lifecycle
+// Sign-out callers say so before they call auth.signOut(). The forced-signout
+// handler below must not greet a person who chose to leave with "your session
+// ended" as if something had gone wrong.
+let intentionalSignOut = false;
+export const markIntentionalSignOut = () => { intentionalSignOut = true; };
+
 // Keep the socket's JWT fresh. Realtime authorization is evaluated at connect
 // time and only re-evaluated on a new token, so pushing every refresh is what
 // makes a newly-joined channel actually reachable without a reload.

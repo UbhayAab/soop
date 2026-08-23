@@ -34,7 +34,7 @@
 // origin. A host not on the list gets a plain refusal rather than a half-working
 // panel.
 import { EMBED_ORIGINS, EMBED_EXCHANGE_URL } from './config.js';
-import { sb } from './sb.js';
+import { sb, markIntentionalSignOut } from './sb.js';
 import { bus, store } from './store.js';
 
 const PROTO = 'Dek';
@@ -160,6 +160,7 @@ async function onMessage(ev) {
       break;
 
     case 'signout':
+      markIntentionalSignOut();
       await sb.auth.signOut().catch(() => {});
       embed.waitingForAuth = true;
       send('auth-needed', { reason: 'host-signout' });

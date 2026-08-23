@@ -2,7 +2,7 @@
 // The OTP screen is a state machine (idle -> sent -> verifying) with a resend
 // cooldown, because a code screen that silently does nothing is the fastest way
 // to lose someone at the door.
-import { sb, session } from '../sb.js';
+import { sb, session, markIntentionalSignOut } from '../sb.js';
 import { CODE_SIGNIN, GUEST_SIGNIN, NOTICE_AT_SIGNUP } from '../config.js';
 import { api, tryRpc } from '../api.js';
 import { store } from '../store.js';
@@ -72,6 +72,16 @@ export function initAuth(onSignedIn) {
       ? 'That sign-in link has expired or was already used. Request a new one below.'
       : cb.error);
   }
+
+  // A forced sign-out (revoked token, another tab leaving) stashes this before
+  // reloading, so the card can say why it appeared instead of the person finding
+  // chat gone with no explanation.
+  try {
+    if (sessionStorage.getItem('dekKicked')) {
+      sessionStorage.removeItem('dekKicked');
+      authError('Your session ended on this device. Sign in again to continue.');
+    }
+  } catch { /* storage unavailable */ }
 
   // ---- guest ----
   $('guestBtn').onclick = async () => {
@@ -265,6 +275,7 @@ export function initAuth(onSignedIn) {
         import('../lib/pagecache.js').then((m) => m.wipe()),
         import('../lib/readcache.js').then((m) => m.wipe()),
       ]).catch(() => { /* signing out must not be blocked by storage */ });
+      markIntentionalSignOut();
       await sb.auth.signOut();
       location.hash = '';
       location.reload();

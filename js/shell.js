@@ -18,7 +18,7 @@ import { icon } from './icons.js';
 import ui, { openPanel, contextMenu, toast, closePopovers } from './ui.js';
 import { openThemePicker, effectiveTheme, THEMES, setTheme } from './theme.js';
 import { api, tryRpc } from './api.js';
-import { sb } from './sb.js';
+import { sb, markIntentionalSignOut } from './sb.js';
 
 // How many registered header buttons stay visible on the channel bar before the
 // rest collapse into the overflow. Four is about where a row stops being
@@ -97,6 +97,7 @@ function userMenu(ev) {
         import('./lib/pagecache.js').then((m) => m.wipe()),
         import('./lib/readcache.js').then((m) => m.wipe()),
       ]).catch(() => { /* signing out must not be blocked by storage */ });
+      markIntentionalSignOut();
       await sb.auth.signOut();
       location.hash = '';
       location.reload();

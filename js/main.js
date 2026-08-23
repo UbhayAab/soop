@@ -634,6 +634,26 @@ async function main() {
     toast('Something went wrong loading your Spaces. Reload to try again.', 'error');
   };
 
+  // A session can end without this device asking for it: the refresh token was
+  // revoked (admin kick, password change, another tab signing out) and GoTrue
+  // drops it with a SIGNED_OUT event while the chat is on screen. Left alone,
+  // the app keeps running on dead credentials - every RPC 401s, realtime joins
+  // are refused, and nothing explains why. So a forced sign-out takes the same
+  // path as the menu one: local caches off the device (shared-phone rule), then
+  // a clean reload onto the sign-in card. Deliberate sign-outs latch first via
+  // markIntentionalSignOut() and never land here.
+  sb.auth.onAuthStateChange((evt) => {
+    if (evt !== 'SIGNED_OUT' || !store.me) return;
+    try { sessionStorage.setItem('dekKicked', '1'); } catch { /* storage blocked */ }
+    Promise.all([
+      import('./lib/pagecache.js').then((m) => m.wipe()),
+      import('./lib/readcache.js').then((m) => m.wipe()),
+    ]).catch(() => { /* leaving anyway */ }).finally(() => {
+      location.hash = '';
+      location.reload();
+    });
+  });
+
   const s = await session();
   if (s) { enter().catch(bootFailed); return; }
 
