@@ -369,16 +369,19 @@ export async function orgInviteDialog(orgId) {
         ] },
       { name: 'uses', label: 'How many people may use it', type: 'number',
         placeholder: 'leave blank for no limit' },
+      { name: 'expires', label: 'Expires after (days)', type: 'number',
+        placeholder: 'leave blank for no expiration' },
     ],
     submitLabel: 'Create link',
   });
   if (!out) return;
   try {
+    const expiresAt = out.expires != null ? new Date(Date.now() + 864e5 * out.expires).toISOString() : null;
     const token = await api.rpc('create_org_invite', {
       p_org: orgId,
       p_role: out.role || 'member',
       p_max_uses: out.uses ? +out.uses : null,
-      p_expires_at: null,
+      p_expires_at: expiresAt,
     });
     const link = location.origin + location.pathname + '#/join-org/' + token;
     await navigator.clipboard?.writeText(link).catch(() => {});
@@ -880,6 +883,10 @@ export async function inviteDialog(space, isNew = false) {
           <option value="1">1 day</option>
           <option value="30">30 days</option>
           <option value="">Never</option></select></label>
+      <label class="field"><span class="field-label">Joins as</span>
+        <select id="invRole">
+          <option value="">Member</option>
+          <option value="moderator">Moderator</option></select></label>
       <button class="ghost" id="regen">New link</button>
     </div>
     <div id="inviteList" class="invite-list"></div>`;
@@ -915,9 +922,10 @@ export async function inviteDialog(space, isNew = false) {
       // same way the admin console does it.
       const n = Number(max);
       const uses = Number.isInteger(n) && n > 0 ? n : null;
+      const role = $q('#invRole').value || null;
       const token = await api.createInvite(
         ws.id, uses,
-        days ? new Date(Date.now() + +days * 86400000).toISOString() : null, null);
+        days ? new Date(Date.now() + +days * 86400000).toISOString() : null, role);
       linkEl.value = inviteLinkFor(token);
       copyBtn.disabled = false;
       refreshList();

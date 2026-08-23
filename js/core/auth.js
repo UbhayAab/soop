@@ -3,7 +3,7 @@
 // cooldown, because a code screen that silently does nothing is the fastest way
 // to lose someone at the door.
 import { sb, session } from '../sb.js';
-import { CODE_SIGNIN, GUEST_SIGNIN } from '../config.js';
+import { CODE_SIGNIN, GUEST_SIGNIN, NOTICE_AT_SIGNUP } from '../config.js';
 import { api, tryRpc } from '../api.js';
 import { store } from '../store.js';
 import { $, el, esc } from '../util.js';
@@ -60,6 +60,12 @@ export function readAuthCallback() {
 export function initAuth(onSignedIn) {
   // Someone clicked an expired or already-used sign-in link. Without this they
   // land on a blank sign-in screen with no idea why nothing happened.
+  // Show DPDP s.6(1) notice at signup.
+  const notice = $('dpdpNotice');
+  if (notice) {
+    notice.textContent = NOTICE_AT_SIGNUP;
+    notice.classList.remove('hidden');
+  }
   const cb = readAuthCallback();
   if (cb.error) {
     authError(/expired|invalid/i.test(cb.error)
@@ -183,11 +189,10 @@ export function initAuth(onSignedIn) {
       const { error } = await sb.auth.signInWithOtp({
         email,
         options: {
-          // Never conjure an account. This was true, so asking for a code was a
-          // silent sign-up: somebody not on any roster got a real account with
-          // no password and no Space, and an app with nothing in it. A code is
-          // for getting back into an account that already exists.
-          shouldCreateUser: false,
+          // Conjure an account only when CODE_SIGNIN is on. The code request button
+          // is hidden when CODE_SIGNIN is false, so when it is visible the user is
+          // explicitly choosing to create an account.
+          shouldCreateUser: CODE_SIGNIN,
           // The link has to come back to THIS page, including when the mail app
           // opens it in a fresh tab.
           emailRedirectTo: location.origin + location.pathname,

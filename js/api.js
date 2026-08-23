@@ -173,6 +173,8 @@ export const api = {
   // whoever reaches for it next.
   listJoinRequests: (ws) => rpc('list_join_requests', { p_workspace: ws }),
   countJoinRequests: (ws) => rpc('count_join_requests', { p_workspace: ws }),
+  listOrgJoinRequests: (org) => rpc('list_org_join_requests', { p_org: org }),
+  countOrgJoinRequests: (org) => rpc('count_org_join_requests', { p_org: org }),
 
   setWorkspaceGate: (ws, level, requiresApproval, rules) => rpc('set_workspace_gate', {
     p_workspace: ws, p_verification_level: level,
@@ -182,6 +184,8 @@ export const api = {
   requestJoin: (ws) => rpc('request_join', { p_workspace: ws }),
   approveJoin: (req) => rpc('approve_join_request', { p_request: req }),
   rejectJoin: (req) => rpc('reject_join_request', { p_request: req }),
+  approveOrgJoin: (req) => rpc('approve_org_join_request', { p_request: req }),
+  rejectOrgJoin: (req) => rpc('reject_org_join_request', { p_request: req }),
 
   // ---------- invites ----------
   createInvite: (ws, maxUses = null, expiresAt = null, grantRole = null) =>
