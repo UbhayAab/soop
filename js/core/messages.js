@@ -31,6 +31,28 @@ export async function hydrateAvatars(root) {
     img.src = url;
   }
 }
+
+// Faces everywhere, not just message rows: panels render avatarHtml too (DM
+// lists, member pickers, profile cards, forum bylines) and used to keep
+// initials until their own repaint. One observer sweeps the document after any
+// DOM burst; the [data-ha] guard makes re-sweeps free, so fills triggered by
+// this very sweep never recurse.
+let sweepInstalled = false;
+export function initAvatarSweep() {
+  if (sweepInstalled || typeof MutationObserver === 'undefined') return;
+  sweepInstalled = true;
+  let queued = false;
+  const sweep = () => {
+    queued = false;
+    hydrateAvatars(document).catch(() => {});
+  };
+  new MutationObserver(() => {
+    if (queued) return;
+    queued = true;
+    setTimeout(sweep, 50);
+  }).observe(document.body, { childList: true, subtree: true });
+  hydrateAvatars(document).catch(() => {});
+}
 import { icon } from '../icons.js';
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
