@@ -227,19 +227,11 @@ function paintChip(host, tasks) {
   }
 }
 
-// A message you just sent is painted optimistically with the client nonce as its
-// id, and core's upgradeMessageRow() then rewrites row.dataset.id to the real one
-// WITHOUT re-emitting message:render. Anything a feature stamped at render time is
-// therefore stale for exactly the message the user is looking at.
-//
-// Measured: the row ended up data-id=019f9a15-16a7-... (server uuidv7) while the
-// slot inside it still said data-msg=1995bd17-2511-... (the v4 nonce), so the chip
-// for a task you had just created never appeared until a reload.
-//
-// The row is the authority. Read the id off it at paint time and re-stamp.
+// The nonce problem this file used to solve by re-reading row.dataset.id on
+// every paint is fixed at the source: core now emits message:idUpgraded when
+// the optimistic id dies (messages.js, both swap sites), and the listener below
+// re-stamps and repaints. slot.dataset.msg is therefore authoritative here.
 function slotMessageId(slot) {
-  const live = slot.closest('.msg')?.dataset.id;
-  if (live && live !== slot.dataset.msg) slot.dataset.msg = live;
   return slot.dataset.msg;
 }
 
@@ -761,6 +753,15 @@ export function register({ ui }) {
   watchHeader();
 
   bus.on('message:render', ({ msg, el: row }) => mount(msg, row));
+  // The optimistic nonce on a slot I just created died: re-stamp and paint the
+  // chip now if a task for this message already exists (it usually does - the
+  // create round trip beat the send echo). Before core emitted this, the chip
+  // for the task you had just made never appeared until reload.
+  bus.on('message:idUpgraded', ({ from, id, row }) => {
+    for (const s of row.querySelectorAll('.' + CLS + '-slot')) {
+      if (s.dataset.msg === from) { s.dataset.msg = id; paintChip(s, byMessage.get(id) || []); }
+    }
+  });
   bus.on('channel:open', () => { scheduleBind(); refreshChips(); });
   // Core replaces the 'chan' object on a recovered drop as well as on a switch,
   // and emits this precisely so features can re-bind (channels.js). Binding only

@@ -570,6 +570,10 @@ export function jumpLatest(host, context = 'channel') {
 // the message.
 export function upgradeMessageRow(row, m, context = 'channel') {
   if (!row || !m?.id) return row;
+  // The nonce this row carried while the send was in flight. Features stamp
+  // their per-message UI with it at render time, so they need to know when it
+  // stops being true - see the emit at the bottom.
+  const from = row.dataset.id !== m.id ? row.dataset.id : null;
   row.id = 'm' + m.id;
   row.dataset.id = m.id;
   row.dataset.seq = m.seq ?? '';
@@ -605,6 +609,10 @@ export function upgradeMessageRow(row, m, context = 'channel') {
 
   store.msgCache.set(m.id, m);
   paintReactions(m.id);
+  // The event the swap never used to have: anything that stamped the nonce at
+  // render time (task chips, ack cards) re-stamps and repaints here, instead of
+  // every feature re-reading row.dataset.id on every paint and hoping.
+  if (from) bus.emit('message:idUpgraded', { from, id: m.id, row });
   return row;
 }
 
@@ -626,7 +634,13 @@ export function claimMessage(m) {
   const nonce = m.client_msg_id;
   if (nonce && store.seen.has('n:' + nonce)) {
     const ex = document.getElementById('m' + nonce);
-    if (ex && m.id) { ex.id = 'm' + m.id; ex.dataset.id = m.id; ex.classList.remove('pending'); }
+    // Second id-swap site: the realtime echo of my own send can arrive before
+    // the send RPC resolves (upgradeMessageRow handles that one). Same duty to
+    // tell features the nonce died.
+    if (ex && m.id) {
+      ex.id = 'm' + m.id; ex.dataset.id = m.id; ex.classList.remove('pending');
+      bus.emit('message:idUpgraded', { from: nonce, id: m.id, row: ex });
+    }
     if (m.id) { store.seen.add(m.id); store.msgCache.set(m.id, m); }
     return false;
   }

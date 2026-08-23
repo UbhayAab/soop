@@ -130,12 +130,9 @@ function mount(msg, row) {
   if (row.dataset.acklMounted === msg.id) return;
   row.dataset.acklMounted = msg.id;
 
-  // Core rewrites row.dataset.id when the server answers an optimistic send but
-  // never re-emits message:render, so a card stamped with the client nonce would
-  // never repaint. Drop any card carrying a different id before adding this one.
-  row.querySelectorAll('.' + CLS + '-card').forEach((n) => {
-    if (n.dataset.ackl !== msg.id) n.remove();
-  });
+  // A card stamped with the optimistic nonce is fixed by the message:idUpgraded
+  // listener below, not by dropping cards here - this used to be the workaround
+  // because core never announced the swap.
 
   const body = row.querySelector('.body') || row;
   const card = el('div', CLS + '-card');
@@ -270,6 +267,14 @@ export function register({ ui }) {
   style();
 
   bus.on('message:render', ({ msg, el: row }) => mount(msg, row));
+  // The card I just mounted carries the send nonce until core swaps the row to
+  // the real id; re-stamp and load state under the real one. Before this event
+  // existed the card sat on "checking who has confirmed" until a reload.
+  bus.on('message:idUpgraded', ({ from, id, row }) => {
+    for (const c of row.querySelectorAll('.' + CLS + '-card')) {
+      if (c.dataset.ackl === from) { c.dataset.ackl = id; repaint(id); }
+    }
+  });
   bus.on('channel:open', scheduleBind);
   bus.on('channel:subscribed', scheduleBind);
   scheduleBind();
