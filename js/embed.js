@@ -147,9 +147,14 @@ async function applyAuth(msg) {
 // ------------------------------------------------------------------ inbound
 async function onMessage(ev) {
   if (!embed.active) return;
-  // Both checks matter. The origin check is the security boundary; the shape
+  // All three checks matter. The source check pins the conversation to our own
+  // parent window: origin alone would accept any OTHER frame at an allowed
+  // origin - a sibling iframe, a popup the dashboard spawned - and PLAN.md audit
+  // #1. The host loader does the mirror check (embed.js root, ev.source !==
+  // frame.contentWindow). The origin check is the security boundary; the shape
   // check stops us reacting to the unrelated postMessage traffic that analytics
   // and framework devtools spray at every frame on the page.
+  if (ev.source !== window.parent) return;
   if (ev.origin !== embed.host) return;
   const msg = ev.data;
   if (!msg || typeof msg !== 'object' || typeof msg[PROTO] !== 'string') return;
