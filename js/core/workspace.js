@@ -245,10 +245,14 @@ export async function loadSpaces() {
   // rather than a broken sign-in.
   const [orgs] = await tryRpc('my_orgs', {});
   store.orgs = Array.isArray(orgs) ? orgs : [];
-  const [summary] = await tryRpc('get_space_summary', {});
-  if (Array.isArray(summary)) {
-    store.spaceBadges = new Map(summary.map((s) => [s.workspace_id, s]));
-  }
+  // Via the shared wrapper, not a bare tryRpc: refreshUnread's full tail asks
+  // for the same rollup seconds later and api.spaceSummary() dedups that.
+  try {
+    const summary = await api.spaceSummary();
+    if (Array.isArray(summary)) {
+      store.spaceBadges = new Map(summary.map((s) => [s.workspace_id, s]));
+    }
+  } catch { /* the rail just keeps its last state */ }
   renderSpaceRail();
   return rows;
 }

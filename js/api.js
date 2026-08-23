@@ -35,6 +35,10 @@ export async function table(name, build) {
   return data || [];
 }
 
+// Shared 20s TTL + in-flight dedup for get_space_summary (see api.spaceSummary).
+let spaceSummaryAt = 0;
+let spaceSummaryP = null;
+
 export const api = {
   // Escape hatch for RPCs that have no typed wrapper yet - the organisation
   // layer (0064) calls several and they all take plain named arguments.
@@ -82,7 +86,20 @@ export const api = {
   createSpace: (name) => rpc('create_space', { p_name: name }),
   createWorkspace: (org, slug, name) => rpc('create_workspace', { p_org: org, p_slug: slug, p_name: name }),
   bootstrap: (ws) => rpc('get_bootstrap', { p_workspace: ws }),
-  spaceSummary: () => rpc('get_space_summary', {}),
+  // Cross-Space badge rollup. loadSpaces() at sign-in and refreshUnread()'s full
+  // tail both ask for it within seconds of each other; a short shared TTL with
+  // in-flight dedup turns the second call into a free await instead of a second
+  // identical RPC on every boot.
+  spaceSummary: () => {
+    const now = Date.now();
+    if (spaceSummaryP && now - spaceSummaryAt < 20000) return spaceSummaryP;
+    spaceSummaryAt = now;
+    spaceSummaryP = rpc('get_space_summary', {}).catch((e) => {
+      spaceSummaryAt = 0;
+      throw e;
+    });
+    return spaceSummaryP;
+  },
   leaveWorkspace: (ws) => rpc('leave_workspace', { p_workspace: ws }),
 
   // ---------- removal (0066) ----------

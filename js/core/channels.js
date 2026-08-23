@@ -1172,7 +1172,6 @@ export async function refreshDMList() {
   if (!store.ws) return;
   try {
     const rows = (await api.dmUnread(store.ws.id)) || [];
-    if (!rows.length) return;
     const known = new Set(store.dms.map((d) => d.conversation_id));
     const fresh = rows.filter((r) => !known.has(r.conversation_id));
 
@@ -1196,11 +1195,20 @@ export async function refreshDMList() {
         });
       }
     }
+    // Sync every badge from the server answer, including conversations ABSENT
+    // from it - a DM read on another device used to keep its lit dot here until
+    // a Space switch, because this function used to return early on an empty
+    // answer and only ever updated rows the answer still mentioned.
+    const byId = new Map(rows.map((r) => [r.conversation_id, r]));
+    let dirty = false;
     for (const d of store.dms) {
-      const row = rows.find((r) => r.conversation_id === d.conversation_id);
-      if (row) { d.unread = row.unread ? 1 : 0; d.last_message_at = row.last_message_at; }
+      const row = byId.get(d.conversation_id);
+      const next = row && row.unread ? 1 : 0;
+      if ((d.unread ? 1 : 0) !== next) { d.unread = next; dirty = true; }
+      if (row) d.last_message_at = row.last_message_at;
     }
-    if (fresh.length) renderChannels();
+    if (dirty) bus.emit('unread');
+    if (dirty || fresh.length) renderChannels();
   } catch { /* transient */ }
 }
 

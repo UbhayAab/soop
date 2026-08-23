@@ -1,4 +1,4 @@
-﻿// Dek service worker.
+// Dek service worker.
 //
 // Rules that matter:
 //  - Never cache Supabase (auth, realtime, RPC, storage). A stale message list or
@@ -15,7 +15,7 @@
 // (below), but the precached copy is still what wins the 3.5s race on a slow
 // phone, so without this bump the 41 installed clients would keep serving the old
 // bundle whenever the network was slow - which is the shape of 03f8074.
-const VERSION = 'dek-v12';
+const VERSION = 'dek-v13';
 const SHELL = VERSION + '-shell';
 const VENDOR = VERSION + '-vendor';
 
