@@ -60,10 +60,12 @@ async function go(id) {
     if (c) { const { openChannel } = await import('./core/channels.js'); openChannel(c); }
     else bus.emit('channel:list');
   } else if (id === 'dms') {
-    // A DM list surface, not a blind jump: opening the sidebar drawer scoped to
-    // conversations beats guessing which conversation they meant.
+    // A DM list surface, not a blind jump: with an active conversation we
+    // reopen it, otherwise the dedicated conversations panel (registered by
+    // features/dmlist.js) lists them newest-first. The drawer is no longer the
+    // fallback - on a phone it buried DMs under channels and org chrome.
     if (store.currentDM) { const { openDM } = await import('./core/dms.js'); openDM(store.currentDM); }
-    else { document.body.classList.add('nav-open'); }
+    else { const { openPanel } = await import('./ui.js'); openPanel('dms'); }
   } else {
     const { openPanel } = await import('./ui.js');
     openPanel(id === 'later' ? 'later' : 'activity');

@@ -5,6 +5,9 @@
 // the app down with it, and adding a feature means adding a filename here and
 // nothing else. That is what lets features be built in parallel.
 const FEATURES = [
+  // The DMs tab's list surface; tabbar.js opens this panel when no conversation
+  // is active. Early so the tab never races its registration.
+  'dmlist',
   'polls',
   'events',
   'canvases',
