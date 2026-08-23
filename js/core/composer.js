@@ -1,10 +1,10 @@
 // The composer: autocomplete (@people, #channels, :emoji, /commands), attachments,
 // server-synced drafts, typing broadcast, and optimistic send.
-import { api } from '../api.js';
+import { api, table } from '../api.js';
 import { store, bus, nameOf } from '../store.js';
 import { getSub } from '../sb.js';
 import { $, el, esc, debounce, fmtSize } from '../util.js';
-import { toast, listSlash, runSlash, renderComposerButtons } from '../ui.js';
+import { toast, listSlash, runSlash, renderComposerButtons, addComposerButton } from '../ui.js';
 import { uploadFile } from './media.js';
 import { openEmojiPicker, searchEmoji } from './emoji.js';
 import { appendMessage, claimMessage, scrollDown, upgradeMessageRow } from './messages.js';
@@ -12,6 +12,7 @@ import { icon } from '../icons.js';
 
 let pending = [];          // attachments being/already uploaded
 let ac = null;             // active autocomplete state
+let voice = { isRecording: false, chunks: [], recorder: null };
 
 const composerEl = () => $('composer');
 
@@ -79,7 +80,12 @@ function updateAutocomplete() {
     const groups = [{ label: '@here', hint: 'notify everyone online', icon: '📣', value: 'here' },
       { label: '@channel', hint: 'notify the whole channel', icon: '📣', value: 'channel' }]
       .filter((g) => !q || g.label.slice(1).startsWith(q));
-    const items = [...people, ...groups];
+    // Cached group handles from this Space: "@sales", "@on-call".
+    const gitems = getGroupHandles()
+      .filter((h) => !q || h.includes(q))
+      .slice(0, 4)
+      .map((h) => ({ label: '@' + h, hint: 'every member of the group', icon: '👥', value: h }));
+    const items = [...people, ...groups, ...gitems];
     if (items.length) return acShow(items, (it) => replaceToken(/(?:^|\s)@([\w.-]*)$/, (m) => m.replace(/@[\w.-]*$/, '@' + it.value + ' ')));
   }
 
@@ -104,16 +110,93 @@ function updateAutocomplete() {
 }
 
 // ------------------------------------------------------------------ mentions
+// Longest-match scan over the roster instead of a no-space regex. The old
+// /@[\w.-]+/ extraction stopped at the first space, so autocomplete inserting
+// "@Asha Kumar" produced a token "@Asha" that matched nobody - silently, with
+ // no notification and no highlight. Names sort longest-first so a display name
+// always beats a username that prefixes it.
+
+// ---- @group mentions -------------------------------------------------------
+// Groups are an @handle that pings a fixed set of people (roles.js manages
+// them), but nothing ever resolved them: typing "@sales" stored zero mention
+// ids and notified nobody. Resolution needs member ids synchronously at send
+// time, so the roster lives in this cache, refreshed per Space with a short
+// TTL and immediately whenever roles.js reports a change.
+const groupMentionMap = new Map();   // lowercase handle -> Set<user_id>
+let groupWsId = null;
+let groupRefreshedAt = 0;
+
+export function getGroupHandles() {
+  return [...groupMentionMap.keys()];
+}
+
+export async function refreshGroupMentions(force = false) {
+  const ws = store.ws && store.ws.id;
+  if (!ws) return;
+  if (!force && ws === groupWsId && Date.now() - groupRefreshedAt < 60000) return;
+  try {
+    const [groups, memberships] = await Promise.all([
+      table('user_groups', (q) => q.eq('workspace_id', ws)),
+      table('user_group_members', (q) => q.eq('workspace_id', ws)),
+    ]);
+    const byId = new Map((groups || []).map((g) => [g.id, String(g.handle).toLowerCase()]));
+    const next = new Map();
+    for (const g of groups || []) {
+      if (g && g.handle) next.set(String(g.handle).toLowerCase(), new Set());
+    }
+    for (const m of memberships || []) {
+      const set = next.get(byId.get(m.group_id));
+      if (set && m.user_id) set.add(m.user_id);
+    }
+    groupMentionMap.clear();
+    for (const [k, v] of next) groupMentionMap.set(k, v);
+    groupWsId = ws;
+    groupRefreshedAt = Date.now();
+  } catch {
+    /* Cache stays as-is; mentions of people still work. */
+  }
+}
+bus.on('groups:changed', () => refreshGroupMentions(true));
+bus.on('channel:open', () => refreshGroupMentions());
+
 export function resolveMentions(text) {
   const out = [];
-  const by = new Map();
+  if (!text) return out;
+  const cands = [];                        // ['@token', userId]
   for (const p of store.profiles.values()) {
-    if (p.username) by.set('@' + p.username.toLowerCase(), p.id);
-    if (p.display_name) by.set('@' + p.display_name.toLowerCase(), p.id);
+    if (p.username) cands.push([('@' + p.username).toLowerCase(), p.id]);
+    if (p.display_name) cands.push([('@' + p.display_name).toLowerCase(), p.id]);
   }
-  for (const t of text.match(/@[\w.-]+/g) || []) {
-    const id = by.get(t.toLowerCase());
-    if (id && !out.includes(id)) out.push(id);
+  cands.sort((a, z) => z[0].length - a[0].length);
+  const ws = store.ws && store.ws.id;
+  const haveGroups = ws === groupWsId && groupMentionMap.size > 0;
+  const lower = text.toLowerCase();
+  for (let i = lower.indexOf('@'); i !== -1; i = lower.indexOf('@', i + 1)) {
+    // A mention opens at a word edge. Mid-word "@" is an email address or a
+    // stray symbol, never a person - "mail x@ashakumar" must stay mail.
+    if (i > 0 && /[\w.-]/.test(lower[i - 1])) continue;
+    let hit = false;
+    for (const [name, id] of cands) {
+      if (!lower.startsWith(name, i)) continue;
+      const end = i + name.length;
+      const ch = lower[end];
+      // The mention must end at a word edge, or "@asha" inside "@ashakumar"
+      // would claim a stranger's handle.
+      if (ch !== undefined && !/[\s.,!?;:)'"\]]/.test(ch)) continue;
+      if (!out.includes(id)) out.push(id);
+      hit = true;
+      break;
+    }
+    if (hit || !haveGroups) continue;
+    // Nobody on the roster owns this token - does a group handle?
+    const gm = /^@([a-z0-9][a-z0-9._-]*)/.exec(lower.slice(i));
+    if (!gm) continue;
+    const end = i + gm[0].length;
+    const ch = lower[end];
+    if (ch !== undefined && !/[\s.,!?;:)'"\]]/.test(ch)) continue;
+    for (const id of groupMentionMap.get(gm[1]) || []) {
+      if (!out.includes(id)) out.push(id);
+    }
   }
   return out;
 }
@@ -450,6 +533,11 @@ export function initComposer() {
   });
   $('sendBtn').onclick = () => send();
 
+  addComposerButton({
+    id: 'voice-note', label: '🎤', title: 'Record a voice note',
+    onClick: () => voiceNote(),
+  });
+
   // drag and drop anywhere
   let dragCount = 0;
   const hint = $('dropHint');
@@ -471,3 +559,60 @@ export function initComposer() {
 
 export const composerText = () => composerEl().value;
 export function setComposerText(t) { composerEl().value = t; autogrow(); composerEl().focus(); }
+
+export async function voiceNote() {
+  const c = composerEl();
+  if (voice.isRecording) {
+    voice.recorder.stop();
+    voice.isRecording = false;
+    voice.chunks = [];
+    const blob = new Blob(voice.chunks, { type: 'audio/webm' });
+    const audioFile = new File([blob], 'voice-note.webm', { type: 'audio/webm' });
+    const stub = { name: audioFile.name, mime: audioFile.type, size: audioFile.size, uploading: true, progress: 0 };
+    pending.push(stub);
+    renderChips();
+    try {
+      const a = await uploadFile(audioFile, (p) => { stub.progress = p; renderChips(); });
+      Object.assign(stub, a, { uploading: false });
+      renderChips();
+    } catch (e) {
+      stub.failed = true;
+      stub.uploading = false;
+      pending = pending.filter((x) => x !== stub);
+      renderChips();
+      toast(`${audioFile.name}: ${e.message}`, 'error');
+    }
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    voice.chunks = [];
+    voice.recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+    voice.recorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) voice.chunks.push(e.data);
+    };
+    voice.recorder.onstop = () => {
+      voice.isRecording = false;
+      const blob = new Blob(voice.chunks, { type: 'audio/webm' });
+      const audioFile = new File([blob], 'voice-note.webm', { type: 'audio/webm' });
+      voice.chunks = [];
+      const stub = { name: audioFile.name, mime: audioFile.type, size: audioFile.size, uploading: true, progress: 0 };
+      pending.push(stub);
+      renderChips();
+      uploadFile(audioFile, (p) => { stub.progress = p; renderChips(); })
+        .then((a) => { Object.assign(stub, a, { uploading: false }); renderChips(); })
+        .catch((e) => {
+          stub.failed = true;
+          stub.uploading = false;
+          pending = pending.filter((x) => x !== stub);
+          renderChips();
+          toast(`${audioFile.name}: ${e.message}`, 'error');
+        });
+    };
+    voice.recorder.start();
+    voice.isRecording = true;
+    toast('Recording…', 'info');
+  } catch (e) {
+    toast('Microphone permission denied', 'error');
+  }
+}

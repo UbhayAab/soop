@@ -1,12 +1,13 @@
 // Voice channels: a WebRTC peer mesh with Supabase Realtime as the signalling
 // bus. No SFU, no third-party service - for ambient rooms of a handful of people
 // a mesh is the right call and it costs nothing.
-import { sb, subscribe, unsubscribe, getSub } from '../sb.js';
+import { sb, subscribe, unsubscribe, getSub, accessToken } from '../sb.js';
 import { api, table } from '../api.js';
 import { store, bus, nameOf } from '../store.js';
 import { $, el, esc } from '../util.js';
 import { toast } from '../ui.js';
 import { renderChannels } from './channels.js';
+import { SUPABASE_URL } from '../config.js';
 
 const RTC = {
   iceServers: [
@@ -14,6 +15,32 @@ const RTC = {
     { urls: 'stun:global.stun.twilio.com:3478' },
   ],
 };
+
+// Cloudflare Realtime TURN. STUN alone connects peers on permissive networks
+// and fails SILENTLY for everyone behind carrier-grade NAT - which is what Jio
+// and Airtel mobile data are, i.e. most of this app's real audience. The roster
+// still shows both people present while neither hears anything; that failure
+// mode is why TURN exists. Credentials are short-lived and minted by the
+// dek-turn Edge Function, which holds the account secret so it never reaches a
+// browser. Until that function is deployed we stay STUN-only, exactly as before.
+let turnTried = false;
+async function withTurn() {
+  if (turnTried) return RTC;
+  turnTried = true;
+  try {
+    const r = await fetch(SUPABASE_URL + '/functions/v1/dek-turn', {
+      headers: { Authorization: 'Bearer ' + (accessToken() || '') },
+    });
+    if (!r.ok) return RTC;
+    const j = await r.json();
+    if (j && Array.isArray(j.iceServers) && j.iceServers.length) {
+      RTC.iceServers.push(...j.iceServers);
+    }
+  } catch {
+    /* No relay endpoint: historical behaviour. */
+  }
+  return RTC;
+}
 
 export const voice = {
   active: false, channel: null, local: null, muted: false, deafened: false,
@@ -40,6 +67,17 @@ export async function joinVoice(channelId) {
   if (!c) return;
   if (voice.active && voice.channel?.id === c.id) return;
   if (voice.active) await leaveVoice();
+
+  // Room capacity. The mesh costs (N-1) uploads per client, so past roughly
+  // eight audio peers every laptop in the room is paying for the whole party.
+  // The server owns the number; if the RPC has not been deployed this throws
+  // and we fail OPEN - a missing check must never lock people out of voice.
+  try {
+    const ok = await api.canJoinVoice(c.id);
+    if (ok === false) { toast('That voice room is full right now', 'info'); return; }
+  } catch {
+    /* Unversioned server: proceed without the cap. */
+  }
 
   try {
     voice.local = await navigator.mediaDevices.getUserMedia({
@@ -75,9 +113,9 @@ export async function joinVoice(channelId) {
   monitorSelf();
 }
 
-function makePeer(peerId, initiator) {
+async function makePeer(peerId, initiator) {
   if (voice.peers.has(peerId)) return voice.peers.get(peerId);
-  const pc = new RTCPeerConnection(RTC);
+  const pc = new RTCPeerConnection(await withTurn());
   voice.peers.set(peerId, pc);
   voice.local.getTracks().forEach((t) => pc.addTrack(t, voice.local));
   // Somebody joining a room where a share is already running has to receive it.
@@ -185,7 +223,7 @@ async function onSignal(p) {
   const from = p.from;
   try {
     if (p.kind === 'offer') {
-      const pc = makePeer(from, false);
+      const pc = await makePeer(from, false);
       const collision = pc.signalingState !== 'stable';
       if (collision) {
         if (!polite(from)) return;

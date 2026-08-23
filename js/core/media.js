@@ -8,6 +8,9 @@ import { store } from '../store.js';
 import { esc, el, fmtSize } from '../util.js';
 import { toast } from '../ui.js';
 
+// Persistent per-key expiry stored alongside the URL in IndexedDB.
+// This is the single source of truth for "does this cached URL still work?".
+// Falls back to URL_TTL_MS soft-limit only if the DB row is missing expiry.
 const urlCache = new Map();
 
 async function sha256hex(buf) {
@@ -42,8 +45,41 @@ function probeDims(file) {
   return Promise.resolve(null);
 }
 
+// A 2-4MB phone photo as a chat attachment was the storage ceiling's fastest
+// route to a dead product: at 200 users the 1GB free bucket filled in three
+// days. Downscale in the browser before anything else runs - 1600px long edge
+// at q0.82 is indistinguishable in a message and lands at 150-300KB, an 8-15x
+// cut. Small images, non-images and anything that fails to decode pass through
+// untouched; a failed optimisation must never block an upload.
+const IMAGE_DOWNSCALE_MIN = 400 * 1024;
+const IMAGE_MAX_EDGE = 1600;
+
+async function downscaleImage(file) {
+  if (!/^image\//.test(file.type) || file.type === 'image/gif' || file.size < IMAGE_DOWNSCALE_MIN) return file;
+  try {
+    const bmp = await createImageBitmap(file);
+    const longest = Math.max(bmp.width, bmp.height);
+    if (longest <= IMAGE_MAX_EDGE) { bmp.close?.(); return file; }
+    const scale = IMAGE_MAX_EDGE / longest;
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * scale);
+    c.height = Math.round(bmp.height * scale);
+    const ctx = c.getContext('2d');
+    ctx.drawImage(bmp, 0, 0, c.width, c.height);
+    bmp.close?.();
+    const type = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    const blob = await new Promise((r) => c.toBlob(r, type, 0.82));
+    if (!blob || blob.size >= file.size) return file;
+    const name = (file.name || 'image').replace(/\.jpe?g$/i, type === 'image/png' ? '.png' : '.jpg');
+    return new File([blob], name, { type, lastModified: Date.now() });
+  } catch {
+    return file;
+  }
+}
+
 export async function uploadFile(file, onProgress) {
   if (file.size > MAX_UPLOAD_BYTES) throw new Error(`Too large (max ${fmtSize(MAX_UPLOAD_BYTES)})`);
+  file = await downscaleImage(file);
   const buf = await file.arrayBuffer();
   const sha = await sha256hex(buf);
   const d = await probeDims(file);
@@ -80,8 +116,50 @@ export async function uploadFile(file, onProgress) {
   };
 }
 
+// L2 for minted URLs: IndexedDB, so scrolling back after a RELOAD reuses the
+// still-valid signed URL instead of paying a fresh edge-function invocation per
+// attachment. The in-memory Map stays the fast path; this is the cold path.
+const URL_DB = 'hearth.media';
+const URL_STORE = 'urls';
+const URL_TTL_MS = 230000;   // soft under-the-mint-lifetime fallback; real expiry from edge fn
+
+function urlDb() {
+  return new Promise((resolve) => {
+    const rq = indexedDB.open(URL_DB, 1);
+    rq.onupgradeneeded = () => { if (!rq.result.objectStoreNames.contains(URL_STORE)) rq.result.createObjectStore(URL_STORE); };
+    rq.onsuccess = () => resolve(rq.result);
+    rq.onerror = () => resolve(null);
+  });
+}
+async function urlIdbGet(key) {
+  const db = await urlDb();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    const rq = db.transaction(URL_STORE).objectStore(URL_STORE).get(key);
+    rq.onsuccess = () => {
+      const v = rq.result;
+      if (!v) return resolve(null);
+      // Use stored real expiry if present; otherwise fall back to soft TTL.
+      const exp = v.exp != null ? v.exp : Date.now() + URL_TTL_MS;
+      resolve(v.exp > Date.now() ? v.url : null);
+    };
+    rq.onerror = () => resolve(null);
+  });
+}
+async function urlIdbSet(key, url, exp) {
+  const db = await urlDb();
+  if (!db) return;
+  try { db.transaction(URL_STORE, 'readwrite').objectStore(URL_STORE).put({ url, exp: exp != null ? exp : Date.now() + URL_TTL_MS }, key); } catch {}
+}
+
 export async function mediaUrl(key) {
   if (urlCache.has(key)) return urlCache.get(key);
+  const persisted = await urlIdbGet(key);
+  if (persisted) {
+    urlCache.set(key, persisted);
+    setTimeout(() => urlCache.delete(key), URL_TTL_MS);
+    return persisted;
+  }
   const res = await fetch(SUPABASE_URL + '/functions/v1/mint-download', {
     method: 'POST',
     headers: {
@@ -94,9 +172,57 @@ export async function mediaUrl(key) {
   const j = await res.json().catch(() => ({}));
   if (!res.ok || !j.url) return null;
   urlCache.set(key, j.url);
-  // Signed URLs expire; drop the cache entry well before they do.
-  setTimeout(() => urlCache.delete(key), 250000);
+  // Store with real expiry from the edge function if provided.
+  const exp = j.exp != null ? j.exp : Date.now() + URL_TTL_MS;
+  urlIdbSet(key, j.url, exp);
+  // Drop the cache entry well before the real expiry.
+  setTimeout(() => urlCache.delete(key), URL_TTL_MS);
   return j.url;
+}
+
+export async function mediaUrls(keys) {
+  if (!keys || keys.length === 0) return Promise.resolve([]);
+  const persisted = {};
+  const toFetch = new Set(keys);
+  const db = await urlDb();
+  if (db) {
+    for (const key of keys) {
+      const rq = db.transaction(URL_STORE).objectStore(URL_STORE).get(key);
+      rq.onsuccess = () => {
+        const v = rq.result;
+        if (v && v.exp > Date.now()) {
+          persisted[key] = v.url;
+          toFetch.delete(key);
+        }
+      };
+      rq.onerror = () => {};
+    }
+  }
+  const missing = [...toFetch];
+  if (!missing.length) {
+    const urls = keys.map((k) => persisted[k] || null);
+    urls.forEach((u, i) => urlCache.set(keys[i], u));
+    return Promise.resolve(urls);
+  }
+  const res = await fetch(SUPABASE_URL + '/functions/v1/mint-download', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer ' + (await accessToken()),
+      apikey: PUBLISHABLE,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ object_keys: missing }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || !j.urls) return keys.map(() => null);
+  for (const [key, url] of Object.entries(j.urls)) {
+    const exp = j.exp != null ? j.exp : Date.now() + URL_TTL_MS;
+    urlIdbSet(key, url, exp);
+    urlCache.set(key, url);
+  }
+  const urls = keys.map((k) => persisted[k] || j.urls[k] || null);
+  urls.forEach((u, i) => urlCache.set(keys[i], u));
+  return Promise.resolve(urls);
 }
 
 // Markup only. Real sources are attached later by hydrateMedia so the layout box
@@ -138,26 +264,44 @@ export function attsHtml(m) {
 }
 
 export async function hydrateMedia(root) {
+  const keys = new Set();
   const imgs = [...root.querySelectorAll('.att-img')];
+  for (const box of imgs) keys.add(box.dataset.key);
+  const vids = [...root.querySelectorAll('.att-vid')];
+  for (const box of vids) keys.add(box.dataset.key);
+  const auds = [...root.querySelectorAll('.att-aud')];
+  for (const box of auds) keys.add(box.dataset.key);
+  const fcs = [...root.querySelectorAll('.att-file')];
+  for (const fc of fcs) keys.add(fc.dataset.key);
+
+  const urlArray = await mediaUrls(Array.from(keys));
+  const urlByKey = new Map(Array.from(keys).map((k, i) => [k, urlArray[i]]));
+
   for (const box of imgs) {
-    const url = await mediaUrl(box.dataset.key);
+    const url = urlByKey.get(box.dataset.key);
     if (!url) { box.classList.add('att-broken'); continue; }
     box.querySelector('img').src = url;
     box.onclick = () => openViewer(imgs.map((b) => ({
       key: b.dataset.key, name: b.dataset.name, kind: 'image',
     })), imgs.indexOf(box));
   }
-  for (const box of root.querySelectorAll('.att-vid')) {
-    const url = await mediaUrl(box.dataset.key);
+  let i = 0;
+  for (const box of vids) {
+    const key = box.dataset.key;
+    const url = urlByKey.get(key);
     if (url) box.querySelector('video').src = url;
   }
-  for (const box of root.querySelectorAll('.att-aud')) {
-    const url = await mediaUrl(box.dataset.key);
+  i = 0;
+  for (const box of auds) {
+    const key = box.dataset.key;
+    const url = urlByKey.get(key);
     if (url) box.querySelector('audio').src = url;
   }
-  for (const fc of root.querySelectorAll('.att-file')) {
+  i = 0;
+  for (const fc of fcs) {
+    const key = fc.dataset.key;
+    const url = urlByKey.get(key);
     fc.onclick = async () => {
-      const url = await mediaUrl(fc.dataset.key);
       if (url) saveBlob(url, fc.dataset.name);
       else toast('Could not open that file', 'error');
     };
