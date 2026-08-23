@@ -4,7 +4,7 @@
 import { sb, subscribe, unsubscribe, getSub, accessToken } from '../sb.js';
 import { api, table } from '../api.js';
 import { store, bus, nameOf } from '../store.js';
-import { $, el, esc } from '../util.js';
+import { $, el, esc, debounceLead } from '../util.js';
 import { toast } from '../ui.js';
 import { renderChannels } from './channels.js';
 import { SUPABASE_URL } from '../config.js';
@@ -503,7 +503,10 @@ export function initVoice() {
   // Leaving the tab open with a stale participant row is worse than a clean exit.
   window.addEventListener('pagehide', () => { if (voice.active) navigator.sendBeacon && leaveVoice(); });
   bus.on('voice:join', ({ channelId }) => joinVoice(channelId));
-  bus.on('voice:refresh', refreshVoice);
+  // voice_join and voice_leave both arrive as voice:refresh, which re-reads the
+  // whole participant list; a join-leave pair inside the window is one read,
+  // not two. Leading edge, so the first arrival still paints immediately.
+  bus.on('voice:refresh', debounceLead(refreshVoice, 700));
   // The reaper evicts anyone who stopped heartbeating; tear down that peer
   // rather than holding a connection to a browser that is gone.
   bus.on('voice:left', ({ userId }) => { if (userId && userId !== store.me) dropPeer(userId); });

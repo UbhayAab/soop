@@ -2,7 +2,7 @@
 import { sb, session } from './sb.js';
 import { api, tryRpc } from './api.js';
 import { store, bus, nameOf } from './store.js';
-import { $, el, esc } from './util.js';
+import { $, el, esc, debounceLead } from './util.js';
 import ui, { toast, openPanel, closePanel, renderHeaderButtons, modal, closePopovers } from './ui.js';
 import { initAuth, showAuth, showChat, needsPasswordSetup, showSetPassword } from './core/auth.js';
 import { loadSpaces, switchWorkspace, spaceChooser, inviteDialog, copyInvite, extractToken, looksLikeOrgInvite } from './core/workspace.js';
@@ -376,9 +376,16 @@ export function showNoTeam(msg) {
 
 function subscribeUser(uid) {
   import('./sb.js').then(({ subscribe }) => {
+    // mention / unread / dm all land here and each bare refreshUnread() is three
+    // RPCs (get_unread + rail rollup + DM list), so a twenty-message burst in a
+    // Space you are not looking at was sixty requests. Leading-edge coalescing:
+    // the first event paints immediately, repeats inside the window collapse
+    // into one trailing catch-up. Explicit paths - Mark as read, tab return,
+    // sign-in - keep calling refreshUnread() directly and stay instant.
+    const coalescedUnread = debounceLead(() => refreshUnread(), 700);
     subscribe('user', 'user:' + uid, {
-      mention: () => { refreshUnread(); flashTitle(); },
-      unread: () => refreshUnread(),
+      mention: () => { coalescedUnread(); flashTitle(); },
+      unread: () => coalescedUnread(),
       // set_status / clear_status broadcast here. This was an empty function, so
       // a status set on the phone never appeared on the laptop, and shell.js's
       // 'status:changed' listener had no publisher anywhere in the app - the
@@ -411,7 +418,7 @@ function subscribeUser(uid) {
         // `await refreshDMList()`. Calling it again here was a second, identical
         // request a few milliseconds behind the first, on every incoming DM, for
         // every recipient.
-        refreshUnread();
+        coalescedUnread();
         flashTitle();
         if (p?.conversation_id && p.conversation_id === store.currentDM) {
           import('./core/dms.js').then(({ reconcileDM }) => reconcileDM?.());

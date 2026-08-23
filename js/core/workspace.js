@@ -5,7 +5,7 @@ import { api, table, tryRpc } from '../api.js';
 import { sb, subscribe } from '../sb.js';
 import { store, bus, hasPerm } from '../store.js';
 import { PERM } from '../config.js';
-import { $, el, esc, initials, hueOf } from '../util.js';
+import { $, el, esc, initials, hueOf, debounceLead } from '../util.js';
 import { toast, formModal, modal, confirmModal, contextMenu, renderHeaderButtons } from '../ui.js';
 import { renderChannels, openChannel, refreshUnread, lastChannelId } from './channels.js';
 
@@ -991,5 +991,12 @@ export async function inviteDialog(space, isNew = false) {
   await make();
 }
 
-bus.on('channels:reload', (p) => reloadChannels(p?.open));
+// channel_created/updated/deleted all land here as a payload-free emit, and
+// reloadChannels() is a full get_bootstrap - an admin renaming five channels in
+// a row was five bootstraps on every connected client. Payload-free emits
+// coalesce under a leading-edge debounce (first repaint immediate, one trailing
+// catch-up); an emit carrying {open} bypasses it, because that is "and now open
+// this channel", which must neither be swallowed nor reordered behind a batch.
+const coalescedChannelReload = debounceLead(() => reloadChannels(), 700);
+bus.on('channels:reload', (p) => (p?.open ? reloadChannels(p.open) : coalescedChannelReload()));
 bus.on('spaces:badges', renderSpaceRail);

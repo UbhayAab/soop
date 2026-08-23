@@ -307,6 +307,25 @@ export function throttle(fn, ms) {
   return (...a) => { const n = Date.now(); if (n - last >= ms) { last = n; fn(...a); } };
 }
 
+// Leading-edge debounce: the FIRST call fires immediately, repeats inside the
+// window are swallowed, and if anything was swallowed exactly one trailing call
+// fires when the window closes so the final state is never lost. Unlike
+// debounce() it never delays the first update; unlike throttle() a burst costs
+// one call plus at most one catch-up. The window opens before fn runs so a
+// synchronous throw still counts as "handled".
+export function debounceLead(fn, ms) {
+  let t = null, pending = false, lastArgs;
+  const wrapped = (...a) => {
+    if (t) { pending = true; lastArgs = a; return; }
+    t = setTimeout(() => {
+      t = null;
+      if (pending) { pending = false; const args = lastArgs; lastArgs = undefined; wrapped(...args); }
+    }, ms);
+    fn(...a);
+  };
+  return wrapped;
+}
+
 // Deterministic colour for an avatar / role chip from any id string.
 export function hueOf(id) {
   let h = 0;
