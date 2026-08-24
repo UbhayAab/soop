@@ -6,13 +6,13 @@
 // token authorised over that key. This function is the only thing that talks
 // to it, so the browser never sees account-level credentials.
 //
-// Three configuration modes, first match wins:
-//  1. APP model: env RTC_APP_ID + RTC_APP_TOKEN + TURN_KEY_ID
-//     -> rtc.live.cloudflare.com generate-ice-servers with the app token,
-//        ttl 6h, :53 port stripped, cached an hour
-//  2. LEGACY model: env TURN_TOKEN_ID + TURN_TOKEN_SECRET
-//     -> local HMAC-SHA1 minting, the original Calls pattern
-//  3. Neither set -> 503, and the client stays STUN-only exactly as before.
+// Configuration modes, first match wins:
+//  1. TURN SERVER app: env TURN_KEY_ID + TURN_API_TOKEN
+//     -> rtc.live.cloudflare.com generate-ice-servers with the TURN token,
+//        ttl 6h, :53 port stripped, cached an hour. THE production mode.
+//  2. Realtime APP model: env RTC_APP_ID + RTC_APP_TOKEN + TURN_KEY_ID
+//  3. LEGACY HMAC: env TURN_TOKEN_ID + TURN_TOKEN_SECRET
+//  4. None set -> 503, and the client stays STUN-only exactly as before.
 //
 // Auth: any signed-in Soop user (GoTrue verification). The publishable key
 // alone must NOT count - that would make this a free public relay.
@@ -21,9 +21,14 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+// The publishable key is public by design - it ships in every browser bundle.
+// The env fallback exists because SUPABASE_ANON_KEY is not guaranteed to be
+// injected on every project.
+const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? 'sb_publishable_5gyvKj8AtZeXGDWVLYg3VA_Uwh4T4RD';
+const TURN_KEY_ID = Deno.env.get('TURN_KEY_ID');
+const TURN_API_TOKEN = Deno.env.get('TURN_API_TOKEN');
 const RTC_APP_ID = Deno.env.get('RTC_APP_ID');
 const RTC_APP_TOKEN = Deno.env.get('RTC_APP_TOKEN');
-const TURN_KEY_ID = Deno.env.get('TURN_KEY_ID');
 const TURN_TOKEN_ID = Deno.env.get('TURN_TOKEN_ID');
 const TURN_TOKEN_SECRET = Deno.env.get('TURN_TOKEN_SECRET');
 
@@ -43,7 +48,11 @@ async function hmacSha1(secret: string, message: string) {
 async function verifyUser(authHeader: string | null) {
   if (!authHeader?.startsWith('Bearer ')) return null;
   try {
-    const r = await fetch(SUPABASE_URL + '/auth/v1/user', { headers: { Authorization: authHeader } });
+    const r = await fetch(SUPABASE_URL + '/auth/v1/user', {
+      // /auth/v1/user needs BOTH the user JWT and an apikey - without the
+      // anon key the gateway 401s before GoTrue ever sees the token.
+      headers: { Authorization: authHeader, apikey: ANON_KEY },
+    });
     if (!r.ok) return null;
     const u = await r.json();
     return u && u.id ? u : null;
@@ -56,11 +65,11 @@ async function verifyUser(authHeader: string | null) {
 // account's TURN key. Cached for an hour; credentials inside live six.
 let cfCache: { at: number; ice: unknown } | null = null;
 async function viaCloudflare(): Promise<{ iceServers: unknown[] } | null> {
-  if (!TURN_KEY_ID || !RTC_APP_ID || !RTC_APP_TOKEN) return null;
+  if (!TURN_KEY_ID || !TURN_API_TOKEN) return null;
   if (cfCache && Date.now() - cfCache.at < 3600_000) return { iceServers: cfCache.ice };
   const r = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${TURN_KEY_ID}/credentials/generate-ice-servers`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${RTC_APP_TOKEN}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${TURN_API_TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ ttl: TTL_SECONDS }),
   });
   if (!r.ok) throw new Error(`cloudflare ${r.status}`);
@@ -99,7 +108,7 @@ Deno.serve(async (req) => {
   };
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 
-  const configured = (TURN_KEY_ID && RTC_APP_ID && RTC_APP_TOKEN) || (TURN_TOKEN_ID && TURN_TOKEN_SECRET);
+  const configured = (TURN_KEY_ID && TURN_API_TOKEN) || (TURN_TOKEN_ID && TURN_TOKEN_SECRET);
   if (!configured) {
     return new Response(JSON.stringify({ error: 'turn_not_configured' }), {
       status: 503, headers: { ...cors, 'Content-Type': 'application/json' },
@@ -113,7 +122,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const out = TURN_KEY_ID && RTC_APP_ID && RTC_APP_TOKEN ? await viaCloudflare() : await viaLegacy();
+    const out = TURN_KEY_ID && TURN_API_TOKEN ? await viaCloudflare() : await viaLegacy();
     if (!out) throw new Error('no ice servers');
     return new Response(JSON.stringify({ ...out, ttl: TTL_SECONDS }), {
       headers: { ...cors, 'Content-Type': 'application/json' },
