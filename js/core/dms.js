@@ -6,7 +6,7 @@ import { store, bus, nameOf, resetChannelState } from '../store.js';
 import { $, el, esc, debounce } from '../util.js';
 import { toast, modal, closePanel } from '../ui.js';
 import { appendMessage, claimMessage, loadReactions, applyReaction, atBottom, scrollDown } from './messages.js';
-import { renderChannels, refreshUnread, showNewBelow, clearNewBelow } from './channels.js';
+import { renderChannels, showNewBelow, clearNewBelow } from './channels.js';
 import { avatarHtml } from './messages.js';
 
 // A DM had no cursor, no gap detection and no healing path of ANY kind. Both
@@ -75,7 +75,10 @@ export async function openDM(conversationId) {
 
   const lastSeq = msgs.length ? msgs[msgs.length - 1].seq : 0;
   store.dmCursor = lastSeq || 0;
-  if (lastSeq) api.markDMRead(conversationId, lastSeq).catch(() => {});
+  if (lastSeq) {
+    api.markDMRead(conversationId, lastSeq).catch(() => {});
+    clearDMUnreadLocal(conversationId);
+  }
 
   // Opening a DM never touched the 'typing' subscription, so the previous
   // CHANNEL's typ:<channel_id> topic stayed live - and composer.js sendTyping()
@@ -214,8 +217,20 @@ export async function reconcileDM() {
   }
 
   if (store.dmCursor > start) {
-    api.markDMRead(conversationId, store.dmCursor).then(refreshUnread).catch(() => {});
+    api.markDMRead(conversationId, store.dmCursor).catch(() => {});
+    clearDMUnreadLocal(conversationId);
   }
+}
+
+// The DM half of channels.clearUnreadLocal: a DM's unread state lives on the
+// store.dms row, not in store.unread, and mark_dm_read's outcome is known the
+// moment we send it. Repaint via 'unread' so tabbar/dmlist/shortcuts follow.
+function clearDMUnreadLocal(conversationId) {
+  const row = store.dms.find((d) => d.conversation_id === conversationId);
+  if (!row || !(row.unread === true || +row.unread > 0)) return;
+  row.unread = 0;
+  bus.emit('unread');
+  renderChannels();
 }
 
 async function refreshReceipts(conversationId) {

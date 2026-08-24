@@ -572,7 +572,10 @@ export async function openChannel(c, opts = {}) {
   });
 
   loadReactions(ordered.map((m) => m.id)).catch(() => {});
-  if (ordered.length) api.markRead('channel', c.id, store.cursor).then(refreshUnread).catch(() => {});
+  if (ordered.length) {
+    api.markRead('channel', c.id, store.cursor).catch(() => {});
+    clearUnreadLocal(c.id);
+  }
   if (opts.jumpSeq) jumpToSeq(c, opts.jumpSeq);
 }
 
@@ -969,7 +972,8 @@ export async function reconcile() {
 
   flushGapBuffer();
   if (store.cursor > startCursor) {
-    api.markRead('channel', channelId, store.cursor).then(refreshUnread).catch(() => {});
+    api.markRead('channel', channelId, store.cursor).catch(() => {});
+    clearUnreadLocal(channelId);
   }
 }
 
@@ -1161,7 +1165,25 @@ function unreadFingerprint(m) {
 
 let lastUnreadPrint = null;
 
-export async function refreshUnread({ full = true } = {}) {
+// mark_read's answer is known the moment we decide to send it: everything up to
+// this scope's cursor is read. Drop the row and repaint locally instead of
+// paying refreshUnread's two RPCs plus the DM list for an outcome we authored;
+// a failed write heals on the next poll because the server keeps the truth.
+export function clearUnreadLocal(scopeId) {
+  if (!store.ws || !store.unread.has(scopeId)) return;
+  store.unread.delete(scopeId);
+  lastUnreadPrint = unreadFingerprint(store.unread);
+  bus.emit('unread');
+  renderChannels();
+}
+
+// `opts || {}`, not a bare destructure default: `.then(refreshUnread)` and
+// bus.on('unread:reload', refreshUnread) both hand the resolution/payload in as
+// the first argument, and PostgREST returns null for a void RPC - which turns
+// `{ full = true } = null` into a TypeError swallowed by the caller's catch.
+// The fallback makes every such call read as full=true instead of throwing.
+export async function refreshUnread(opts) {
+  const { full = true } = opts || {};
   if (!store.ws) return;
   try {
     const rows = (await api.unread(store.ws.id)) || [];
