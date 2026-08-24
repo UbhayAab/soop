@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dek - the new shell</title>
+<link rel="stylesheet" href="/css/base.css" />
+<link rel="stylesheet" href="/css/tokens.css" />
+<link rel="stylesheet" href="/css/components.css" />
+<link rel="stylesheet" href="/css/layout.css" />
+<link rel="stylesheet" href="/css/shell.css" />
+<link rel="stylesheet" href="/css/messages.css" />
+<link rel="stylesheet" href="/css/features.css" />
+<link rel="stylesheet" href="/css/panels.css" />
+<link rel="stylesheet" href="/css/polish.css" />
+<style>
+  .pv-note { position: fixed; top: 10px; right: 12px; z-index: 999; background: var(--c-accent); color: #fff;
+    padding: 6px 12px; border-radius: 99px; font-size: 12px; opacity: .9; }
+</style>
+</head>
+<body>
+<div class="pv-note">PREVIEW - sample data, production CSS</div>
+<div id="app">
+  <div id="chat">
+    <header id="topbar">
+      <div class="tb-left">
+        <button class="icon only-mobile" title="Menu">≡</button>
+        <strong id="spaceName">Misho Foods</strong>
+      </div>
+      <div class="tb-center">
+        <button id="globalSearch" class="searchbar"><span class="searchbar-text">Search Dek</span><kbd class="searchbar-kbd">Ctrl K</kbd></button>
+      </div>
+      <div class="tb-right">
+        <button class="userchip"><span class="userchip-av"><span class="avatar" style="width:26px;height:26px;background:hsl(160 45% 32%)">UB</span></span><span class="meName">Ubhay</span></button>
+      </div>
+    </header>
+
+    <div id="channelbar">
+      <div class="cb-title"><strong># price-updates</strong><span class="cb-topic">Every price change, acknowledged</span></div>
+      <span class="sp"></span>
+      <div class="hdr-actions">
+        <button class="icon" title="Threads">🧵</button>
+        <button class="icon" title="Activity">🔔</button>
+        <button class="icon" title="Pins">📌</button>
+      </div>
+      <button class="icon" title="More">⋯</button>
+    </div>
+
+    <main>
+      <div id="spaceRail">
+        <button class="sicon on" title="Misho Foods">🅼</button>
+        <button class="sicon" title="Second Space">🆅</button>
+        <button class="sb-add">+</button>
+      </div>
+
+      <nav id="sidebar">
+        <div id="sidebarScroll">
+          <div id="channels">
+            <h3 class="cat">Channels</h3>
+            <div class="chan active"><span class="ch-ico">#</span><span class="truncate">price-updates</span></div>
+            <div class="chan"><span class="ch-ico">#</span><span class="truncate">general</span><span class="badge">4</span></div>
+            <div class="chan"><span class="ch-ico">#</span><span class="truncate">depot-nashik</span><span class="dot-unread"></span></div>
+            <div class="chan muted-ch"><span class="ch-ico">#</span><span class="truncate">random</span></div>
+            <div class="chan"><span class="ch-ico">🔒</span><span class="truncate">asm-chat</span></div>
+            <h3 class="cat">Voice rooms</h3>
+            <div class="chan"><span class="ch-ico">🔊</span><span class="truncate">plant-floor</span><span class="vpart-pill">3</span></div>
+            <h3 class="cat">Direct messages</h3>
+            <div class="chan"><span class="ch-ico">@</span><span class="truncate">Asha Kumar</span><span class="badge">2</span></div>
+            <div class="chan"><span class="ch-ico">@</span><span class="truncate">Vijay</span></div>
+            <div class="chan"><span class="ch-ico">@</span><span class="truncate">Priyanka (depot)</span></div>
+          </div>
+          <div id="navExtra">
+            <h3 class="cat">Coordination</h3>
+            <div class="chan"><span class="ch-ico">✓</span><span class="truncate">Tasks</span><span class="badge">7</span></div>
+            <div class="chan"><span class="ch-ico">📋</span><span class="truncate">Forms</span></div>
+            <div class="chan"><span class="ch-ico">🙋</span><span class="truncate">Confirmations</span></div>
+          </div>
+        </div>
+        <button class="sb-me"><span class="avatar" style="width:26px;height:26px;background:hsl(160 45% 32%)">UB</span><span class="truncate">Ubhay</span><span class="dot on"></span></button>
+      </nav>
+
+      <section class="msgs">
+        <div id="messages">
+          <div class="daydiv"><span>Today</span></div>
+
+          <div class="msg">
+            <div class="avatar" style="width:36px;height:36px;background:hsl(210 45% 32%)">AK</div>
+            <div class="m-body">
+              <div class="m-head"><b>Asha Kumar</b><span class="muted">09:12</span></div>
+              <div class="body"><p>Good morning all. New namkeen price list goes live Monday. <span class="tag tag-me">@Ubhay</span> please acknowledge before the depot call.</p></div>
+              <div class="mx-link">
+                <span class="mx-fav">P</span>
+                <span class="mx-link-txt"><span class="mx-link-host">misho.example.com</span><span class="mx-link-url">price-list-aug.pdf</span></span>
+              </div>
+              <div class="rxns"><button class="rxn on">👍 12</button><button class="rxn">🙏 5</button><button class="rxn-add">+</button></div>
+              <button class="thread-pill">💬 3 replies</button>
+            </div>
+          </div>
+
+          <div class="msg">
+            <div class="avatar" style="width:36px;height:36px;background:hsl(90 45% 32%)">VJ</div>
+            <div class="m-body">
+              <div class="m-head"><b>Vijay</b><span class="muted">09:15</span></div>
+              <div class="body">
+                <div class="tsk-chip">✅ <span>Print &amp; distribute at 4 depots</span><span class="tsk-chipwho">Asha→Vijay</span><button class="sm ghost">Mark done</button></div>
+                <p>Task created from this. Also voice note at the plant if anyone has questions.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="msg">
+            <div class="avatar" style="width:36px;height:36px;background:hsl(160 45% 32%)">UB</div>
+            <div class="m-body">
+              <div class="m-head"><b>Ubhay</b><span class="muted">09:16</span></div>
+              <div class="body"><p>Acknowledged. <span class="tag">@all</span> - confirm on the card below, this one needs everyone.</p></div>
+              <div class="ack-card">🙋 14 of 22 confirmed<span class="muted"> · first 8 pending: Ravi, Meena, Suresh, Kavita, Amit, Neha, Raj, Farah</span><button class="sm">I confirm</button></div>
+              <div class="rxns"><button class="rxn">⚡ 3</button><button class="rxn-add">+</button></div>
+            </div>
+          </div>
+        </div>
+        <div id="typing" class="muted">Asha is typing…</div>
+        <footer id="composerBar">
+          <div id="replyBar" class="hidden"></div>
+          <div class="crow">
+            <textarea rows="1" placeholder="Message #price-updates"></textarea>
+            <div class="ctools">
+              <button class="icon" title="Attach">＋</button>
+              <button class="icon" title="Emoji">☺</button>
+              <button class="icon" title="Voice note">🎙</button>
+              <button class="icon" title="Send later">⏰</button>
+              <button class="send" title="Send">➤</button>
+            </div>
+          </div>
+        </footer>
+      </section>
+
+      <aside id="panel" class="hidden"></aside>
+    </main>
+
+    <nav id="tabbar" class="tabbar">
+      <button class="tab on"><span>⌂</span><span>Home</span></button>
+      <button class="tab"><span>✉</span><span>DMs</span><i class="tab-dot show">2</i></button>
+      <button class="tab"><span>🔔</span><span>Activity</span></button>
+      <button class="tab"><span>🔖</span><span>Later</span></button>
+      <button class="tab"><span>⋯</span><span>More</span></button>
+    </nav>
+  </div>
+</div>
+</body>
+</html>

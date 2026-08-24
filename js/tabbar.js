@@ -73,18 +73,25 @@ async function go(id) {
 }
 
 export function initTabBar() {
-  if (root) return;
-  root = el('nav', 'tabbar');
+  // Adopt the static nav from index.html when it is there (it always is). A
+  // second nav with the same id raced the markup once and lost: querySelector
+  // kept un-hiding the EMPTY static one while the populated copy sat orphaned.
+  // One element, adopted in place, no ordering assumptions.
+  root = $('tabbar') || el('nav', 'tabbar');
   root.id = 'tabbar';
-  root.innerHTML = TABS.map((t) => `
-    <button class="tab" data-tab="${t.id}" type="button" aria-label="${t.label}">
-      ${iconFor(t.id)}<span>${t.label}</span><i class="tab-dot"></i>
-    </button>`).join('');
+  if (!root.children.length) {
+    root.innerHTML = TABS.map((t) => `
+      <button class="tab" data-tab="${t.id}" type="button" aria-label="${t.label}">
+        ${iconFor(t.id)}<span>${t.label}</span><i class="tab-dot"></i>
+      </button>`).join('');
+  }
   root.addEventListener('click', (e) => {
     const b = e.target.closest('.tab');
     if (b) go(b.dataset.tab);
   });
-  $('#chat')?.appendChild(root);
+  const chat = $('chat');
+  if (chat && root.parentElement !== chat) chat.appendChild(root);
+  root.classList.remove('hidden');
 
   bus.on('unread', paint);
   bus.on('spaces:badges', paint);

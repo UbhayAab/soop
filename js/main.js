@@ -571,8 +571,10 @@ async function main() {
 
   // The phone shell. After features register so badge counts read real stores,
   // and skipped entirely inside a dashboard embed where a thumb bar is noise.
+  // initTabBar owns the un-hide now; the line that used to sit here un-hid the
+  // EMPTY static nav while the populated copy lost an id race.
   if (!embed.active) {
-    import('./tabbar.js').then(({ initTabBar }) => { initTabBar(); $('tabbar')?.classList.remove('hidden'); }).catch(() => {});
+    import('./tabbar.js').then(({ initTabBar }) => initTabBar()).catch(() => {});
   }
 
   $('panelClose').onclick = closePanel;
