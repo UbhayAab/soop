@@ -144,6 +144,11 @@ export function initPresence() {
     // in two orgs is wider than the Space on screen. Keep the count meaning what
     // it has always meant: people here.
     store.online = new Set((data || []).map((p) => p.user_id).filter((u) => store.profiles.has(u)));
+    // The status column used to be thrown away here, and features/status.js paid
+    // its own user_presence read - every profile id in the query string - to buy
+    // back exactly this column for the away/dnd badges. Keep it instead: absent
+    // means offline or stale, which is all the badge painter needs to know.
+    store.presenceStatus = new Map((data || []).map((p) => [p.user_id, p.status]));
     store.online.add(store.me);
     const c = $('onlineCount');
     if (c) c.textContent = store.online.size;

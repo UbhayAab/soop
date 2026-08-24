@@ -100,10 +100,12 @@ function scheduleExpiry() {
 }
 
 // ------------------------------------------------------------------ decoration
-const presenceStatus = new Map(); // user_id -> 'online'|'away'|'dnd'|'offline'
-let presenceFetchedAt = 0;
-let presenceInFlight = false;
-
+// Away/dnd state comes from store.presenceStatus, the map core/presence.js
+// fills on its existing 20s census read. This used to issue its own
+// user_presence fetch - every profile id in the query string - per panel
+// mutation, throttled to 8s; the census already carries the column, and the
+// 'presence' bus event fires after every tick, so badges now move on that
+// tick instead of behind it.
 function decorateMembers() {
   for (const row of document.querySelectorAll('.member')) {
     if (row.dataset.hstatus) continue;
@@ -112,7 +114,7 @@ function decorateMembers() {
     row.dataset.hstatus = '1';
     const p = store.profiles.get(uid);
     if (p?.status_text) row.title = String(p.status_text);
-    const st = presenceStatus.get(uid);
+    const st = store.presenceStatus?.get(uid);
     if (st !== 'dnd' && st !== 'away') continue;
     const badge = el('span', 'hstatus-badge', st === 'dnd' ? '⛔' : '🌙');
     badge.title = st === 'dnd' ? 'Do not disturb' : 'Away';
@@ -120,24 +122,13 @@ function decorateMembers() {
   }
 }
 
-// Core only tracks online/offline, so away and do-not-disturb need their own
-// read. It is throttled and only runs while member rows are actually on screen.
-async function refreshPresenceDetail() {
-  if (presenceInFlight) return;
+// Repaints the badges from the shared map. No network: cheap enough to call on
+// every panel mutation and after every presence tick.
+function refreshPresenceDetail() {
   if (!document.querySelector('.member')) return;
-  if (Date.now() - presenceFetchedAt < 8000) return;
-  presenceInFlight = true;
-  presenceFetchedAt = Date.now();
-  try {
-    const ids = [...store.profiles.keys()];
-    if (!ids.length) return;
-    const rows = await table('user_presence', (q) => q.in('user_id', ids));
-    presenceStatus.clear();
-    for (const r of rows) presenceStatus.set(r.user_id, r.status);
-    document.querySelectorAll('.hstatus-badge').forEach((n) => n.remove());
-    document.querySelectorAll('.member[data-hstatus]').forEach((n) => { delete n.dataset.hstatus; });
-    decorateMembers();
-  } finally { presenceInFlight = false; }
+  document.querySelectorAll('.hstatus-badge').forEach((n) => n.remove());
+  document.querySelectorAll('.member[data-hstatus]').forEach((n) => { delete n.dataset.hstatus; });
+  decorateMembers();
 }
 
 // ------------------------------------------------------------------ popover
