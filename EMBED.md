@@ -159,7 +159,7 @@ that fallback.
 | install prompt | shown when offered | hidden |
 | invite / create-a-Space | shown | hidden under `chrome=minimal` |
 | document scroll | normal | locked; only the message list scrolls |
-| header height | 56px | 44px where the pointer is fine |
+| header | two bars up top | identical rules apply: the box is the frame, so below a 480px app box both modes collapse to ONE 40px bar whose centre button opens the place switcher |
 
 The service worker is deliberately skipped. It is scoped to the whole origin, so
 an embed registering one would start serving a cached shell to the standalone app

@@ -5,7 +5,54 @@ reports, 6 codebase audits, 1 synthesis). Kept in the repo because the
 measurements in it are expensive to reproduce and the traps are the kind of
 thing that is only obvious once.
 
-Steps 1 and 2 of the roadmap are DONE. Everything else is not.
+Steps 1 through 8 of the roadmap are DONE in the client; what is left of them
+is server-side deploy work. The status block below was written 2026-08-25 by a
+driver sweep that re-verified every "today"/"currently" claim in this file
+against the live tree; sections keep their original analysis because the
+measurements in them stay true, and any claim now false carries a dated banner.
+Do not re-implement anything carrying one.
+
+## Status 2026-08-25 (driver sweep, supersedes stale text flagged inline)
+
+LANDED since this plan was written, client side:
+- Roadmap 1-2: SW precache complete for the whole module graph (VERSION
+  dek-v16), attachment XSS sinks hardened, DEMO_TOKEN gone, referrer set.
+- Roadmap 3: hosted off GitHub Pages; _headers at repo root serves
+  frame-ancestors; localhost gated out of EMBED_ORIGINS.
+- Roadmap 4: #app is `container: soop / inline-size` (7ed459f, d2102c2); the
+  size media queries governing panel geometry migrated to container queries.
+- Roadmap 5 core: pointer-axis target sizing via data-input (23a450f);
+  safe-area insets dropped to --safe-* tokens, f7a8e82; narrow message
+  geometry behind @container soop (max-width: 440px), 92e7848.
+- Roadmap 6: panel sheet + navStack + back chevron eae2fe9; single merged
+  40px header below 480px of app box 3a26193; sidebar pushed full-width view
+  below 440px b07f22c. NOTE: the bottom tab bar was REJECTED here but shipped
+  anyway (js/tabbar.js) - deliberate product reversal, do not delete it.
+- Roadmap 7-8: bridge hardened end to end - ev.source pin 0539aa2, navigate
+  allowlist/signout teardown/origin anchoring in the P0 batches, visibility
+  push + re-identify follow fc3d6fc, tasks/close-request/size outbound and
+  notifications host note 4bd7168.
+- Keyboard/a11y section: hijacks removed 400ee1b; LIFO close stack +
+  CloseWatcher fast path daf00df; role=log live region gated on panel
+  visibility 6893a9f (kept aria-live=polite as the mute switch, deviation
+  noted in its proof); --kb keyboard-inset token bf25228.
+- Roadmap 18: js/lib/forecast.js implements the whole measured kernel
+  (WINDOW_DAYS 56, MIN_SAMPLES 12, pct/refClass/conditionalRemaining/ageBand/
+  mcWhen) exactly as specified.
+- Bug list items 1-13 and quick wins 1-22: every item verified landed against
+  the live tree by three separate sweeps recorded in DRIVER-STATE.md
+  (commits 7552bac, fec9789, 7cebd18 among others).
+
+STILL OPEN:
+- Roadmap 9-11: embed registry tables, ensure_embed_space, OIDC tier A,
+  ticket tier B. Verified this sweep: js/features/index.js has NO embed
+  gating yet, so admin/orgadmin/integrations still load in embed mode.
+- Task system steps 12-17, 19-30 (schema v2, forecast on the card, nudges,
+  digest, Jira interop): backend-heavy, none started.
+- Density attribute tier (#app[data-density]): blocked on choosing concrete
+  compact/cozy --s-* values, a design decision no headless burst will make.
+- Voice ICE batching (EFFICIENCY rank 20): needs a real call to verify;
+  rejected by eleven consecutive bursts for exactly that reason.
 
 ---
 
@@ -19,7 +66,16 @@ WHAT IS MARGINAL. Story points (the strongest published estimator, Deep-SE, beat
 
 THE CEILING. Soop can credibly replace Jira for a 30-300 person mixed technical/non-technical org, and can be embedded as a first-class panel. It cannot match Linear's perceived speed without a client-side object database with a monotonic sync counter, and should not try yet. The honest ceiling on requirement 4 is: ownership, dates, blockers, progress and forecasting handled automatically-and-confirmed; not handled silently. Asana shipped silent auto-promotion between Today/Upcoming/Later and REMOVED it because users read it as lost work.
 
+[STATUS 2026-08-25: RESOLVED. The app moved off GitHub Pages; _headers at the
+repo root serves frame-ancestors (see its own header comment). The residual
+client-side refusal hardening landed with the P0 embed batches.]
+
 THE ONE THING THAT GATES EVERYTHING. GitHub Pages cannot send response headers, and `frame-ancestors` is ignored in a `<meta>` CSP. So today any page on the internet can iframe Soop with a live session and clickjack it - js/main.js returns via enter() before the embed auth-wait branch, so an existing session paints the full authenticated UI regardless of who the real parent is. The allowlist in js/config.js stops the bridge, not the framing, and config.js already says so. Moving off Pages is a prerequisite, not a follow-up. Until then embed mode is a demo, not a product.
+
+[STATUS 2026-08-25: STALE. sw.js VERSION is dek-v16 and SHELL_FILES precaches
+./js/embed.js and ./css/embed.css plus every feature module; the offline blank
+page was fixed in the P0 batches and re-proven by the SW precache burst
+(53/53 shell paths verified on disk). Kept only as a record of the audit.]
 
 ALSO LIVE RIGHT NOW, VERIFIED: sw.js VERSION is still 'soop-v9' and SHELL_FILES contains neither './js/embed.js' nor './css/embed.css', while js/main.js STATICALLY imports './embed.js'. On an offline cold start the module graph fails and the STANDALONE app is a blank page. The embed work regressed the non-embedded app.
 
@@ -740,6 +796,12 @@ Note the iframe partially rescues this today: a cross-site frame gets its own vi
 
 ### Do this first, it unblocks everything else
 
+[STATUS 2026-08-25: DONE - css/base.css:100 declares container: soop /
+inline-size and #app height 100%; the geometry media queries migrated to
+container queries across later bursts (7ed459f, d2102c2). The second
+`aside#panel` container was deliberately NOT added; the reasoning is in
+DRIVER-STATE.md 2026-08-24.]
+
 ```css
 /* css/base.css */
 #app { container: soop / inline-size; inline-size: 100%; block-size: 100%; }
@@ -759,6 +821,11 @@ Also drop `#app{height:100dvh}` (css/base.css:89) for `height:100%`. Inside an i
 
 ## Navigation: stacked push-navigation, one 40px header, no bottom bar
 
+[STATUS 2026-08-25: ALL THREE SLICES LANDED - panel sheet + navStack eae2fe9,
+480px single header 3a26193, 440px pushed sidebar b07f22c. One deliberate
+reversal: the bottom tab bar rejected below SHIPS as js/tabbar.js; treat the
+reject paragraph as the argument it lost to, not current policy.]
+
 Below ~480px, collapse `#topbar` + `#channelbar` (+ `#voicebar`) into ONE 40px header whose centre is a single place-switcher button rendering `<space glyph> #channel ▾`. Truncate the space name first, never the channel. `#headerActions` and `#btnInvite` fold into the existing `#btnMore`. `#voicebar` becomes a 28px single-line strip - delete the two-row `flex: 1 0 100%` spacer hack at css/layout.css:1026, which exists to protect a 390px phone from wrapping and is wrong here. That returns 56-60px permanently, about two messages.
 
 Below ~640px, `aside#panel` becomes `position:absolute; inset:0` inside `main` (absolute, not fixed - layout containment now scopes it), its header swaps `#panelTitle` for a back chevron plus title, and `openPanel()` pushes onto a `navStack` array in js/ui.js so the chevron pops.
@@ -770,6 +837,12 @@ Below ~440px, do the same to `#sidebar`: a pushed full-width view, NOT the curre
 Design floor: **360 wide by 500 tall**, not 380x900. Chrome's Side Panel minimum was raised from 320px to 360px and extensions get no width control at all, and it resets every restart. Assume you will be handed 360 and cannot negotiate.
 
 ## Density: geometry, not type
+
+[STATUS 2026-08-25: pointer-axis split LANDED (23a450f, data-input twins
+beside every target-sizing media block; mouse compaction shipped for #sidebar
+rows only), narrow message geometry LANDED (92e7848, messages.css section 14).
+The data-density attribute tier stays OPEN pending concrete --s-* token
+values - no burst will invent them headless.]
 
 WCAG 2.2 SC 2.5.8 Target Size (Minimum) is **24x24 CSS pixels at AA**, with a spacing exception. 44x44 is SC 2.5.5, Level **AAA**, and is an Apple/Material touch heuristic. Soop's 44px floors are the largest waste of vertical space in a narrow mouse-driven panel.
 
@@ -788,6 +861,12 @@ Adopt `field-sizing: content` for the composer (Baseline newly available June 20
 Ship density as `#app[data-density="compact"|"cozy"]` attribute selectors overriding the `--s-*` tokens, defaulting to compact when embedded. Set a `--density` custom property in parallel so the eventual `@container style(--density: compact)` refactor costs nothing - style queries on custom properties were still landing in Firefox through 2026, so the attribute is what ships today.
 
 ## Existing bugs to fix first, in order
+
+[STATUS 2026-08-25: ALL 13 VERIFIED LANDED against the live tree. Item 1 was
+committed long ago (the "currently uncommitted" note below is false), 2-8 and
+10 and 12 in the P0 batches, 9 via fec9789, 11 via d2102c2, 13 via 7552bac
+(breakpoint crossing retires phone furniture). Do not re-implement; kept as
+the measurement record.]
 
 1. **Grey box under the servers - ALREADY FIXED, verify and commit.** `css/polish.css` line 81 now reads `#spaceRail > .sicon { min-height: 44px; }` with a comment at line 70 recording exactly what happened: it was `#spaceRail > *`, which hit `.sorg-sep` (declared `height:1px` at css/features.css:1728) and `.sorg-label`. min-height beats height (CSS 2.2 §10.7 recomputes used height; Flexbox §9.7 clamps the item's target main size, and `#spaceRail` is `flex-direction:column` so height IS the main axis), so the 1px partition rendered as a 24x44 block of `--c-nav-border` and the label inflated from 16px to 44px with its text top-aligned. Measured at 390x844: sorg-sep 24x44, sorg-label 44x44. The rule was a pure no-op for its intended targets, since `.sicon` is already 44x44 unconditionally at css/layout.css:566. Verify at 390x844 with two organisations, then COMMIT - css/polish.css is currently uncommitted.
 
@@ -817,6 +896,18 @@ Ship density as `#app[data-density="compact"|"cozy"]` attribute selectors overri
 
 ## Keyboard and accessibility in a dock
 
+[STATUS 2026-08-25: EVERY DELIVERABLE IN THIS SECTION IS LANDED. Hijacks:
+400ee1b (Shift+T deleted, Ctrl+F deleted, Ctrl+K '#' routes to full-text
+search, uxfix stopPropagation). Escape: daf00df (one LIFO close stack +
+CloseWatcher per entry, capture keydown fallback). Live region: 6893a9f
+(role=log gated on IO + bridge visibility; kept aria-live=polite as the
+mute switch, a named deviation from the "do not add aria-live" note below).
+Safe-area: f7a8e82 (--safe-t/b/l/r tokens, 36 sites not 16 - later features
+added their own). Keyboard inset: bf25228 (--kb token consumed by both
+composer padding sites, documented in EMBED.md). Still open: the window->#app
+rebinding was REJECTED with reasons (10f924f proof) and the modal+lightbox
+ordering edge is covered by the LIFO stack.]
+
 **Rebind all three global keydown listeners from `window` to `#app`** (js/main.js:399 bubble, js/features/shortcuts.js:164 capture, js/features/uxfix.js:785 capture), add `tabindex="-1"` to `#app`, and gate unmodified keys on `app.contains(document.activeElement)`. Host-page events never bubble into `#app`, so scoping becomes automatic. **Delete Ctrl+F outright** (js/main.js:402) and move search behind Ctrl+K with a `#` prefix - browser find is muscle memory and stealing it is the one thing a user will unambiguously blame the dashboard for. **Delete plain Shift+T** (js/main.js:426), which cycles the theme with no modifier exclusion, so Ctrl+Shift+T (reopen closed tab) both opens Threads and cycles the theme, and which is documented nowhere in the help sheet. Also fix js/features/uxfix.js:1008, where the composer's Ctrl+K calls `preventDefault()` but not `stopPropagation()`, so a link dialog and the quick switcher stack two modals.
 
 Replace the three competing Escape handlers with one LIFO close stack (inline edit -> context menu -> popover -> modal -> pushed panel view -> panel), with a `CloseWatcher` fast path where available - it groups correctly with `<dialog>` and popover and handles the Android back gesture, but MDN flags it not Baseline so it can only be an enhancement. Its `cancel` event is exactly the hook for "the last Escape posts `close-request` and does nothing else".
@@ -832,6 +923,10 @@ Give `#messages` `role="log"` with `aria-label="Messages in #channel"` and `aria
 ---
 
 ## Roadmap
+
+[STATUS 2026-08-25: steps 1-8 are done client-side (see the Status block up
+top for per-step commits); 9-11 wait on DB deploy windows and 12-30 are
+unstarted. `needs DB` remains the honest tag for every server-side item.]
 
 ### 1. Stop the offline regression and ship the security quick wins  `xs` `needs DB`
 
@@ -1077,6 +1172,11 @@ Give `#messages` `role="log"` with `aria-label="Messages in #channel"` and `aria
 
 ## Quick wins
 
+[STATUS 2026-08-25: ALL 22 VERIFIED LANDED (the 7cebd18 burst swept the list
+and re-checked each anchor; spot-checks this sweep confirm tasks.js header
+and dialog copy rewritten, /me renamed /myprofile, sw.js dek-v16 with embed
+entries, polish.css committed). Do not re-implement; kept as record.]
+
 1. GREY BOX UNDER THE SERVERS - already fixed, verify and commit. css/polish.css:81 now reads `#spaceRail > .sicon { min-height: 44px; }` (was `#spaceRail > *`), with the measured explanation at line 70. min-height beats height and #spaceRail is flex-column, so the 1px .sorg-sep (css/features.css:1728) was clamped to a 24x44 block of --c-nav-border and .sorg-label inflated 16px -> 44px with top-aligned text. Load at 390x844 with two organisations, confirm the partition is a hairline again, then commit - css/polish.css is currently uncommitted so this fix is one `git checkout` away from being lost.
 
 2. SW MANIFEST - live blocker on the STANDALONE app. sw.js VERSION is still 'soop-v9' and SHELL_FILES contains neither './js/embed.js' nor './css/embed.css', while js/main.js:23 statically imports './embed.js'. Offline, the own-asset handler races the network for 3.5s, misses the cache, returns Response.error(), and main.js never evaluates - blank page. Add both paths next to their neighbours and bump VERSION to 'soop-v10'. Without the bump the new entries never precache. 5 minutes.
@@ -1159,9 +1259,14 @@ Give `#messages` `role="log"` with `aria-label="Messages in #channel"` and `aria
 
 17. A KANBAN BOARD IN THE PANEL. Column layouts assume ~1000px; at 380px a board degrades to a horizontally scrolling single column, strictly worse than the card list that already exists, while costing a whole second view to maintain. Put the board on a full-width page at #/tasks following orgadmin's precedent, and keep the panel a ranked list. Refusing the board in the panel is a feature, not a limitation.
 
-18. THE OPTIMISTIC-ID SWAP BREAKS ANYTHING STAMPED AT RENDER TIME. Core rewrites row.dataset.id from the client nonce to the server uuidv7 WITHOUT re-emitting message:render, so a chip for a task you just created never appears until reload. tasks.js documents the measured uuids and carries slotMessageId() as a workaround; ackloop.js carries a different one. Any new per-message task UI must read the id off the row at paint time. The real fix is for upgradeMessageRow to emit message:idUpgraded, which would let four features delete their workarounds.
+18. THE OPTIMISTIC-ID SWAP BREAKS ANYTHING STAMPED AT RENDER TIME. [STATUS
+2026-08-25: THE REAL FIX SHIPPED - upgradeMessageRow and claimMessage's nonce
+branch emit message:idUpgraded (b8b13dc) and tasks.js/ackloop.js deleted their
+render-time workarounds. Kept as background for any new per-message UI.] Core rewrites row.dataset.id from the client nonce to the server uuidv7 WITHOUT re-emitting message:render, so a chip for a task you just created never appears until reload. tasks.js documents the measured uuids and carries slotMessageId() as a workaround; ackloop.js carries a different one. Any new per-message task UI must read the id off the row at paint time. The real fix is for upgradeMessageRow to emit message:idUpgraded, which would let four features delete their workarounds.
 
-19. FEATURES LOAD IN PARALLEL, SO REGISTRATION ORDER IS NOT WHAT THE COMMENTS CLAIM. registerFeatures uses Promise.all, so 'Late, so it is registered after the features whose errors it would catch' and 'Last on purpose: it re-registers a few core panels by id' are aspirational. registerPanel is a Map that overwrites silently by id and addSlashCommand is a Map that overwrites silently by name - /me and /roles are each registered twice today with different descriptions. Namespace new ids, and make both registries warn on collision.
+19. FEATURES LOAD IN PARALLEL, SO REGISTRATION ORDER IS NOT WHAT THE COMMENTS CLAIM. [STATUS
+2026-08-25: LANDED - registerPanel warns on collision unless replaces:true and
+addSlashCommand warns (7cebd18); the /me duplicate was renamed /myprofile.] registerFeatures uses Promise.all, so 'Late, so it is registered after the features whose errors it would catch' and 'Last on purpose: it re-registers a few core panels by id' are aspirational. registerPanel is a Map that overwrites silently by id and addSlashCommand is a Map that overwrites silently by name - /me and /roles are each registered twice today with different descriptions. Namespace new ids, and make both registries warn on collision.
 
 20. A HEADER BUTTON IS NOT A REACHABLE SURFACE. renderHeaderButtons paints only the first inlineCap = 4, shell.js has its own separate hardcoded INLINE_ACTIONS = 4, and css/shell.css:349 hides all but the first TWO below 860px. There are 24 registered buttons; tasks sits at order 74 and never renders inline. coordnav.js exists entirely because of this and its header comment documents the measurement. Any new task surface must go into coordnav's ROWS or nobody will ever click it.
 
