@@ -14,7 +14,7 @@ import { initVoice } from './core/voice.js';
 import { openThread, threadState } from './core/threads.js';
 import { registerCoreActions, registerCoreHeader } from './core/actions.js';
 import { openDM, startDM } from './core/dms.js';
-import { jumpTo, buildMessage, initAvatarSweep } from './core/messages.js';
+import { jumpTo, buildMessage, initAvatarSweep, initNarrowWatcher } from './core/messages.js';
 import { initPWA, paintInstallButton } from './pwa.js';
 import { initTheme, openThemePicker, cycleTheme } from './theme.js';
 import { icon, logoMark } from './icons.js';
@@ -583,6 +583,7 @@ async function main() {
   initTheme();
   hydrateIcons(document);
   initAvatarSweep();
+  initNarrowWatcher();
   initAuth(enter);
   initComposer();
   initVoice();

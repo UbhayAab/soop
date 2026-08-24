@@ -56,6 +56,20 @@ export function initAvatarSweep() {
 import { icon } from '../icons.js';
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
+const GROUP_WINDOW_NARROW_MS = 10 * 60 * 1000;
+// Mirrors css/messages.css section 14's `@container soop (max-width: 440px)`
+// block: a container query cannot reach JS, so a ResizeObserver on #app keeps
+// this flag on the same box the CSS measures. The observer fires once on
+// observe(), seeding the flag before the first channel renders. Keep the 440s
+// in sync.
+let appNarrow = false;
+export function initNarrowWatcher() {
+  const app = document.getElementById('app');
+  if (!app || typeof ResizeObserver === 'undefined') return;
+  new ResizeObserver((entries) => {
+    for (const e of entries) appNarrow = e.contentRect.width <= 440;
+  }).observe(app);
+}
 
 export function avatarHtml(userId, size = 36) {
   const p = profileOf(userId);
@@ -377,7 +391,8 @@ export function appendMessage(host, m, context = 'channel', opts = {}) {
   }
 
   const grouped = !!last && last.classList.contains('msg') &&
-    lastAuthor === m.author_id && t - lastTime < GROUP_WINDOW_MS &&
+    lastAuthor === m.author_id &&
+    t - lastTime < (appNarrow ? GROUP_WINDOW_NARROW_MS : GROUP_WINDOW_MS) &&
     !m.reply_to_id && day === lastDay;
 
   const row = buildMessage(m, { context, grouped });

@@ -1525,3 +1525,52 @@
 :root[data-input="touch"] .alsosend { min-height: 44px; }
 :root[data-input="touch"] .ac-row { min-height: 44px; }
 :root[data-input="touch"] .att-file { min-height: 48px; }
+
+/* ============================================================================
+   14. NARROW COLUMN - message geometry under a 440px app box
+   ========================================================================= */
+
+/* These are BOX facts, not viewport facts, so they are a container query like
+   the narrow-topbar rules in shell.css: a same-document embed panel on a wide
+   host window gets them wherever #app is actually narrow, and a standalone
+   phone matches this AND the media queries above and reads identical rules.
+   Values are PLAN.md's measured set - at 380px minus list padding minus a
+   28px gutter the measure is ~332px, about 55 characters at --t-base, inside
+   the comfortable 45-75 range. Type size is deliberately NOT touched: body
+   text stays --t-md/--t-base and shrinking it would push past ~65 characters.
+   js/core/messages.js keeps its grouping window in step with this same box
+   through initNarrowWatcher() - keep the 440s in sync. */
+@container soop (max-width: 440px) {
+  /* These re-states lose to LATER stylesheets at equal specificity - shell.css
+     hard-codes `.msg .gutter { width: 38px }` (the --gutter token has been dead
+     for message rows since that line) and reading.css re-pads every row - so
+     the narrow values ride a two-class selector rather than file order.
+     Forum/topics keep their own 34px gutters: their runtime-injected rules
+     match this specificity and load after every link. */
+  .msgs .msg, .thread-msgs .msg { padding: 3px 10px; gap: 8px; }
+  .msgs .msg:not(.grouped), .thread-msgs .msg:not(.grouped) { padding-top: 6px; }
+  .msgs .msg .gutter, .thread-msgs .msg .gutter { width: 28px; }
+
+  /* avatarHtml stamps 36px onto each avatar's inline style, and shell.css
+     drops it to 30px with !important - only a stronger !important wins. The
+     initials font follows down from the box size. */
+  .msg > .gutter .avatar {
+    width: 24px !important;
+    height: 24px !important;
+    font-size: 10px;
+  }
+
+  /* The timestamp rides at the END of the name line instead of trailing the
+     pills, so a busy APP/URGENT/topic row can never push the time onto its own
+     wrapped second line at this width. */
+  .mhead .t { margin-inline-start: auto; }
+
+  /* Slightly nicer ragging while the column wraps hard; overflow-wrap:anywhere
+     is already unconditional on .body above. */
+  .body { text-wrap: pretty; }
+
+  /* The scroller reserves the gutter bar even before it overflows, so the
+     measure stops jumping when the first long page arrives (#messages belongs
+     to layout.css; this one property has to live on the scroller itself). */
+  #messages { scrollbar-gutter: stable; }
+}
