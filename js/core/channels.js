@@ -977,6 +977,21 @@ export async function reconcile() {
   }
 }
 
+// Columns the heal read actually needs. This fetch feeds buildMessage, the
+// hover-action show() predicates and the message:new/message:render listeners,
+// and every name on the list is read somewhere off live-served rows today, so
+// each is provably a real column. Deliberately absent: body jsonb (a duplicate
+// of body_text per the efficiency notes) and client_msg_id, which cannot be
+// proven to be a physical column from this repo - broadcast payloads may attach
+// it server-side, and guessing wrong would error the whole fetch. If the server
+// ever refuses the list, or serves rows missing one of these keys (PostgREST
+// echoes selected columns as keys even when null), the read retries once with
+// '*' so healing degrades to the old behaviour instead of painting blanks.
+const HEAL_COLUMNS = ['id', 'seq', 'channel_id', 'conversation_id', 'author_id',
+  'body_text', 'created_at', 'edited_at', 'deleted_at', 'attachments',
+  'mention_user_ids', 'mention_scope', 'priority', 'topic', 'reply_to_id',
+  'thread_id', 'also_send_to_channel', 'ack_required', 'bot_id', 'webhook_id'];
+
 // Apply one page of the log. Anything healed here has to look EXACTLY like a
 // live delivery to the rest of the app: same 'message:new' event, same read
 // state. It did not before, which is why every reconnect left a phantom unread
@@ -1004,9 +1019,24 @@ async function applyEvents(channelId, events, gen) {
     // the server can reject, and one rejected URL used to abandon the whole
     // healing pass. Any chunk failing still abandons the pass with the cursor
     // left alone, so the next trigger refetches the same span.
-    const pages = await Promise.all(
-      Array.from({ length: Math.ceil(wanted.length / 50) }, (_, i) =>
-        sb.from('messages').select('*').in('id', wanted.slice(i * 50, i * 50 + 50))));
+    const chunks = Array.from({ length: Math.ceil(wanted.length / 50) }, (_, i) =>
+      wanted.slice(i * 50, i * 50 + 50));
+    const fetchHealPages = (cols) => Promise.all(
+      chunks.map((ids) => sb.from('messages').select(cols).in('id', ids)));
+    let pages = await fetchHealPages(HEAL_COLUMNS.join(','));
+    if (pages.some((p) => p.error)) {
+      // A column this schema lacks fails the projected read wholesale. One
+      // unprojected retry keeps the pass alive; if '*' fails too, the same
+      // abandon-below handles it exactly as before. Costs nothing while the
+      // projection is healthy.
+      pages = await fetchHealPages('*');
+    } else {
+      // Drift guard: an absent key means the list no longer matches the schema.
+      const sample = pages.flatMap((p) => p.data || []).find(Boolean);
+      if (sample && HEAL_COLUMNS.some((k) => !(k in sample))) {
+        pages = await fetchHealPages('*');
+      }
+    }
     const failed = pages.find((p) => p.error);
     if (failed) {
       console.warn('resync: message fetch failed, leaving the cursor alone', failed.error.message);
