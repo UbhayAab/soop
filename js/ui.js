@@ -374,6 +374,13 @@ const switcherSources = [];
 export function addSwitcherSource(def) { switcherSources.push(def); }
 export const getSwitcherSources = () => switcherSources;
 
+// Fixed overlays append to body, so their coordinates are viewport numbers -
+// which inside a same-document embed is the HOST window, a box we are not
+// drawn in. Clamp against the app box instead: the same rectangle as the
+// viewport standalone, and the actual panel in an embed.
+const overlayBounds = () =>
+  (document.getElementById('app') || document.body).getBoundingClientRect();
+
 // ------------------------------------------------------------------ context menu
 export function contextMenu(ev, items) {
   document.querySelector('.ctxmenu')?.remove();
@@ -387,10 +394,11 @@ export function contextMenu(ev, items) {
   }
   document.body.appendChild(menu);
   const r = menu.getBoundingClientRect();
-  const x = Math.min(ev.clientX, window.innerWidth - r.width - 8);
-  const y = Math.min(ev.clientY, window.innerHeight - r.height - 8);
-  menu.style.left = x + 'px';
-  menu.style.top = y + 'px';
+  const b = overlayBounds();
+  const loX = b.left + 8, hiX = Math.max(loX, b.right - r.width - 8);
+  const loY = b.top + 8, hiY = Math.max(loY, b.bottom - r.height - 8);
+  menu.style.left = Math.min(Math.max(ev.clientX, loX), hiX) + 'px';
+  menu.style.top = Math.min(Math.max(ev.clientY, loY), hiY) + 'px';
   const away = (e) => {
     if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('mousedown', away); }
   };
@@ -412,12 +420,13 @@ export function popover(anchorEl, contentEl, opts = {}) {
   const anchor = anchorEl && anchorEl.getBoundingClientRect ? anchorEl : document.body;
   const a = anchor.getBoundingClientRect();
   const r = p.getBoundingClientRect();
+  const b = overlayBounds();
   let top = opts.below ? a.bottom + 6 : a.top - r.height - 6;
-  if (top < 8) top = a.bottom + 6;
-  if (top + r.height > window.innerHeight - 8) top = Math.max(8, window.innerHeight - r.height - 8);
-  let left = Math.min(a.left, window.innerWidth - r.width - 8);
+  if (top < b.top + 8) top = a.bottom + 6;
+  if (top + r.height > b.bottom - 8) top = Math.max(b.top + 8, b.bottom - r.height - 8);
+  const left = Math.min(a.left, b.right - r.width - 8);
   p.style.top = top + 'px';
-  p.style.left = Math.max(8, left) + 'px';
+  p.style.left = Math.max(b.left + 8, left) + 'px';
   const away = (e) => {
     if (!p.contains(e.target) && !anchor.contains(e.target)) {
       p.remove();

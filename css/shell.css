@@ -39,8 +39,13 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
 #topbar {
   display: grid;
   /* Three real zones. The centre column is what makes search the anchor of the
-     product rather than one glyph among many. */
-  grid-template-columns: minmax(180px, 1fr) minmax(280px, 720px) minmax(180px, 1fr);
+     product rather than one glyph among many.
+     minmax(0,...) on every track lets each compress below its content: with
+     hard minimums (180/280/180) the grid could not fit any box narrower than
+     ~700px - a size no standalone viewport shows, but a same-document embed
+     panel does, and there the overflow clipped the whole right zone off the
+     edge. The search element caps itself at 720px, so no track cap is needed. */
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) minmax(0, auto);
   align-items: center;
   gap: var(--s-5);
   height: calc(var(--header-h) + env(safe-area-inset-top));
@@ -353,6 +358,25 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
    MOBILE
    ========================================================================= */
 @media (max-width: 860px) {
+  #channelbar { padding-inline: var(--s-4); }
+  .cb-topic { display: none; }
+  #channelbar #btnInvite { display: none; }
+  /* The two-on-a-phone cap used to live here, as
+     `.hdr-actions button:nth-child(n + 3) { display: none }`. It was not wrong
+     about the number, it was wrong about the layer: the overflow menu is built
+     in JS from the same registry, and it could not see a CSS rule, so it started
+     its slice at four while CSS showed two. Buttons three and four were painted
+     and hidden and left out of the menu - present in the DOM, reachable by
+      nobody. shell.js owns the number now and both sides read it. */
+}
+
+/* The narrow-topbar rules are BOX facts, not viewport facts: a same-document
+   embed panel on a wide host window has a 400px app inside a 1400px viewport,
+   where this media query stays off and the bar kept desktop geometry it had no
+   room for. A container query against #app fires on exactly the box we draw
+   in; standalone phones match both queries and read identical rules here.
+   Keep these in sync with any future topbar-family narrow rules. */
+@container soop (max-width: 860px) {
   #topbar {
     grid-template-columns: auto 1fr auto;
     gap: var(--s-3);
@@ -365,16 +389,6 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
   .userchip .meName { display: none; }
   .userchip { padding: 0 var(--s-2); }
   #topbar #spaceName { display: none; }
-  #channelbar { padding-inline: var(--s-4); }
-  .cb-topic { display: none; }
-  #channelbar #btnInvite { display: none; }
-  /* The two-on-a-phone cap used to live here, as
-     `.hdr-actions button:nth-child(n + 3) { display: none }`. It was not wrong
-     about the number, it was wrong about the layer: the overflow menu is built
-     in JS from the same registry, and it could not see a CSS rule, so it started
-     its slice at four while CSS showed two. Buttons three and four were painted
-     and hidden and left out of the menu - present in the DOM, reachable by
-     nobody. shell.js owns the number now and both sides read it. */
 }
 
 /* Touch ergonomics: the channel bar's icon buttons were 30x30 boxes while
