@@ -1,39 +1,36 @@
-// TURN credentials for voice rooms, minted per request.
+// TURN credentials for voice rooms.
 //
-// The mesh in js/core/voice.js works on permissive networks and dies silently
-// behind carrier-grade NAT and corporate firewalls - which is most Indian
-// mobile data. A TURN relay fixes that; Cloudflare Realtime includes 1,000 GB
-// of relay traffic a month on the free tier, more than this product's whole
-// audience will use for audio.
+// Cloudflare moved TURN credential generation to an API-call model: a long-
+// lived TURN KEY is created once (dashboard or /calls/turn_keys), and short-
+// lived iceServers come from rtc.live.cloudflare.com using ANY Cloudflare API
+// token authorised over that key. This function is the only thing that talks
+// to it, so the browser never sees account-level credentials.
 //
-// Cloudflare's model: the account holds one long-lived TURN token secret. A
-// short-lived credential is HMAC-SHA1(secret, username) where the username
-// encodes an expiry timestamp. Browsers accept it as a standard iceServers
-// entry. The secret therefore lives HERE, in the function's environment, and
-// never reaches a browser.
+// Two configuration modes, first match wins:
+//  1. NEW model: env TURN_KEY_ID + CF_TURN_API_TOKEN
+//     -> proxy rtc.live.cloudflare.com/.../generate-ice-servers (ttl 6h)
+//  2. LEGACY model: env TURN_TOKEN_ID + TURN_TOKEN_SECRET
+//     -> local HMAC-SHA1 minting, the original Calls pattern
+// Neither set -> 503, and the client stays STUN-only exactly as before.
 //
-// Authentication: any signed-in Soop user. The Authorization header carries a
-// Supabase access token (the client already sends the publishable key); we
-// verify it against GoTrue before handing out relay credentials, so this is not
-// a free relay for the open internet.
+// Auth: any signed-in Soop user (GoTrue verification). The publishable key
+// alone must NOT count - that would make this a free public relay.
 //
-// Deploy:
-//   supabase functions deploy dek-turn
-//   supabase secrets set TURN_TOKEN_ID=<id> TURN_TOKEN_SECRET=<secret>
-// Until both are set the function answers 503 and the client stays STUN-only,
-// which is the historical behaviour rather than a new failure.
+// Deploy: supabase functions deploy dek-turn
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const TURN_KEY_ID = Deno.env.get('TURN_KEY_ID');
+const CF_TURN_API_TOKEN = Deno.env.get('CF_TURN_API_TOKEN');
 const TURN_TOKEN_ID = Deno.env.get('TURN_TOKEN_ID');
 const TURN_TOKEN_SECRET = Deno.env.get('TURN_TOKEN_SECRET');
 
 const TTL_SECONDS = 3600 * 6;
 
 const enc = new TextEncoder();
-
 function b64(buf: ArrayBuffer) {
   return btoa(String.fromCharCode(...new Uint8Array(buf)));
 }
-
 async function hmacSha1(secret: string, message: string) {
   const key = await crypto.subtle.importKey(
     'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign'],
@@ -44,12 +41,7 @@ async function hmacSha1(secret: string, message: string) {
 async function verifyUser(authHeader: string | null) {
   if (!authHeader?.startsWith('Bearer ')) return null;
   try {
-    const r = await fetch(SUPABASE_URL + '/auth/v1/user', {
-      headers: {
-        Authorization: authHeader,
-        apikey: ANON_KEY,
-      },
-    });
+    const r = await fetch(SUPABASE_URL + '/auth/v1/user', { headers: { Authorization: authHeader } });
     if (!r.ok) return null;
     const u = await r.json();
     return u && u.id ? u : null;
@@ -58,53 +50,75 @@ async function verifyUser(authHeader: string | null) {
   }
 }
 
+// New model: ask Cloudflare for a fresh iceServers bundle. Cached for an hour;
+// credentials inside live six.
+let cfCache: { at: number; ice: unknown } | null = null;
+async function viaCloudflare(): Promise<{ iceServers: unknown[] } | null> {
+  if (!TURN_KEY_ID || !CF_TURN_API_TOKEN) return null;
+  if (cfCache && Date.now() - cfCache.at < 3600_000) return { iceServers: cfCache.ice };
+  const r = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${TURN_KEY_ID}/credentials/generate-ice-servers`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${CF_TURN_API_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ttl: TTL_SECONDS }),
+  });
+  if (!r.ok) throw new Error(`cloudflare ${r.status}`);
+  const j = await r.json();
+  if (!j?.iceServers?.length) return null;
+  // The :53 alternate port times out in browsers without trickle ICE; drop it.
+  const cleaned = j.iceServers.map((s: { urls: string[] }) => ({
+    ...s,
+    urls: Array.isArray(s.urls) ? s.urls.filter((u: string) => !u.endsWith(':53')) : s.urls,
+  }));
+  cfCache = { at: Date.now(), ice: cleaned };
+  return { iceServers: cleaned };
+}
+
+// Legacy model: mint locally from the key secret.
+function viaLegacy(): { iceServers: unknown[] } {
+  const expiry = Math.floor(Date.now() / 1000) + TTL_SECONDS;
+  const username = `${expiry}:${crypto.randomUUID().slice(0, 8)}`;
+  return hmacSha1(TURN_TOKEN_SECRET!, username).then((credential) => ({
+    iceServers: [{
+      urls: [
+        'turn:standard.turn.cloudflare.com:3478?transport=udp',
+        'turn:standard.turn.cloudflare.com:3478?transport=tcp',
+        'turns:standard.turn.cloudflare.com:5349?transport=tcp',
+      ],
+      username,
+      credential,
+    }],
+  }));
+}
+
 Deno.serve(async (req) => {
   const cors = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, content-type',
-    'Access-Control-Max-Age': '86400',
   };
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 
-  if (!TURN_TOKEN_ID || !TURN_TOKEN_SECRET) {
+  const configured = (TURN_KEY_ID && CF_TURN_API_TOKEN) || (TURN_TOKEN_ID && TURN_TOKEN_SECRET);
+  if (!configured) {
     return new Response(JSON.stringify({ error: 'turn_not_configured' }), {
-      status: 503,
-      headers: { ...cors, 'Content-Type': 'application/json' },
+      status: 503, headers: { ...cors, 'Content-Type': 'application/json' },
     });
   }
 
-  // A real Supabase session is required. The publishable key alone must NOT
-  // count: it ships in every bundle, so accepting it turns this into an open
-  // relay for anyone who can read JavaScript.
-  const auth = req.headers.get('Authorization');
-  const ok = !!(await verifyUser(auth));
-  if (!ok) {
+  if (!(await verifyUser(req.headers.get('Authorization')))) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), {
-      status: 401,
-      headers: { ...cors, 'Content-Type': 'application/json' },
+      status: 401, headers: { ...cors, 'Content-Type': 'application/json' },
     });
   }
 
-  const expiry = Math.floor(Date.now() / 1000) + TTL_SECONDS;
-  const nonce = crypto.randomUUID().slice(0, 8);
-  const username = `${expiry}:${nonce}`;
-  const credential = await hmacSha1(TURN_TOKEN_SECRET, username);
-
-  return new Response(JSON.stringify({
-    iceServers: [
-      {
-        urls: [
-          'turn:standard.turn.cloudflare.com:3470?transport=udp',
-          'turn:standard.turn.cloudflare.com:3478?transport=udp',
-          'turn:standard.turn.cloudflare.com:3478?transport=tcp',
-          'turns:standard.turn.cloudflare.com:5349?transport=tcp',
-        ],
-        username,
-        credential,
-      },
-    ],
-    ttl: TTL_SECONDS,
-  }), {
-    headers: { ...cors, 'Content-Type': 'application/json' },
-  });
+  try {
+    const out = TURN_KEY_ID && CF_TURN_API_TOKEN ? await viaCloudflare() : await viaLegacy();
+    if (!out) throw new Error('no ice servers');
+    return new Response(JSON.stringify({ ...out, ttl: TTL_SECONDS }), {
+      headers: { ...cors, 'Content-Type': 'application/json' },
+    });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: 'turn_mint_failed', detail: String(e).slice(0, 200) }), {
+      status: 502, headers: { ...cors, 'Content-Type': 'application/json' },
+    });
+  }
 });
