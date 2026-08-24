@@ -96,7 +96,7 @@ export function initPresence() {
   // Both are now bounded by what actually changed:
   //   - membership arrives on the ws: subscription (member_joined -> reloadMembers
   //     in workspace.js), so the poll is a backstop for a dropped broadcast. It
-  //     runs every sixth tick and asks only for rows newer than the newest
+  //     runs every fourth tick and asks only for rows newer than the newest
   //     joined_at already seen.
   //   - presence asks the server for the people who are online, instead of
   //     fetching everyone and filtering in the browser. RLS on user_presence
@@ -132,7 +132,14 @@ export function initPresence() {
   };
 
   const tick = async () => {
-    if (tickN++ % 6 === 0) await syncMembers();
+    // Only while somebody is looking. Realtime already announces arrivals and
+    // departures on the ws topic; this poll is a backstop for a dropped
+    // broadcast, and a dropped dot nobody can see does not need healing until
+    // they look. Coming back to the tab runs tick() directly (the merged
+    // visibilitychange handler below), so the dots are right by the first
+    // visible frame instead of up to one interval later.
+    if (document.visibilityState !== 'visible') return;
+    if (tickN++ % 4 === 0) await syncMembers();
     if (!store.profiles.size) return;
     const cutoff = new Date(Date.now() - ONLINE_WINDOW_MS).toISOString();
     const { data, error } = await sb.from('user_presence')
@@ -155,7 +162,12 @@ export function initPresence() {
     bus.emit('presence');
   };
   tick();
-  setInterval(tick, 20000);
+  // 30s, not the 45s two analyses wanted: the beat that writes my own presence
+  // is 45s, but a colleague ARRIVING is only visible to me when this poll next
+  // reads, and tick() also beats on every channel open - 30s keeps "is Priya
+  // here yet" honest without paying the old 20s. The member backstop below
+  // stays at ~120s (every fourth visible tick).
+  setInterval(tick, 30000);
 
   // backstop only - see BACKSTOP_MS above
   setInterval(() => {
@@ -269,6 +281,9 @@ export function initPresence() {
     // to be wrong, and it is the one moment somebody is about to look at them.
     unreadTick = 0;
     refreshUnread();
+    // Census too: the green dot and the away/dnd badges are right before the
+    // first visible frame instead of up to 30s later.
+    tick().catch(() => {});
     // Heal the reactions on screen now instead of waiting up to 9s for the tick.
     sweepReactions();
   });
