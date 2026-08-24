@@ -202,7 +202,13 @@ export function register(app) {
   // this repaint the mic existed in the registry and nowhere on screen.
   ui.renderComposerButtons();
 
+  // Capture phase: this must claim Escape BEFORE main.js's window handler,
+  // which is registered earlier and would peel the panel behind the live bar
+  // in the same press (bubble-phase stopPropagation cannot undo that).
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && rec && rec.state === 'recording') stop(true);
-  });
+    if (e.key === 'Escape' && rec && rec.state === 'recording') {
+      e.stopPropagation();
+      stop(true);
+    }
+  }, true);
 }

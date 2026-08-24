@@ -380,7 +380,11 @@ export async function openViewer(items, startIndex = 0) {
   }
   const close = () => { lb.remove(); document.removeEventListener('keydown', onKey); };
   const onKey = (e) => {
-    if (e.key === 'Escape') close();
+    // One press peels one layer: the lightbox is invisible to main.js's Escape
+    // census (it lives outside .popover/.ctxmenu/.modal-back), so without the
+    // stop the same press pops the panel behind it - or posts an embed
+    // close-request to the host while somebody is merely looking at an image.
+    if (e.key === 'Escape') { e.stopPropagation(); close(); }
     else if (e.key === 'ArrowRight' && items.length > 1) { i = (i + 1) % items.length; show(); }
     else if (e.key === 'ArrowLeft' && items.length > 1) { i = (i - 1 + items.length) % items.length; show(); }
     else if (e.key === '+' || e.key === '=') { scale = Math.min(6, scale * 1.3); apply(); }

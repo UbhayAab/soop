@@ -186,6 +186,10 @@ export function register(app) {
 
     if (e.key === 'Escape' && e.shiftKey) {
       if (!store.current) return;
+      // The help sheet promises mark-read and nothing else; stop the capture
+      // phase here so main.js's bubble handler does not peel the panel in the
+      // same press.
+      e.stopPropagation();
       api.markRead('channel', store.current.id, store.current.last_seq || 0)
         .then(() => { ui.toast('Marked read'); bus.emit('unread:reload'); })
         .catch((err) => ui.toast(err.message, 'error'));
