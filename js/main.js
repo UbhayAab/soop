@@ -3,7 +3,7 @@ import { sb, session } from './sb.js';
 import { api, tryRpc } from './api.js';
 import { store, bus, nameOf } from './store.js';
 import { $, el, esc, debounceLead } from './util.js';
-import ui, { toast, openPanel, closePanel, popPanel, renderHeaderButtons, modal, closePopovers } from './ui.js';
+import ui, { toast, openPanel, closePanel, popPanel, renderHeaderButtons, modal, escDepth, wireEscLayers } from './ui.js';
 import { initAuth, showAuth, showChat, needsPasswordSetup, showSetPassword } from './core/auth.js';
 import { loadSpaces, switchWorkspace, spaceChooser, inviteDialog, copyInvite, extractToken, looksLikeOrgInvite } from './core/workspace.js';
 import { openChannel, renderChannels, wireScroll, refreshUnread, jumpToSeq,
@@ -500,18 +500,21 @@ function quickSwitcher() {
 
 // ------------------------------------------------------------------ shortcuts
 function initShortcuts() {
+  wireEscLayers();
   window.addEventListener('keydown', (e) => {
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); quickSwitcher(); return; }
     if (e.key === 'Escape') {
-      // One press peels one layer: if this press closed a popover or a modal
-      // (modals close themselves via their own key listener), the panel behind
-      // it stays. And when the stack IS empty, embedded mode must not collapse
-      // the panel - a dock is furniture, not a dialog, and Escape mid-sentence
-      // closing it is a data-loss-shaped event. The host decides: we ask.
-      const hadLayer = !!document.querySelector('.popover, .ctxmenu, .modal-back');
-      closePopovers();
-      if (!typing && !hadLayer) {
+      // Layered surfaces (menu, popover, modal, lightbox, inline edit, live
+      // recording) are peeled by the LIFO stack in ui.js - its capture
+      // fallback or a CloseWatcher cancel gets there first. Reaching this line
+      // with a non-empty stack means the press was synthetic or already
+      // claimed; standing down keeps one press = one layer unconditional.
+      if (escDepth()) return;
+      // Stack empty: embedded mode must not collapse the panel - a dock is
+      // furniture, not a dialog, and Escape mid-sentence closing it is a
+      // data-loss-shaped event. The host decides: we ask.
+      if (!typing) {
         if (embed.active) notifyHost('close-request', {});
         else popPanel();
       }

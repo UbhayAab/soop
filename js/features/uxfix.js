@@ -20,7 +20,7 @@ import { $, el, esc, plain, debounce, relTime } from '../util.js';
 import { icon } from '../icons.js';
 import { table, api } from '../api.js';
 import { PERM } from '../config.js';
-import { modal } from '../ui.js';
+import { modal, escPush } from '../ui.js';
 import { avatarHtml, applyEdit } from '../core/messages.js';
 import { openChannel } from '../core/channels.js';
 
@@ -825,25 +825,12 @@ function labelIconButtons(root = document) {
 // ==========================================================================
 // 7. ESCAPE CLOSED THE WRONG THING
 //
-// main.js binds Escape on window to closePopovers + closePanel. With a modal
-// open that closed the modal AND the panel behind it, and nothing closed the
-// long-press menu at all. A capture listener on window runs before every other
-// keydown handler in the app, so it can settle the order without touching them.
+// Landed 2026-08-25 as a capture-phase census (inline edit > ctxmenu > modal),
+// superseded by the LIFO close stack in ui.js (PLAN.md:822): every surface
+// registers its closer when it opens, so ordering follows what actually
+// opened last and main.js no longer sweeps CSS selectors at all. The handler
+// this section used to bind is gone.
 // ==========================================================================
-function wireEscape() {
-  window.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    const editing = document.querySelector('.ux-edit');
-    if (editing) { e.stopPropagation(); cancelInlineEdit(editing); return; }
-    const menu = document.querySelector('.ctxmenu');
-    if (menu) { e.stopPropagation(); menu.remove(); return; }
-    const back = [...document.querySelectorAll('.modal-back')].pop();
-    if (back) {
-      e.stopPropagation();
-      back.querySelector('.modal-head button.icon')?.click();
-    }
-  }, true);
-}
 
 // ==========================================================================
 // 8. ENTER IN THE EMAIL FIELD SENT A ONE-TIME CODE
@@ -891,6 +878,8 @@ function wireAuthEnter() {
 // happened to land afterwards - which on a slow connection it does not. The edit
 // looked like it had silently failed.
 function closeInlineEdit(box, { restore = true, text = null } = {}) {
+  box._escDispose?.();
+  box._escDispose = null;
   const row = box.closest('.msg');
   const html = box.dataset.uxHtml;
   const target = row?.querySelector('.body');
@@ -927,6 +916,10 @@ function startInlineEdit(row, api) {
   bodyEl.after(box);
   ta.focus();
   ta.setSelectionRange(ta.value.length, ta.value.length);
+  // The edit lives on the LIFO close stack for its lifetime, so Escape peels
+  // it before anything underneath - the ordering the old capture census
+  // approximated by querying .ux-edit first.
+  box._escDispose = escPush(() => cancelInlineEdit(box));
 
   const save = async () => {
     const text = ta.value.trim();
@@ -1495,7 +1488,6 @@ export function register(app) {
   const { ui, api } = app;
   UI = ui;
 
-  wireEscape();
   wireAuthEnter();
   wireBodyAdditions();
 

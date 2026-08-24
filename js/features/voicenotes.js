@@ -13,7 +13,7 @@
 // note recorded an hour ago still plays.
 import { store } from '../store.js';
 import { api } from '../api.js';
-import { toast } from '../ui.js';
+import { toast, escPush } from '../ui.js';
 import { uploadFile } from '../core/media.js';
 import { esc } from '../util.js';
 
@@ -112,11 +112,13 @@ async function start() {
   tick = setInterval(paintTimer, 250);
   const mic = findMic();
   if (mic) { mic.classList.add('vn-rec'); mic.title = 'Stop recording'; }
+  escDispose = escPush(() => stop(true));
   autoStop = setTimeout(() => stop(false), MAX_MS);
 }
 
 function stop(cancelled) {
   if (!rec || rec.state === 'inactive') return;
+  if (escDispose) { const d = escDispose; escDispose = null; d(); }
   clearInterval(tick);
   clearTimeout(autoStop);
   rec._cancelled = !!cancelled;
@@ -201,14 +203,11 @@ export function register(app) {
   // The tool row paints during initComposer, BEFORE features register. Without
   // this repaint the mic existed in the registry and nowhere on screen.
   ui.renderComposerButtons();
-
-  // Capture phase: this must claim Escape BEFORE main.js's window handler,
-  // which is registered earlier and would peel the panel behind the live bar
-  // in the same press (bubble-phase stopPropagation cannot undo that).
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && rec && rec.state === 'recording') {
-      e.stopPropagation();
-      stop(true);
-    }
-  }, true);
 }
+
+// Escape during a live recording stops it instead of peeling whatever is
+// behind the bar. The claim lives on the LIFO close stack (ui.js), pushed for
+// exactly the recording's lifetime - a static registration would spend every
+// later Escape on a dead check. On CloseWatcher browsers the Android back
+// gesture stops the recording too, which is the grouping you want.
+let escDispose = null;

@@ -32,6 +32,62 @@ function watchComposer() {
   }).observe(bar);
 }
 
+// ------------------------------------------------------------------ LIFO close stack
+// PLAN.md:822. Three handlers used to race for Escape: main.js swept a CSS
+// census of .popover/.ctxmenu/.modal-back, uxfix's capture handler re-implemented
+// the same sweep with its own priority order, and each overlay closed itself.
+// A modal over a panel peeled twice or not at all depending on registration
+// order; the lightbox was invisible to both censuses. Now every closable
+// surface registers its closer here when it opens and disposes it on EVERY
+// close path (Escape, X, backdrop, item click, programmatic), so one press
+// peels exactly the top layer, in the order the layers actually opened.
+//
+// Where CloseWatcher exists (Chromium 108+) each entry rides one: Escape and
+// the Android back gesture group natively with <dialog>/popover, which is the
+// enhancement PLAN asks for. It is one-shot and consumed on cancel, so the
+// entry also keeps a keydown fallback for browsers without it - bound once,
+// capture phase, and only there (with Watcher alive, binding both would peel
+// two layers per press). main.js's own Escape branch guards on escDepth(),
+// which makes double-drive impossible even where both sensors could fire.
+const escStack = [];
+const escNative = typeof CloseWatcher === 'function' && !window.DEK_DISABLE_CLOSEWATCHER;
+
+export function escPush(close) {
+  const entry = { close };
+  if (escNative) {
+    const w = new CloseWatcher();
+    w.oncancel = (e) => { e.preventDefault(); peel(entry); };
+    entry.w = w;
+  }
+  entry.dispose = () => {
+    const i = escStack.indexOf(entry);
+    if (i >= 0) escStack.splice(i, 1);
+    if (entry.w) { entry.w.destroy(); entry.w = null; }
+  };
+  escStack.push(entry);
+  return () => entry.dispose();
+}
+
+function peel(entry) {
+  if (!escStack.includes(entry)) return;
+  entry.dispose();
+  entry.close();
+}
+
+export function wireEscLayers() {
+  if (escNative || wireEscLayers.done) return;
+  wireEscLayers.done = true;
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const top = escStack[escStack.length - 1];
+    if (!top) return;
+    e.stopPropagation();
+    peel(top);
+  }, true);
+}
+
+export const escDepth = () => escStack.length;
+
 // ------------------------------------------------------------------ modals
 // modal({title, body, actions:[{label,kind,onClick(close)}], wide}) -> {root, body, close}
 export function modal({ title, body, actions = [], wide = false, onClose } = {}) {
@@ -47,13 +103,16 @@ export function modal({ title, body, actions = [], wide = false, onClose } = {})
   box.append(head, bodyEl, foot);
   back.appendChild(box);
 
+  const closed = { done: false };
+  let escDispose = null;
   const close = () => {
+    if (closed.done) return;
+    closed.done = true;
+    escDispose?.();
     back.remove();
-    document.removeEventListener('keydown', onKey);
     if (onClose) onClose();
   };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
+  escDispose = escPush(close);
   x.onclick = close;
   back.onclick = (e) => { if (e.target === back) close(); };
 
@@ -438,14 +497,19 @@ const overlayBounds = () =>
   (document.getElementById('app') || document.body).getBoundingClientRect();
 
 // ------------------------------------------------------------------ context menu
+let ctxClose = null;
 export function contextMenu(ev, items) {
-  document.querySelector('.ctxmenu')?.remove();
+  // Retire any live menu through its own close, never a bare DOM sweep - a
+  // sweep would orphan the stack entry and the next Escape would spend itself
+  // on a ghost.
+  ctxClose?.();
+  ctxClose = null;
   const menu = el('div', 'ctxmenu');
   for (const it of items) {
     if (it === '-') { menu.appendChild(el('div', 'ctx-sep')); continue; }
     if (it.show === false) continue;
     const b = el('div', 'ctx-item' + (it.danger ? ' danger' : ''), esc(it.label));
-    b.onclick = () => { menu.remove(); it.onClick?.(); };
+    b.onclick = () => { close(); it.onClick?.(); };
     menu.appendChild(b);
   }
   document.body.appendChild(menu);
@@ -456,15 +520,26 @@ export function contextMenu(ev, items) {
   menu.style.left = Math.min(Math.max(ev.clientX, loX), hiX) + 'px';
   menu.style.top = Math.min(Math.max(ev.clientY, loY), hiY) + 'px';
   const away = (e) => {
-    if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('mousedown', away); }
+    if (!menu.contains(e.target)) close();
   };
+  const close = () => {
+    if (!menu.isConnected) return;
+    menu.remove();
+    escDispose();
+    document.removeEventListener('mousedown', away);
+    if (ctxClose === close) ctxClose = null;
+  };
+  const escDispose = escPush(close);
+  ctxClose = close;
   setTimeout(() => document.addEventListener('mousedown', away), 0);
   return menu;
 }
 
 // ------------------------------------------------------------------ popover
+let popClose = null;
 export function popover(anchorEl, contentEl, opts = {}) {
-  document.querySelector('.popover')?.remove();
+  popClose?.();
+  popClose = null;
   const p = el('div', 'popover' + (opts.cls ? ' ' + opts.cls : ''));
   p.appendChild(contentEl);
   document.body.appendChild(p);
@@ -484,18 +559,24 @@ export function popover(anchorEl, contentEl, opts = {}) {
   p.style.top = top + 'px';
   p.style.left = Math.max(b.left + 8, left) + 'px';
   const away = (e) => {
-    if (!p.contains(e.target) && !anchor.contains(e.target)) {
-      p.remove();
-      document.removeEventListener('mousedown', away);
-    }
+    if (!p.contains(e.target) && !anchor.contains(e.target)) close();
   };
+  const close = () => {
+    if (!p.isConnected) return;
+    p.remove();
+    escDispose();
+    document.removeEventListener('mousedown', away);
+    if (popClose === close) popClose = null;
+  };
+  const escDispose = escPush(close);
+  popClose = close;
   setTimeout(() => document.addEventListener('mousedown', away), 0);
-  return { el: p, close: () => p.remove() };
+  return { el: p, close };
 }
 
 export function closePopovers() {
-  document.querySelector('.popover')?.remove();
-  document.querySelector('.ctxmenu')?.remove();
+  popClose?.();
+  ctxClose?.();
 }
 
 // ------------------------------------------------------------------ misc

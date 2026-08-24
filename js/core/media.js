@@ -7,7 +7,7 @@ import { api } from '../api.js';
 import { store } from '../store.js';
 import { esc, el, fmtSize } from '../util.js';
 import { icon } from '../icons.js';
-import { toast } from '../ui.js';
+import { toast, escPush } from '../ui.js';
 
 // Persistent per-key expiry stored alongside the URL in IndexedDB.
 // This is the single source of truth for "does this cached URL still work?".
@@ -378,19 +378,19 @@ export async function openViewer(items, startIndex = 0) {
     reset();
     img.src = (await mediaUrl(it.key)) || '';
   }
-  const close = () => { lb.remove(); document.removeEventListener('keydown', onKey); };
+  const close = () => { lb.remove(); document.removeEventListener('keydown', onKey); escDispose(); };
   const onKey = (e) => {
-    // One press peels one layer: the lightbox is invisible to main.js's Escape
-    // census (it lives outside .popover/.ctxmenu/.modal-back), so without the
-    // stop the same press pops the panel behind it - or posts an embed
-    // close-request to the host while somebody is merely looking at an image.
-    if (e.key === 'Escape') { e.stopPropagation(); close(); }
-    else if (e.key === 'ArrowRight' && items.length > 1) { i = (i + 1) % items.length; show(); }
+    if (e.key === 'ArrowRight' && items.length > 1) { i = (i + 1) % items.length; show(); }
     else if (e.key === 'ArrowLeft' && items.length > 1) { i = (i - 1 + items.length) % items.length; show(); }
     else if (e.key === '+' || e.key === '=') { scale = Math.min(6, scale * 1.3); apply(); }
     else if (e.key === '-') { scale = Math.max(1, scale / 1.3); if (scale === 1) { tx = ty = 0; } apply(); }
   };
   document.addEventListener('keydown', onKey);
+  // Escape belongs to the LIFO close stack now (ui.js): the lightbox was
+  // invisible to the old CSS census, so the same press used to pop the panel
+  // behind it - or post an embed close-request while somebody was merely
+  // looking at an image.
+  const escDispose = escPush(close);
 
   lb.onclick = (e) => {
     const a = e.target.dataset?.a;
