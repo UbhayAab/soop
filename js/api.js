@@ -26,9 +26,25 @@ export async function tryRpc(fn, args) {
   try { return [await rpc(fn, args), null]; } catch (e) { return [null, e]; }
 }
 
+// Per-table column projections. Every list here must be a superset of every
+// column any caller reads - verified against all table() call sites 2026-08-24.
+// profiles is deliberately unlisted: reloadMembers/legacyLoad/presence store
+// whole rows into store.profiles and other code reads fields (timezone,
+// pronouns, bio, title) that only some paths populate, so narrowing it would
+// silently blank those fields depending on which path cached first.
+// KEEP IN SYNC when adding a read of one of these tables.
+const TABLE_COLUMNS = {
+  voice_participants: 'channel_id,user_id',
+  workspace_members: 'user_id,member_type,joined_at',
+  conversation_members: 'conversation_id,user_id',
+  message_acks: 'message_id,user_id',
+  read_state: 'last_read_seq',
+  member_roles: 'user_id,role_id',
+};
+
 // Read a table directly (RLS-protected). Returns [] on error rather than throwing.
 export async function table(name, build) {
-  let q = sb.from(name).select('*');
+  let q = sb.from(name).select(TABLE_COLUMNS[name] || '*');
   if (build) q = build(q);
   const { data, error } = await q;
   if (error) { console.warn('table', name, error.message); return []; }

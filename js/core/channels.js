@@ -1000,13 +1000,20 @@ async function applyEvents(channelId, events, gen) {
     // unreachable for the life of the session: the exact "I refreshed and there
     // they were" report. Abandoning the pass leaves the cursor where it is, so
     // the next trigger asks for the same span again.
-    const { data, error } = await sb.from('messages').select('*').in('id', wanted);
-    if (error) {
-      console.warn('resync: message fetch failed, leaving the cursor alone', error.message);
+    // Chunked at 50 ids per request: a 200-id `in` filter is a ~7.4 KB URL that
+    // the server can reject, and one rejected URL used to abandon the whole
+    // healing pass. Any chunk failing still abandons the pass with the cursor
+    // left alone, so the next trigger refetches the same span.
+    const pages = await Promise.all(
+      Array.from({ length: Math.ceil(wanted.length / 50) }, (_, i) =>
+        sb.from('messages').select('*').in('id', wanted.slice(i * 50, i * 50 + 50))));
+    const failed = pages.find((p) => p.error);
+    if (failed) {
+      console.warn('resync: message fetch failed, leaving the cursor alone', failed.error.message);
       requestResync('refetch', 1500);
       return;
     }
-    for (const m of data || []) byId.set(m.id, m);
+    for (const page of pages) for (const m of page.data || []) byId.set(m.id, m);
   }
   if (gen !== openGen || store.current?.id !== channelId) return;
 
