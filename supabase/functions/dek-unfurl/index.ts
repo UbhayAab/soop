@@ -9,6 +9,7 @@ const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 };
 
 const json = (b, s = 200) =>

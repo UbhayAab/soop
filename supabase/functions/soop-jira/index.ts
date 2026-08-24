@@ -51,6 +51,7 @@ const cors = {
   'Access-Control-Allow-Origin': SOOP_APP_ORIGIN,
   'Access-Control-Allow-Headers': 'content-type, authorization',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
   'Vary': 'Origin',
 };
 const json = (b: unknown, s = 200) =>

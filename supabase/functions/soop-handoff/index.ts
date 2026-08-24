@@ -82,6 +82,7 @@ const cors = {
   'Access-Control-Allow-Origin': APP_ORIGIN,
   'Access-Control-Allow-Headers': 'content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
   'Vary': 'Origin',
 };
 

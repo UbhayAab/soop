@@ -62,6 +62,7 @@ Deno.serve(async (req) => {
   const cors = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, content-type',
+    'Access-Control-Max-Age': '86400',
   };
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 

@@ -15,8 +15,12 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'content-type',
+  // media.js sends Authorization + apikey on both call sites; a preflight
+  // answer that does not allow them fails the request outright, and a cached
+  // failed preflight would stick for Max-Age seconds.
+  'Access-Control-Allow-Headers': 'content-type, authorization, apikey',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 };
 
 const json = (b, s = 200) =>
