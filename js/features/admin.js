@@ -96,6 +96,54 @@ async function drawOverview(host, ctx, { ui }) {
   host.appendChild(el('h4', 'sec', 'Space settings'));
   const ws = store.ws;
 
+  // The white-label face. An organisation that uploads a logo sees THAT on
+  // everybody's rail tile - not our letter tile, not our brand. Theirs.
+  const logoBox = el('div', 'admin-form');
+  logoBox.innerHTML = `
+    <div class="row gap" style="align-items:center">
+      <span id="wsLogoPrev" style="width:48px;height:48px;border-radius:var(--r-lg);overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--c-hover)">
+        ${ws.icon_key
+          ? `<img data-akey="${esc(ws.icon_key)}" alt="" style="width:100%;height:100%;object-fit:cover" />`
+          : `<b style="font-size:18px">${esc((ws.name || '?').slice(0, 1).toUpperCase())}</b>`}
+      </span>
+      <div>
+        <button id="wsLogoBtn" class="sm ghost">${ws.icon_key ? 'Change logo' : 'Upload logo'}</button>
+        <p class="field-hint">Square image works best. It shows on every member's rail.</p>
+      </div>
+    </div>`;
+  host.appendChild(logoBox);
+  logoBox.querySelector('#wsLogoBtn').onclick = () => {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'image/*';
+    inp.onchange = async () => {
+      const f = inp.files?.[0];
+      if (!f) return;
+      const btn = logoBox.querySelector('#wsLogoBtn');
+      btn.disabled = true;
+      btn.textContent = 'Uploading…';
+      try {
+        const { uploadFile } = await import('../core/media.js');
+        const up = await uploadFile(f);
+        await api.updateWorkspace(store.ws.id, { iconKey: up.object_key });
+        store.ws.icon_key = up.object_key;
+        const prev = logoBox.querySelector('#wsLogoPrev');
+        prev.innerHTML = `<img data-akey="${esc(up.object_key)}" alt="" style="width:100%;height:100%;object-fit:cover" />`;
+        const { hydrateAvatars } = await import('../core/messages.js');
+        hydrateAvatars(prev).catch(() => {});
+        const { renderSpaceRail } = await import('../core/workspace.js');
+        renderSpaceRail();
+        ui.toast('Logo saved - every member sees it now', 'success');
+      } catch (e) {
+        ui.toast(e.message || 'Could not upload that logo', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Change logo';
+      }
+    };
+    inp.click();
+  };
+
   // Rename, and choose where new members land. The landing channel is not
   // cosmetic: without it somebody joining opens into whichever channel sorts
   // first, which is nobody's decision and is usually not the welcome one.

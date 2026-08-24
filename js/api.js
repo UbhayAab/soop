@@ -196,6 +196,7 @@ export const api = {
   // ---------- managing a server (0068) ----------
   updateWorkspace: (ws, patch = {}) => rpc('update_workspace', {
     p_workspace: ws, p_name: patch.name ?? null, p_default_channel: patch.defaultChannel ?? null,
+    p_icon_key: patch.iconKey ?? null,
   }),
   renameOrganization: (org, name) => rpc('rename_organization', { p_org: org, p_name: name }),
   // Removed: listOrgWorkspaces / joinOrgWorkspace. Neither list_org_workspaces

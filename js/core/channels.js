@@ -7,6 +7,7 @@ import { store, bus, nameOf, resetChannelState, hasPerm } from '../store.js';
 import { PERM, MESSAGE_PAGE } from '../config.js';
 import { $, el, esc, debounce } from '../util.js';
 import { toast, contextMenu, formModal, confirmModal, typeToConfirm, renderNavSections, closePanel } from '../ui.js';
+import { icon } from '../icons.js';
 import { appendMessage, claimMessage, loadReactions, applyEdit, applyDelete, applyReaction,
   refreshThreadIndicator, jumpTo, buildMessage, scrollDown, renderedIn, atBottom,
   renderBatch, prependBatch, capWindow, capWindowTop, resetWindow, windowState,
@@ -97,9 +98,9 @@ export async function renderChannels() {
     const unread = u?.unread > 0;
     const mc = u?.mention_count || 0;
     const muted = store.notify.get(c.id)?.notify_level === 'nothing';
-    const icon = c.kind === 'announcement' ? '📢' : c.kind === 'forum' ? '🗂' : c.is_private ? '🔒' : '#';
+    const mark = c.kind === 'announcement' ? icon('megaphone') : c.kind === 'forum' ? icon('doc') : c.is_private ? icon('lock') : '#';
     return `<div class="chan${store.current?.id === c.id ? ' active' : ''}${unread ? ' unread' : ''}${muted ? ' muted-ch' : ''}"
-      data-ch="${c.id}"><span class="ch-ico">${icon}</span><span class="ch-name">${esc(c.name)}</span>
+      data-ch="${c.id}"><span class="ch-ico">${mark}</span><span class="ch-name">${esc(c.name)}</span>
       ${mc ? `<span class="badge">${mc}</span>` : unread ? '<span class="dot-unread"></span>' : ''}</div>`;
   };
 
@@ -136,7 +137,7 @@ export async function renderChannels() {
     h += '<h3><span>Voice</span></h3><div class="navgroup">';
     for (const c of voice) {
       const parts = store.voiceParts.get(c.id) || [];
-      h += `<div class="chan vchan" data-voice="${c.id}"><span class="ch-ico">🔊</span>
+      h += `<div class="chan vchan" data-voice="${c.id}"><span class="ch-ico">${icon('volume')}</span>
         <span class="ch-name">${esc(c.name)}</span>${parts.length ? `<span class="live">${parts.length}</span>` : ''}</div>`;
       if (parts.length) {
         h += '<div class="vparts-nav">' + parts.map((u) =>

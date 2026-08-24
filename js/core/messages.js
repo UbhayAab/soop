@@ -17,7 +17,9 @@ import { openEmojiPicker, customEmojiKeys, hydrateCustomEmoji } from './emoji.js
 // face cost one mint). A dead key degrades back to coloured initials instead
 // of a broken image.
 export async function hydrateAvatars(root) {
-  const imgs = root.querySelectorAll('img.avatar-img[data-akey]:not([data-ha])');
+  // Any img carrying a storage key: avatars, Space logos in the rail, future
+  // surfaces. One hydration contract for all of them.
+  const imgs = root.querySelectorAll('img[data-akey]:not([data-ha])');
   if (!imgs.length) return;
   for (const img of imgs) {
     img.dataset.ha = '1';

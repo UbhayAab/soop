@@ -1242,3 +1242,13 @@ body.nav-open #messages::after {
   min-height: 28px;
 }
 :root[data-input="mouse"] #sidebar .chan { padding: var(--s-2) var(--s-4); }
+
+/* Org logo in the rail: the white-label face. Fills the tile like the letter
+   tiles do, object-fit so any upload shape lands centered. */
+.sicon img[data-akey] {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  display: block;
+}

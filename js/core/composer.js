@@ -1,4 +1,4 @@
-// The composer: autocomplete (@people, #channels, :emoji, /commands), attachments,
+﻿// The composer: autocomplete (@people, #channels, :emoji, /commands), attachments,
 // server-synced drafts, typing broadcast, and optimistic send.
 import { api, table } from '../api.js';
 import { store, bus, nameOf } from '../store.js';
@@ -12,7 +12,9 @@ import { icon } from '../icons.js';
 
 let pending = [];          // attachments being/already uploaded
 let ac = null;             // active autocomplete state
-let voice = { isRecording: false, chunks: [], recorder: null };
+// Voice notes live in features/voicenotes.js - the single owner of recording
+// state. A second implementation here once raced it for the same button id and
+// shipped a chunk-collection bug that sent the PREVIOUS recording to the chat.
 
 const composerEl = () => $('composer');
 
@@ -64,7 +66,7 @@ function updateAutocomplete() {
   if (slash) {
     const q = slash[1].toLowerCase();
     const cmds = listSlash().filter((s) => s.name.startsWith(q)).slice(0, 8);
-    return acShow(cmds.map((s) => ({ label: '/' + s.name, hint: s.description, icon: '⌘', value: s })),
+    return acShow(cmds.map((s) => ({ label: '/' + s.name, hint: s.description, icon: 'âŒ˜', value: s })),
       (it) => replaceToken(/^\/(\w*)$/, '/' + it.value.name + ' '));
   }
 
@@ -75,16 +77,16 @@ function updateAutocomplete() {
       .filter((p) => p.id !== store.me)
       .filter((p) => !q || (p.display_name || '').toLowerCase().includes(q) || (p.username || '').toLowerCase().includes(q))
       .slice(0, 7)
-      .map((p) => ({ label: p.display_name || p.username, hint: p.username ? '@' + p.username : '', icon: '👤',
+      .map((p) => ({ label: p.display_name || p.username, hint: p.username ? '@' + p.username : '', icon: icon('members'),
         value: p.username || p.display_name }));
-    const groups = [{ label: '@here', hint: 'notify everyone online', icon: '📣', value: 'here' },
-      { label: '@channel', hint: 'notify the whole channel', icon: '📣', value: 'channel' }]
+    const groups = [{ label: '@here', hint: 'notify everyone online', icon: icon('megaphone'), value: 'here' },
+      { label: '@channel', hint: 'notify the whole channel', icon: icon('megaphone'), value: 'channel' }]
       .filter((g) => !q || g.label.slice(1).startsWith(q));
     // Cached group handles from this Space: "@sales", "@on-call".
     const gitems = getGroupHandles()
       .filter((h) => !q || h.includes(q))
       .slice(0, 4)
-      .map((h) => ({ label: '@' + h, hint: 'every member of the group', icon: '👥', value: h }));
+      .map((h) => ({ label: '@' + h, hint: 'every member of the group', icon: icon('members'), value: h }));
     const items = [...people, ...groups, ...gitems];
     if (items.length) return acShow(items, (it) => replaceToken(/(?:^|\s)@([\w.-]*)$/, (m) => m.replace(/@[\w.-]*$/, '@' + it.value + ' ')));
   }
@@ -215,11 +217,11 @@ function renderChips() {
   host.classList.remove('hidden');
   host.innerHTML = pending.map((a, i) => `
     <div class="chip${a.uploading ? ' up' : ''}${a.failed ? ' failed' : ''}">
-      <span>${(a.mime || '').startsWith('image/') ? '🖼' : (a.mime || '').startsWith('video/') ? '🎬' : '📄'}</span>
+      <span>${icon('doc')}</span>
       <span class="chip-name">${esc(a.name || 'file')}</span>
       <span class="muted">${esc(fmtSize(a.size))}</span>
       ${a.uploading ? `<span class="chip-prog" style="width:${Math.round((a.progress || 0) * 100)}%"></span>` : ''}
-      <span class="x" data-i="${i}">✕</span></div>`).join('');
+      <span class="x" data-i="${i}">âœ•</span></div>`).join('');
   host.querySelectorAll('.x').forEach((x) => {
     x.onclick = () => { pending.splice(+x.dataset.i, 1); renderChips(); };
   });
@@ -381,7 +383,7 @@ export async function send() {
     toast('Open a channel or a conversation first');
     return;
   }
-  if (pending.some((a) => a.uploading)) { toast('Still uploading…'); return; }
+  if (pending.some((a) => a.uploading)) { toast('Still uploadingâ€¦'); return; }
   const atts = pending.filter((a) => a.object_key).map((a) => ({
     object_key: a.object_key, mime: a.mime, width: a.width, height: a.height,
     duration_ms: a.duration_ms, name: a.name, size: a.size,
@@ -506,10 +508,10 @@ export function setReply(m) {
   store.replyTarget = { id: m.id, author_id: m.author_id, body_text: m.body_text };
   const bar = $('replyBar');
   bar.classList.remove('hidden');
-  bar.innerHTML = `<span class="reply-ico">↩</span>
+  bar.innerHTML = `<span class="reply-ico">â†©</span>
     <span>Replying to <b>${esc(nameOf(m.author_id))}</b></span>
     <span class="muted reply-snip">${esc((m.body_text || '').slice(0, 70))}</span>
-    <button class="icon" id="cancelReply">✕</button>`;
+    <button class="icon" id="cancelReply">âœ•</button>`;
   $('cancelReply').onclick = clearReply;
   composerEl().focus();
 }
@@ -554,7 +556,7 @@ export function initComposer() {
 
   c.addEventListener('input', () => { autogrow(); updateAutocomplete(); emitTyping(); saveDraft(); });
   c.addEventListener('blur', () => { setTimeout(acHide, 120); stopTyping(); });
-  // A tab going away mid-sentence would otherwise leave "Asha is typing…" on
+  // A tab going away mid-sentence would otherwise leave "Asha is typingâ€¦" on
   // everyone else's screen until it expired, which is the state that makes a
   // typing indicator feel like a lie.
   document.addEventListener('visibilitychange', () => {
@@ -578,10 +580,6 @@ export function initComposer() {
   });
   $('sendBtn').onclick = () => send();
 
-  addComposerButton({
-    id: 'voice-note', label: '🎤', title: 'Record a voice note',
-    onClick: () => voiceNote(),
-  });
 
   // drag and drop anywhere
   let dragCount = 0;
@@ -604,60 +602,3 @@ export function initComposer() {
 
 export const composerText = () => composerEl().value;
 export function setComposerText(t) { composerEl().value = t; autogrow(); composerEl().focus(); }
-
-export async function voiceNote() {
-  const c = composerEl();
-  if (voice.isRecording) {
-    voice.recorder.stop();
-    voice.isRecording = false;
-    voice.chunks = [];
-    const blob = new Blob(voice.chunks, { type: 'audio/webm' });
-    const audioFile = new File([blob], 'voice-note.webm', { type: 'audio/webm' });
-    const stub = { name: audioFile.name, mime: audioFile.type, size: audioFile.size, uploading: true, progress: 0 };
-    pending.push(stub);
-    renderChips();
-    try {
-      const a = await uploadFile(audioFile, (p) => { stub.progress = p; renderChips(); });
-      Object.assign(stub, a, { uploading: false });
-      renderChips();
-    } catch (e) {
-      stub.failed = true;
-      stub.uploading = false;
-      pending = pending.filter((x) => x !== stub);
-      renderChips();
-      toast(`${audioFile.name}: ${e.message}`, 'error');
-    }
-    return;
-  }
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    voice.chunks = [];
-    voice.recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-    voice.recorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) voice.chunks.push(e.data);
-    };
-    voice.recorder.onstop = () => {
-      voice.isRecording = false;
-      const blob = new Blob(voice.chunks, { type: 'audio/webm' });
-      const audioFile = new File([blob], 'voice-note.webm', { type: 'audio/webm' });
-      voice.chunks = [];
-      const stub = { name: audioFile.name, mime: audioFile.type, size: audioFile.size, uploading: true, progress: 0 };
-      pending.push(stub);
-      renderChips();
-      uploadFile(audioFile, (p) => { stub.progress = p; renderChips(); })
-        .then((a) => { Object.assign(stub, a, { uploading: false }); renderChips(); })
-        .catch((e) => {
-          stub.failed = true;
-          stub.uploading = false;
-          pending = pending.filter((x) => x !== stub);
-          renderChips();
-          toast(`${audioFile.name}: ${e.message}`, 'error');
-        });
-    };
-    voice.recorder.start();
-    voice.isRecording = true;
-    toast('Recording…', 'info');
-  } catch (e) {
-    toast('Microphone permission denied', 'error');
-  }
-}

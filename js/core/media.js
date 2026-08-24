@@ -1,4 +1,4 @@
-// Media: upload through the mint-upload edge function, inline render, and an
+﻿// Media: upload through the mint-upload edge function, inline render, and an
 // in-app viewer. The hard rule for this product: tapping media NEVER hands off to
 // another app or another tab. Everything renders in-page.
 import { SUPABASE_URL, PUBLISHABLE, MAX_UPLOAD_BYTES } from '../config.js';
@@ -6,12 +6,14 @@ import { sb, accessToken } from '../sb.js';
 import { api } from '../api.js';
 import { store } from '../store.js';
 import { esc, el, fmtSize } from '../util.js';
+import { icon } from '../icons.js';
 import { toast } from '../ui.js';
 
 // Persistent per-key expiry stored alongside the URL in IndexedDB.
 // This is the single source of truth for "does this cached URL still work?".
 // Falls back to URL_TTL_MS soft-limit only if the DB row is missing expiry.
 const urlCache = new Map();
+let audioRefreshInstalled = false;
 
 async function sha256hex(buf) {
   const h = await crypto.subtle.digest('SHA-256', buf);
@@ -263,7 +265,7 @@ export function attsHtml(m) {
         <span class="muted">${esc(x.name || 'audio')}</span></div>`;
     }
     return `<div class="att-file" data-key="${esc(x.object_key)}" data-name="${esc(x.name || 'file')}">
-      <span class="att-ico">📄</span><span>${esc(x.name || 'file')}</span>
+      <span class="att-ico">${icon('doc')}</span><span>${esc(x.name || 'file')}</span>
       <span class="muted">${esc(fmtSize(x.size))}</span></div>`;
   }).join('') + '</div>';
 }
@@ -278,6 +280,32 @@ export async function hydrateMedia(root) {
   for (const box of auds) keys.add(box.dataset.key);
   const fcs = [...root.querySelectorAll('.att-file')];
   for (const fc of fcs) keys.add(fc.dataset.key);
+
+  // Voice notes go stale: the signed URL minted at render time dies within
+  // minutes, and pressing play an hour later did nothing - the single worst
+  // voice-note bug in field testing. One delegated listener, installed once,
+  // re-mints on demand and hands playback to the fresh URL.
+  if (!audioRefreshInstalled) {
+    audioRefreshInstalled = true;
+    document.addEventListener('play', (e) => {
+      const a = e.target;
+      const box = a?.closest?.('.att-aud');
+      if (!box?.dataset.key || !a.dataset.stale) return;
+      a.dataset.stale = '';
+      mediaUrl(box.dataset.key).then((url) => {
+        if (!url) return;
+        a.src = url;
+        a.play().catch(() => {});
+      }).catch(() => {});
+    }, true);
+    document.addEventListener('error', (e) => {
+      const a = e.target;
+      const box = a?.closest?.('.att-aud');
+      if (!box?.dataset.key || a.tagName !== 'AUDIO') return;
+      a.dataset.stale = '1';
+      mediaUrl(box.dataset.key).then((url) => { if (url) { a.dataset.stale = ''; a.src = url; } }).catch(() => {});
+    }, true);
+  }
 
   const urlArray = await mediaUrls(Array.from(keys));
   const urlByKey = new Map(Array.from(keys).map((k, i) => [k, urlArray[i]]));
@@ -300,7 +328,13 @@ export async function hydrateMedia(root) {
   for (const box of auds) {
     const key = box.dataset.key;
     const url = urlByKey.get(key);
-    if (url) box.querySelector('audio').src = url;
+    if (url) {
+      const a = box.querySelector('audio');
+      a.src = url;
+      // Minted URLs are short-lived; anything not played within minutes needs
+      // the refresh path above.
+      a.dataset.stale = '1';
+    }
   }
   i = 0;
   for (const fc of fcs) {
@@ -321,13 +355,13 @@ export async function openViewer(items, startIndex = 0) {
   lb.innerHTML = `
     <div class="lb-stage"><img alt=""></div>
     <div class="lb-bar">
-      <button class="ghost" data-a="zoomout">−</button>
+      <button class="ghost" data-a="zoomout">âˆ’</button>
       <button class="ghost" data-a="zoomin">+</button>
       <button class="ghost" data-a="save">Save</button>
-      <button class="ghost" data-a="close">✕</button>
+      <button class="ghost" data-a="close">âœ•</button>
     </div>
-    <button class="lb-nav lb-prev" data-a="prev">‹</button>
-    <button class="lb-nav lb-next" data-a="next">›</button>
+    <button class="lb-nav lb-prev" data-a="prev">â€¹</button>
+    <button class="lb-nav lb-next" data-a="next">â€º</button>
     <div class="lb-count"></div>`;
   const img = lb.querySelector('img');
   const stage = lb.querySelector('.lb-stage');

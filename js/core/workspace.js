@@ -39,9 +39,14 @@ export function renderSpaceRail() {
     // the same screen.
     const dead = !!(s.archived_at || s.scheduled_delete_at);
     const why = s.scheduled_delete_at ? ' (being deleted)' : s.archived_at ? ' (archived)' : '';
+    // The org's own face. icon_key is the white-label surface: an organisation
+    // that uploaded a logo sees THAT here, not our letter tile.
+    const face = s.icon_key
+      ? `<img data-akey="${esc(s.icon_key)}" alt="" />`
+      : esc(initials(s.name));
     return `<div class="sicon${active ? ' active' : ''}${dead ? ' sicon-off' : ''}" data-ws="${s.id}"
       title="${esc((s.name || '') + why)}"
-      style="--h:${hueOf(s.id)}">${esc(initials(s.name))}
+      style="--h:${hueOf(s.id)}">${face}
       ${b?.mention_total ? `<span class="sbadge">${b.mention_total}</span>`
         : b?.unread_total ? '<span class="sdot"></span>' : ''}</div>`;
   };
@@ -65,6 +70,9 @@ export function renderSpaceRail() {
 
   h += `<div class="sicon add" data-add="1" title="Create or join">+</div>`;
   r.innerHTML = h;
+  // Hydrate any org logos the rail just painted (same signed-URL pipeline as
+  // message avatars; dynamic import keeps the module graph cycle-free).
+  import('./messages.js').then(({ hydrateAvatars }) => hydrateAvatars(r)).catch(() => {});
   r.querySelectorAll('[data-ws]').forEach((n) => {
     const spaceOf = () => store.spaces.find((x) => x.id === n.dataset.ws);
     n.onclick = () => {
