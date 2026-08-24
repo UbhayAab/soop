@@ -3,7 +3,7 @@
 import { sb, subscribe, unsubscribe } from '../sb.js';
 import { api, table, tryRpc } from '../api.js';
 import { store, bus, nameOf, resetChannelState } from '../store.js';
-import { $, el, esc } from '../util.js';
+import { $, el, esc, debounce } from '../util.js';
 import { toast, modal, closePanel } from '../ui.js';
 import { appendMessage, claimMessage, loadReactions, applyReaction, atBottom, scrollDown } from './messages.js';
 import { renderChannels, refreshUnread, showNewBelow, clearNewBelow } from './channels.js';
@@ -23,6 +23,12 @@ let dmGen = 0;
 
 export async function openDM(conversationId) {
   const gen = ++dmGen;
+  // A pending read for the conversation being LEFT must go out now, not on the
+  // timer: the whole point of the coalescing window is bursts, and switching
+  // mid-burst is exactly when the reader stops caring about it. The write is
+  // monotonic in seq, so a duplicate after the reopen path's own markDMRead
+  // below is harmless.
+  flushDMRead();
   store.current = null;
   store.currentDM = conversationId;
   resetChannelState();
@@ -145,13 +151,23 @@ function markDMReadSoon(conversationId, seq) {
     };
   }
   if (dmReadTimer) return;
-  dmReadTimer = setTimeout(() => {
-    dmReadTimer = null;
-    const p = dmReadPending;
-    dmReadPending = null;
-    if (p) api.markDMRead(p.id, p.seq).catch(() => {});
-  }, DM_READ_MS);
+  dmReadTimer = setTimeout(flushDMRead, DM_READ_MS);
 }
+
+// Send the coalesced cursor immediately and disarm the timer. Two callers want
+// this ahead of schedule: openDM when the reader moves to another conversation,
+// and hidden - pocketing or closing the tab kills timers without firing them,
+// so the last burst in a DM would stay unread everywhere but this device.
+function flushDMRead() {
+  if (dmReadTimer) { clearTimeout(dmReadTimer); dmReadTimer = null; }
+  const p = dmReadPending;
+  dmReadPending = null;
+  if (p) api.markDMRead(p.id, p.seq).catch(() => {});
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushDMRead();
+});
 
 // The DM half of RESUME. Same shape as the channel one: replay past the cursor,
 // re-bootstrap if the cursor is older than anything retained.
@@ -294,9 +310,11 @@ bus.on('dm:new', newDMDialog);
 // The `read` broadcast on the dm topic emits this, but nothing listened - so the
 // Seen line was painted exactly once per open and then froze forever while the
 // other person kept reading. Re-run the receipts fetch whenever it fires for the
-// conversation actually on screen.
+// conversation actually on screen, debounced because the sender's client can
+// fire read broadcasts in a burst and each one is an RPC.
+const refreshReceiptsSoon = debounce((id) => refreshReceipts(id), 1000);
 bus.on('dm:receipts', ({ conversationId }) => {
-  if (store.currentDM === conversationId) refreshReceipts(conversationId);
+  if (store.currentDM === conversationId) refreshReceiptsSoon(conversationId);
 });
 
 // Every resync trigger - rejoin, visibility, network, backstop - reaches DMs too.
