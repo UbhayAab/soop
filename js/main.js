@@ -655,6 +655,9 @@ async function main() {
     Promise.all([
       import('./lib/pagecache.js').then((m) => m.wipe()),
       import('./lib/readcache.js').then((m) => m.wipe()),
+      // Attachment cache off the device too. 'dek-storage-v1' must match
+      // STORAGE in sw.js.
+      window.caches ? caches.delete('dek-storage-v1') : Promise.resolve(),
     ]).catch(() => { /* leaving anyway */ }).finally(() => {
       location.hash = '';
       location.reload();

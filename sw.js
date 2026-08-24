@@ -1,8 +1,9 @@
 // Dek service worker.
 //
 // Rules that matter:
-//  - Never cache Supabase (auth, realtime, RPC, storage). A stale message list or
-//    a stale token is worse than no app at all.
+//  - Never cache Supabase (auth, realtime, RPC). A stale message list or
+//    a stale token is worse than no app at all. Storage BODIES are the one
+//    exception - see the storage branch in the fetch handler below.
 //  - Never auto-activate a new bundle mid-conversation: the page asks first, then
 //    posts SKIP_WAITING.
 //  - The esm.sh dependencies are cached so the app opens offline instead of
@@ -18,6 +19,16 @@
 const VERSION = 'dek-v16';
 const SHELL = VERSION + '-shell';
 const VENDOR = VERSION + '-vendor';
+
+// Attachment bodies. Fixed name on purpose: it has to survive VERSION bumps
+// (activate() deletes every cache that is not current) and the sign-out wipes
+// in js/shell.js, js/core/auth.js and js/main.js delete this exact string -
+// keep those call sites in sync with it. The LRU bookkeeping lives in the
+// same cache as one tiny JSON entry keyed dek-storage-lru, so eviction state
+// survives worker restarts.
+const STORAGE = 'dek-storage-v1';
+const STORAGE_LIMIT = 150 * 1024 * 1024;   // ~150 MB or a 64 GB phone fills up
+const STORAGE_MAX_ENTRIES = 500;           // belt for bodies without content-length
 
 const SHELL_FILES = [
   './',
@@ -127,7 +138,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => !k.startsWith(VERSION)).map((k) => caches.delete(k)));
+    await Promise.all(keys.filter((k) => !k.startsWith(VERSION) && k !== STORAGE).map((k) => caches.delete(k)));
     await self.clients.claim();
   })());
 });
@@ -141,10 +152,63 @@ const isSupabase = (url) =>
 const isVendor = (url) =>
   url.hostname === 'esm.sh' || url.hostname.endsWith('.esm.sh') || url.hostname === 'cdn.jsdelivr.net';
 
+function lruKey() {
+  return new URL('dek-storage-lru', self.registration.scope).href;
+}
+
+async function readLru(cache) {
+  try {
+    const m = await cache.match(lruKey());
+    if (m) return await m.json();
+  } catch { /* missing or torn bookkeeping starts a fresh list */ }
+  return [];
+}
+
+async function lruPut(cache, key, res) {
+  try {
+    await cache.put(new Request(key), res);
+    const size = Number(res.headers.get('content-length')) || 0;
+    const list = (await readLru(cache)).filter((x) => x.k !== key);
+    list.push({ k: key, s: size });
+    let total = list.reduce((a, x) => a + x.s, 0);
+    while (list.length > 1 && (total > STORAGE_LIMIT || list.length > STORAGE_MAX_ENTRIES)) {
+      const old = list.shift();
+      total -= old.s;
+      await cache.delete(old.k);
+    }
+    await cache.put(new Request(lruKey()), new Response(JSON.stringify(list)));
+  } catch { /* eviction must never break the response it decorates */ }
+}
+
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+
+  // Attachments: the ONE Supabase exception. Signed URLs rotate their query
+  // string on every mint, so caching them by full URL is useless - every
+  // viewer and every re-view gets a different cache key. Key by origin+path
+  // with the search stripped and you own the key. Served stale-while-
+  // revalidate because mint-upload's sha256 content addressing could not be
+  // confirmed from this repo (the edge function is not in it), so a cached
+  // body is not provably immutable; one release of SWR is the honest form.
+  if (isSupabase(url) && url.pathname.includes('/storage/v1/object/')) {
+    e.respondWith((async () => {
+      const key = url.origin + url.pathname;
+      const cache = await caches.open(STORAGE);
+      const hit = await cache.match(key);
+      const net = (async () => {
+        try {
+          const res = await fetch(req);
+          if (res.ok) await lruPut(cache, key, res.clone());
+          return res.ok ? res : null;
+        } catch { return null; }
+      })();
+      e.waitUntil(net);   // keeps the background refresh alive past the cached reply
+      return hit || (await net) || Response.error();
+    })());
+    return;
+  }
 
   // Live data always goes to the network. No exceptions.
   if (isSupabase(url)) return;

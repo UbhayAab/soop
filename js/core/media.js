@@ -101,7 +101,12 @@ export async function uploadFile(file, onProgress) {
 
   // Content-addressed: an identical file already stored is reused, no re-upload.
   if (!j.deduped) {
-    const { error } = await sb.storage.from('attachments').uploadToSignedUrl(j.object_key, j.token, file);
+    // cacheControl makes the storage object itself immutable-grade: the SW
+    // attachment cache revalidates against it and a year matches the
+    // content-addressed intent of the sha256 key. (mint-upload's addressing
+    // is unconfirmed, so the SW still serves stale-while-revalidate.)
+    const { error } = await sb.storage.from('attachments')
+      .uploadToSignedUrl(j.object_key, j.token, file, { cacheControl: '31536000', contentType: mime });
     if (error) throw error;
     onProgress?.(0.9);
     await api.finalizeAttachment({

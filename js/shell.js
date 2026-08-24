@@ -96,6 +96,9 @@ function userMenu(ev) {
       await Promise.all([
         import('./lib/pagecache.js').then((m) => m.wipe()),
         import('./lib/readcache.js').then((m) => m.wipe()),
+        // The attachment cache holds this person's photos. 'dek-storage-v1'
+        // must match STORAGE in sw.js.
+        window.caches ? caches.delete('dek-storage-v1') : Promise.resolve(),
       ]).catch(() => { /* signing out must not be blocked by storage */ });
       markIntentionalSignOut();
       await sb.auth.signOut();
