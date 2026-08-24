@@ -1202,3 +1202,40 @@ body.nav-open #messages::after {
   .sicon.active:hover::before { opacity: 1; transform: translateY(-50%) scaleY(1); }
   .sicon.active:hover .sdot { opacity: 0; }
 }
+
+/* Target-sizing half of the block above, keyed on the last pointer used: a
+   convertible reports (hover: hover) yet is a thumb screen while it is being
+   touched. The sicon reveal/morph halves stay media-keyed - modality is a
+   device fact, target size is not. */
+:root[data-input="touch"] #sidebar .chan,
+:root[data-input="touch"] #sidebar .chan-add,
+:root[data-input="touch"] #sidebar h3 {
+  min-height: 44px;
+}
+:root[data-input="touch"] #sidebar .chan { padding: var(--s-3) var(--s-4); }
+:root[data-input="touch"] #topbar button.icon,
+:root[data-input="touch"] aside#panel > header button.icon {
+  min-width: 44px;
+  min-height: 44px;
+}
+:root[data-input="touch"] #installBtn.install { position: relative; }
+:root[data-input="touch"] #installBtn.install::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+/* The reclaim half of the pointer split: under a mouse nothing needs a thumb
+   floor, so sidebar rows come down from 34px to 28px - across ~15 rows plus
+   the action bars that is roughly 200px of column given back. Attribute beats
+   the later bare `.chan` rules regardless of load order. */
+:root[data-input="mouse"] #sidebar .chan,
+:root[data-input="mouse"] #sidebar .chan-add,
+:root[data-input="mouse"] #sidebar h3 {
+  min-height: 28px;
+}
+:root[data-input="mouse"] #sidebar .chan { padding: var(--s-2) var(--s-4); }

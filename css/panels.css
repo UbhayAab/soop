@@ -399,6 +399,13 @@ body .admin-linkrow button { flex: none; }
     min-height: 44px;
   }
 }
+/* Same floors keyed on the last pointer used (convertibles report
+   (hover: hover)); the rtl tail trick stays device-keyed with the block above. */
+:root[data-input="touch"] .invite-row button,
+:root[data-input="touch"] body .admin-linkrow button,
+:root[data-input="touch"] .invite-opts button {
+  min-height: 44px;
+}
 
 .invite-list { margin-top: var(--s-2); }
 /* A link that has been used up is not gone - it is still listed so it can be
@@ -964,6 +971,11 @@ body .roles-perm-off input { cursor: not-allowed; }
     min-height: 44px;
   }
 }
+:root[data-input="touch"] .form:has(.roles-grid) > .field > input[type="color"] {
+  width: 64px;
+  height: 44px;
+  min-height: 44px;
+}
 
 body .roles-pick {
   display: grid;
@@ -1313,6 +1325,20 @@ body .onb-rr b {
     min-height: 44px;
     min-width: 44px;
   }
+}
+/* Target-sizing half keyed on the last pointer used; the hover-fill neutral-
+   isation above stays device-keyed. */
+:root[data-input="touch"] .member { min-height: 44px; }
+:root[data-input="touch"] body .admin-acts button,
+:root[data-input="touch"] body .roles-acts button,
+:root[data-input="touch"] body .mod-actions button,
+:root[data-input="touch"] body .mod-line button,
+:root[data-input="touch"] body .onb-line button,
+:root[data-input="touch"] body .admin-line button,
+:root[data-input="touch"] .inv-row button {
+  min-height: 44px;
+  min-width: 44px;
+}
 
   /* Hover fills never arrive on touch, so press states carry the feedback. */
   .result:active,

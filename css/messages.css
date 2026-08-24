@@ -1505,3 +1505,23 @@
      and a full "05:57 PM" wraps to two lines inside a 40px gutter, which breaks
      the tight grouped rhythm for a value the group's first row already shows. */
 }
+
+/* Target-sizing half of the block above, keyed on the last pointer used so a
+   convertible gets the same floors while it is being touched. The always-on
+   action bar, its float reserve and the reveal rules stay on (hover: none):
+   those exist because hover does not exist, not because fingers are fat. */
+:root[data-input="touch"] .threadind {
+  min-height: 44px;
+  margin-top: var(--s-4);
+  padding-right: var(--s-5);
+  padding-left: var(--s-4);
+  border-color: var(--c-border);
+  background: var(--c-surface);
+}
+:root[data-input="touch"] .rxn { min-height: 34px; padding-inline: var(--s-5); }
+:root[data-input="touch"] .rxn::after { content: ""; position: absolute; inset: -5px -2px; }
+:root[data-input="touch"] .crow button { min-width: 44px; height: 44px; }
+:root[data-input="touch"] .crow textarea { min-height: var(--s-11); padding-block: var(--s-3); }
+:root[data-input="touch"] .alsosend { min-height: 44px; }
+:root[data-input="touch"] .ac-row { min-height: 44px; }
+:root[data-input="touch"] .att-file { min-height: 48px; }

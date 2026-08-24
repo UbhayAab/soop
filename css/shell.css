@@ -403,6 +403,13 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
     height: 44px;
   }
 }
+/* Same floors keyed on the last pointer used - the overlap this fixes is a
+   function of the 44px extensions, which follow data-input too, so a
+   convertible needs the full-size boxes exactly as much while touched. */
+:root[data-input="touch"] #channelbar button.icon {
+  width: 44px;
+  height: 44px;
+}
 
 /* ---------------------------------------------------------------- corrections
    components.css gives every <button> a border, which is right for a real

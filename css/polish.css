@@ -84,6 +84,18 @@
   #composerBar button.icon { min-width: 44px; height: 44px; }
 }
 
+/* Same floors keyed on the last pointer used instead of the device - a
+   convertible reports (hover: hover), so the media query above never sees its
+   fingers. The attribute form also carries one more class/attribute of
+   specificity than reading.css's bare `.chan`, so load order cannot eat it. */
+:root[data-input="touch"] #sidebar .chan,
+:root[data-input="touch"] #sidebar .chan-add,
+:root[data-input="touch"] #sidebar .sb-add {
+  min-height: 44px;
+}
+:root[data-input="touch"] #spaceRail > .sicon { min-height: 44px; }
+:root[data-input="touch"] #composerBar button.icon { min-width: 44px; height: 44px; }
+
 
 /* ============================================================================
    3. THE LONG-PRESS MENU
@@ -142,6 +154,7 @@
   .ctx-item { min-height: 44px; }
   .ctxmenu { min-width: min(260px, calc(100vw - var(--s-8))); }
 }
+:root[data-input="touch"] .ctx-item { min-height: 44px; }
 
 
 /* ============================================================================

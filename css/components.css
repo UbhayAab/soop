@@ -236,6 +236,29 @@ button.icon:disabled:active {
   button.sm { min-height: 36px; }
 }
 
+/* The same floors keyed on the last pointer used instead of the device: a
+   convertible reports (hover: hover) and would never see them from the media
+   query alone, no matter whose finger is down. The media query above stays as
+   the pre-JS default; this twin corrects it the moment main.js knows better.
+   Duplicated deliberately - a shared wrapper cannot express media-OR-attribute
+   without nesting the whole body twice anyway. */
+:root[data-input="touch"] button.icon {
+  position: relative;
+  width: 40px;
+  height: 40px;
+}
+:root[data-input="touch"] button.icon::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
+:root[data-input="touch"] button { min-height: 40px; }
+:root[data-input="touch"] button.sm { min-height: 36px; }
+
 /* ============================================================================
    FORM CONTROLS
    ========================================================================= */
@@ -681,6 +704,7 @@ input[type="radio"] {
 @media (hover: none) {
   .ctx-item { min-height: 44px; padding: var(--s-4) var(--s-5); }
 }
+:root[data-input="touch"] .ctx-item { min-height: 44px; padding: var(--s-4) var(--s-5); }
 
 /* ============================================================================
    EMOJI PICKER
@@ -794,6 +818,7 @@ input[type="radio"] {
 @media (hover: none) {
   .emoji-tab { min-height: 44px; }
 }
+:root[data-input="touch"] .emoji-tab { min-height: 44px; }
 
 /* ============================================================================
    THEME PICKER
@@ -899,6 +924,7 @@ input[type="radio"] {
 @media (hover: none) {
   .theme-option { min-height: 56px; }
 }
+:root[data-input="touch"] .theme-option { min-height: 56px; }
 
 /* ============================================================================
    PICKERS AND THE QUICK SWITCHER
@@ -1253,6 +1279,17 @@ button.chip.on {
     transform: translate(-50%, -50%);
   }
 }
+:root[data-input="touch"] .chip { min-height: 40px; }
+:root[data-input="touch"] .chip .x { position: relative; }
+:root[data-input="touch"] .chip .x::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
 
 /* ------------------------------------------------------------------ tabs
    Generic segmented control: a track with one selected segment. Nothing in the
@@ -1296,6 +1333,8 @@ button.chip.on {
   .tabs { padding: var(--s-2); }
   .tabs > button { min-height: 44px; }
 }
+:root[data-input="touch"] .tabs { padding: var(--s-2); }
+:root[data-input="touch"] .tabs > button { min-height: 44px; }
 
 /* Workspace custom emoji rendered inline by fmt(). Sized to sit on the text
    baseline like a glyph, not like an attachment preview. */

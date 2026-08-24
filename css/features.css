@@ -1725,6 +1725,24 @@
   :root .forum-card:active { background: var(--c-surface-2); }
 }
 
+/* Target-sizing half of the block above, keyed on the last pointer used so a
+   convertible is a thumb screen while it is being touched. The reveal and
+   press-state halves stay on (hover: none) - those are modality behaviours,
+   not target sizes. */
+:root[data-input="touch"] .cv-view { min-height: 44px; }
+:root[data-input="touch"] .cv-check { width: 24px; height: 24px; margin-top: 8px; }
+:root[data-input="touch"] .bmk-pill,
+:root[data-input="touch"] .forum-chip:not(.forum-chip-static),
+:root[data-input="touch"] .hstatus-preset,
+:root[data-input="touch"] .poll-opt,
+:root[data-input="touch"] .ev-cancel,
+:root[data-input="touch"] .sc-jump,
+:root[data-input="touch"] .later-sec,
+:root[data-input="touch"] .ev-rsvp > button:not(.ev-cancel),
+:root[data-input="touch"] .ev-toggle > button,
+:root[data-input="touch"] .hstatus-seg > button,
+:root[data-input="touch"] .hnotif-seg:not(.row) > button { min-height: 44px; }
+
 
 /* ============================================================================
    THE ORGANISATION LAYER (0064)

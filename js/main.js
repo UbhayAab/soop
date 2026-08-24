@@ -549,6 +549,19 @@ bus.on('thread:alsoSent', ({ message }) => {
 
 // ------------------------------------------------------------------ start
 async function main() {
+  // Target sizing follows the last pointer ACTUALLY used, not the device's
+  // primary one: a touchscreen laptop reports (hover: hover), so media queries
+  // never see its fingers no matter how it is being driven. Seeded once from
+  // any-pointer:fine so the attribute is honest before the first click, then
+  // corrected by every pointerdown for the rest of the session. CSS keys the
+  // touch floors off html[data-input="touch"]; see the twins beside each
+  // (hover: none) block.
+  const inputRoot = document.documentElement;
+  inputRoot.dataset.input = matchMedia('(any-pointer: fine)').matches ? 'mouse' : 'touch';
+  addEventListener('pointerdown', (e) => {
+    inputRoot.dataset.input = e.pointerType === 'mouse' ? 'mouse' : 'touch';
+  }, { capture: true });
+
   // First, before a single pixel: whether this is a standalone tab or a panel
   // inside a dashboard changes the layout, the identity source and which chrome
   // exists at all, and a panel that flashes the standalone app for one frame
