@@ -16,7 +16,7 @@ import { registerCoreActions, registerCoreHeader } from './core/actions.js';
 import { openDM, startDM } from './core/dms.js';
 import { jumpTo, buildMessage, initAvatarSweep, initNarrowWatcher } from './core/messages.js';
 import { initPWA, paintInstallButton } from './pwa.js';
-import { initTheme, openThemePicker, cycleTheme } from './theme.js';
+import { initTheme, openThemePicker } from './theme.js';
 import { icon, logoMark } from './icons.js';
 import { initShell, paintIdentity, paintChannelBar } from './shell.js';
 import { registerFeatures } from './features/index.js';
@@ -470,6 +470,18 @@ function quickSwitcher() {
     });
   };
   const run = () => {
+    // A leading # means full-text search, not channel matching: Ctrl+K is the
+    // one entry point now that the Ctrl+F hijack is gone (browser find is
+    // muscle memory and stealing it reads as the app being broken).
+    if (input.value.startsWith('#')) {
+      const q = input.value.slice(1).trim();
+      items = [{ icon: '#', hint: 'full-text',
+        label: q ? `Search messages for "${q}"` : 'Search all messages',
+        run: () => openPanel('search', { q }) }];
+      idx = 0;
+      draw();
+      return;
+    }
     const q = input.value.replace(/^[#@>]/, '').trim();
     items = ui.getSwitcherSources().flatMap((s) => {
       try { return s.search(q) || []; } catch { return []; }
@@ -491,7 +503,6 @@ function initShortcuts() {
   window.addEventListener('keydown', (e) => {
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); quickSwitcher(); return; }
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); openPanel('search', {}); return; }
     if (e.key === 'Escape') {
       // One press peels one layer: if this press closed a popover or a modal
       // (modals close themselves via their own key listener), the panel behind
@@ -508,8 +519,10 @@ function initShortcuts() {
     }
     if (typing) return;
     if (e.key === '/') { e.preventDefault(); $('composer')?.focus(); }
-    // Shift+T cycles dark -> light -> colorful, for comparing them quickly.
-    if (e.shiftKey && e.key.toLowerCase() === 't') { e.preventDefault(); cycleTheme(); }
+    // Plain Shift+T no longer cycles themes: it had no modifier exclusion, so
+    // Ctrl+Shift+T (reopen closed tab muscle memory, and our own Threads
+    // shortcut) cycled the theme too, and the binding was documented nowhere.
+    // Theme switching stays in Appearance (shell menu) and the picker.
   });
 }
 

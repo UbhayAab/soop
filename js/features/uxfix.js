@@ -1007,7 +1007,14 @@ function registerComposerTools(ui) {
     const k = e.key.toLowerCase();
     if (k === 'b') { e.preventDefault(); wrapSelection('**', '**', 'bold text'); }
     else if (k === 'i') { e.preventDefault(); wrapSelection('_', '_', 'italic text'); }
-    else if (k === 'k' && c.selectionStart !== c.selectionEnd) { e.preventDefault(); insertLink(ui); }
+    else if (k === 'k' && c.selectionStart !== c.selectionEnd) {
+      // stopPropagation, not just preventDefault: the quick switcher listens
+      // on window in the bubble phase and would stack itself on top of the
+      // link dialog otherwise - two modals from one keystroke.
+      e.preventDefault();
+      e.stopPropagation();
+      insertLink(ui);
+    }
   });
   // Pasting a URL over a selection links the selection, which is what every
   // editor this audience has used already does.
