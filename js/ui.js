@@ -174,8 +174,25 @@ export function formModal({ title, fields = [], submitLabel = 'Save', wide = fal
 const panels = new Map();
 let activePanel = null;
 
-// registerPanel({id, title, icon, render(bodyEl, ctx), footer(footEl), onClose})
-export function registerPanel(def) { panels.set(def.id, def); }
+// registerPanel({id, title, icon, render(bodyEl, ctx), footer(footEl), onClose,
+//                replaces})
+//
+// Warns on an id collision, unless the def declares replaces:true. This is a
+// Map and features load through Promise.all, so a duplicate id resolves to
+// whichever module finished last - nondeterministically between reloads, the
+// same failure addSlashCommand warns about above. uxfix.js deliberately takes
+// over two core panels (members, search) without editing js/core/actions.js;
+// those declare replaces:true so the warning keeps meaning "nobody decided
+// this". A new feature picking 'pins' by typo now announces itself in the
+// console instead of silently eating the pinned-messages panel.
+export function registerPanel(def) {
+  if (panels.has(def.id) && !def.replaces) {
+    console.warn(`[Dek] panel id "${def.id}" registered twice; the later one wins `
+      + 'and which one that is depends on network timing. Rename one, or pass '
+      + 'replaces:true if taking over the earlier panel is intended.');
+  }
+  panels.set(def.id, def);
+}
 
 export async function openPanel(id, ctx = {}) {
   const def = panels.get(id);

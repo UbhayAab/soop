@@ -1058,7 +1058,8 @@ function threePartEmpty({ what, how, action, onAction, ico }) {
 // name - were indistinguishable.
 //
 // registerPanel overwrites by id, so this replaces the core panel without
-// editing js/core/actions.js.
+// editing js/core/actions.js; replaces:true declares that intent so the
+// duplicate-id warning in ui.js stays reserved for accidents.
 // ==========================================================================
 const RANK = { Owner: 0, Admin: 1, Moderator: 2, Member: 3 };
 const ADMINISTRATOR = 1n << 40n;
@@ -1116,6 +1117,7 @@ async function memberRoleMap() {
 function registerMembersPanel(ui) {
   ui.registerPanel({
     id: 'members',
+    replaces: true, // deliberate takeover of actions.js:246, see the WHY block above
     title: 'Members',
     async render(body) {
       body.innerHTML = panelSkeleton();
@@ -1322,6 +1324,7 @@ function parseSearch(raw) {
 function registerSearchPanel(ui, api) {
   ui.registerPanel({
     id: 'search',
+    replaces: true, // deliberate takeover of actions.js:176, see the WHY block above
     title: 'Search',
     async render(body, ctx) {
       body.innerHTML = '';
