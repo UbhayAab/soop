@@ -906,8 +906,10 @@ section.msgs {
    ========================================================================= */
 aside#panel {
   flex: none;
-  /* Narrow laptops must not starve the message column to feed the panel. */
-  width: clamp(300px, 32vw, var(--panel-w));
+  /* Narrow laptops must not starve the message column to feed the panel.
+     cqw measures the soop container (#app), not the host viewport, so a
+     same-document embed cannot let this clamp eat the whole shell. */
+  width: clamp(300px, 32cqw, var(--panel-w));
   display: flex;
   flex-direction: column;
   min-height: 0;

@@ -84,12 +84,20 @@ kbd {
 ::-webkit-scrollbar-thumb:hover { background: var(--c-text-3); background-clip: content-box; }
 ::-webkit-scrollbar-corner { background: transparent; }
 
-/* ------------------------------------------------------------------ app shell root */
+/* ------------------------------------------------------------------ app shell root
+   #app is the inline-size query container named `soop`: every size question
+   inside the shell measures THIS box, not whatever viewport we happen to sit
+   in (a host page's in the same-document tier). Layout containment also makes
+   #app the containing block for positioned descendants - overlays that must
+   cover the whole screen mount on body instead, so nothing moves today. */
 #app {
-  height: 100dvh;
+  /* height, not dvh: inside an iframe dvh resolves to the frame height anyway,
+     and a host animating the iframe height would leave a stale dvh behind. */
+  height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  container: soop / inline-size;
 }
 
 .hidden { display: none !important; }

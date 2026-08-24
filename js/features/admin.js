@@ -7,7 +7,9 @@
 //    actually changed something invalidates its slice of the cache.
 //  - The panel is widened with a `:has(.admin-root)` rule injected from here, so
 //    nothing in the shared stylesheets has to know this feature exists and the width falls
-//    back the instant another panel takes over the aside.
+//    back the instant another panel takes over the aside. It queries the soop
+//    container (#app), not the viewport, so an embedded panel on a big host
+//    window does not read the host's width as its own.
 import { api, table } from '../api.js';
 import { store, hasPerm } from '../store.js';
 import { PERM } from '../config.js';
@@ -21,7 +23,7 @@ import { serverError, handOverDialog, leaveSpace } from '../core/workspace.js';
 const canAdmin = () => hasPerm(PERM.MANAGE_WORKSPACE) || store.isAdmin;
 
 const CSS = `
-@media (min-width:861px){ aside#panel:has(.admin-root){width:min(780px,64vw)} }
+@container soop (min-width:861px){ aside#panel:has(.admin-root){width:min(780px,64cqw)} }
 .admin-root{display:flex;flex-direction:column;gap:10px}
 .admin-tabs{display:flex;gap:4px;flex-wrap:wrap;position:sticky;top:-10px;background:var(--panel);
   padding:2px 0 6px;z-index:2;border-bottom:1px solid var(--line)}
