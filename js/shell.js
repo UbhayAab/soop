@@ -15,7 +15,7 @@
 import { $, el, esc, hueOf, initials } from './util.js';
 import { store, bus, nameOf } from './store.js';
 import { icon } from './icons.js';
-import ui, { openPanel, contextMenu, toast, closePopovers } from './ui.js';
+import ui, { openPanel, contextMenu, toast, closePopovers, closePanel } from './ui.js';
 import { openThemePicker, effectiveTheme, THEMES, setTheme } from './theme.js';
 import { api, tryRpc } from './api.js';
 import { sb, markIntentionalSignOut } from './sb.js';
@@ -231,7 +231,20 @@ export function initShell() {
   // actions fit. Both sides move together because both read visibleActions().
   const applyCap = () => ui.setInlineCap?.(visibleActions());
   applyCap();
-  window.matchMedia(NARROW).addEventListener('change', applyCap);
+
+  // The same crossing has to retire the phone-only furniture. nav-open keeps
+  // the message-list scrim (layout.css:984, outside every width query) alive at
+  // widths where the drawer styles no longer apply, so the conversation sat
+  // under an invisible layer that ate every click until a reload. The open
+  // panel sheet gets the full closePanel teardown, not just the class strip -
+  // aside#panel was unhidden by openPanel and stays a stray visible column
+  // otherwise; guarded so an idle crossing emits no spurious panel:close.
+  window.matchMedia(NARROW).addEventListener('change', (e) => {
+    applyCap();
+    if (e.matches) return;
+    document.body.classList.remove('nav-open');
+    if (document.body.classList.contains('panel-open')) closePanel();
+  });
 
   paintIdentity();
 }
