@@ -1,4 +1,4 @@
-// TURN credentials for voice rooms.
+﻿// TURN credentials for voice rooms.
 //
 // Cloudflare moved TURN credential generation to an API-call model: a long-
 // lived TURN KEY is created once (dashboard or /calls/turn_keys), and short-
@@ -6,12 +6,13 @@
 // token authorised over that key. This function is the only thing that talks
 // to it, so the browser never sees account-level credentials.
 //
-// Two configuration modes, first match wins:
-//  1. NEW model: env TURN_KEY_ID + CF_TURN_API_TOKEN
-//     -> proxy rtc.live.cloudflare.com/.../generate-ice-servers (ttl 6h)
+// Three configuration modes, first match wins:
+//  1. APP model: env RTC_APP_ID + RTC_APP_TOKEN + TURN_KEY_ID
+//     -> rtc.live.cloudflare.com generate-ice-servers with the app token,
+//        ttl 6h, :53 port stripped, cached an hour
 //  2. LEGACY model: env TURN_TOKEN_ID + TURN_TOKEN_SECRET
 //     -> local HMAC-SHA1 minting, the original Calls pattern
-// Neither set -> 503, and the client stays STUN-only exactly as before.
+//  3. Neither set -> 503, and the client stays STUN-only exactly as before.
 //
 // Auth: any signed-in Soop user (GoTrue verification). The publishable key
 // alone must NOT count - that would make this a free public relay.
@@ -20,8 +21,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const RTC_APP_ID = Deno.env.get('RTC_APP_ID');
+const RTC_APP_TOKEN = Deno.env.get('RTC_APP_TOKEN');
 const TURN_KEY_ID = Deno.env.get('TURN_KEY_ID');
-const CF_TURN_API_TOKEN = Deno.env.get('CF_TURN_API_TOKEN');
 const TURN_TOKEN_ID = Deno.env.get('TURN_TOKEN_ID');
 const TURN_TOKEN_SECRET = Deno.env.get('TURN_TOKEN_SECRET');
 
@@ -50,15 +52,15 @@ async function verifyUser(authHeader: string | null) {
   }
 }
 
-// New model: ask Cloudflare for a fresh iceServers bundle. Cached for an hour;
-// credentials inside live six.
+// APP model: the Realtime application token mints credentials for the
+// account's TURN key. Cached for an hour; credentials inside live six.
 let cfCache: { at: number; ice: unknown } | null = null;
 async function viaCloudflare(): Promise<{ iceServers: unknown[] } | null> {
-  if (!TURN_KEY_ID || !CF_TURN_API_TOKEN) return null;
+  if (!TURN_KEY_ID || !RTC_APP_ID || !RTC_APP_TOKEN) return null;
   if (cfCache && Date.now() - cfCache.at < 3600_000) return { iceServers: cfCache.ice };
   const r = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${TURN_KEY_ID}/credentials/generate-ice-servers`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${CF_TURN_API_TOKEN}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${RTC_APP_TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ ttl: TTL_SECONDS }),
   });
   if (!r.ok) throw new Error(`cloudflare ${r.status}`);
@@ -97,7 +99,7 @@ Deno.serve(async (req) => {
   };
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 
-  const configured = (TURN_KEY_ID && CF_TURN_API_TOKEN) || (TURN_TOKEN_ID && TURN_TOKEN_SECRET);
+  const configured = (TURN_KEY_ID && RTC_APP_ID && RTC_APP_TOKEN) || (TURN_TOKEN_ID && TURN_TOKEN_SECRET);
   if (!configured) {
     return new Response(JSON.stringify({ error: 'turn_not_configured' }), {
       status: 503, headers: { ...cors, 'Content-Type': 'application/json' },
@@ -111,7 +113,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const out = TURN_KEY_ID && CF_TURN_API_TOKEN ? await viaCloudflare() : await viaLegacy();
+    const out = TURN_KEY_ID && RTC_APP_ID && RTC_APP_TOKEN ? await viaCloudflare() : await viaLegacy();
     if (!out) throw new Error('no ice servers');
     return new Response(JSON.stringify({ ...out, ttl: TTL_SECONDS }), {
       headers: { ...cors, 'Content-Type': 'application/json' },
