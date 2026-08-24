@@ -5,7 +5,42 @@ adversarial reviews (user experience, correctness, arithmetic), then a ranking.
 Kept in the repo because the measurements are expensive to reproduce and the
 rejected list is the evidence that quality was not traded for quota.
 
-**Ranks 1-9 and the 50 MB upload fix are DONE.** Ranks 10-26 are not.
+**STATUS 2026-08-24 (post-execution refresh).** Ranks 1-9 and most of the client-side
+half of 10-26 have landed. The analysis text below each rank is kept as written because
+the measurements still explain WHY each change was worth making, but the defect
+descriptions and file line numbers in ranks 2-22 have drifted or been overtaken by the
+fixes themselves - read the status column before acting on any section. The remaining
+work is almost entirely server-side (needs a deploy window and tokens).
+
+| Rank | Status |
+|---|---|
+| 1 | DONE pre-doc / P0 batches (2026-08-22) |
+| 2 | DONE commit 06acf1f (local clear + signature hardening) |
+| 3 | ALREADY LANDED when audited - one merged visibilitychange handler existed all along (presence.js:290); see banner on the section |
+| 4 | (a) ALREADY LANDED b112f3b-era; (b)+(c) DONE commit f1df785 |
+| 5 | (a) fixed earlier; (b)+(c) DONE commit b95cf6f |
+| 6 | In-repo half DONE commit 877875a (all five functions + mint-download allow-header completion); DEPLOY BLOCKED on tokens |
+| 7 | DONE commit 6e1e380 (projection + snapshot delta merge) |
+| 8 | NOT DONE - server-side index, needs deploy |
+| 9 | Client half DONE (signed-URL IndexedDB cache + batched mint-download POST, media.js); server expires_at/array return still pending deploy |
+| 10 | DONE commit 8f6e242, stale-while-revalidate form (sha256 claim unconfirmable from this repo), LRU cap + sign-out wipes included |
+| 11 | PARTIAL - downscale landed at 1600px q0.8 keep-original-if-smaller (state log: 8-15x); the 700px thumbnail half NOT shipped, dimensions reporting not shipped |
+| 12 | DONE commit 6e650fb (debounceLead coalescing, {open} bypass kept) |
+| 13 | DONE commit 64e256b (visibility guard, 30s, backstop %4) |
+| 14 | DONE commit e6d4b34 (a+b) |
+| 15 | DONE commit a53d39f (store.presenceStatus map; status.js network code deleted) |
+| 16 | DONE commit a7ef3e3 (hidden tabs stop claiming viewer_count; event beats debounceLead(10s)) |
+| 17 | NOT DONE - server-side, needs deploy window |
+| 18 | a+b+d DONE commit 23a67d0; c NOT DONE (embed_sweep_tickets sampling is server-side) |
+| 19 | DONE commit 6a382f9 (TABLE_COLUMNS for six tables + resync chunking) and cc2e27e (heal fetch projected with drift-guard fallback); profiles deliberately excluded - whole-row store paths still exist |
+| 20 | NOT DONE - rejected three times for headless verifiability (WebRTC state changes need a real call) |
+| 21 | DONE commit 11c15b0 (send-side retract, receiver clear on message:new, 800ms gate, race fix) |
+| 22 | DONE commit 1b9d0e5 (coalescing + dm:receipts listener pre-existed b112f3b-era; flush paths + receipts debounce added); see banner on the section |
+| 23-26 | NOT DONE - server-side |
+
+Ranks 1-9 were verified landed during P0 batches 1-7 (2026-08-22) and by the burst
+log in soop-research/opencode/DRIVER-STATE.md, which carries per-rank proof lines,
+chosen trade-offs and revert commits for everything above.
 
 ---
 
@@ -81,6 +116,14 @@ Clear the unread badge locally after mark_read instead of chaining refreshUnread
 
 ### 3. Collapse the two visibilitychange handlers that both refresh unread  `xs` `high`
 
+> **STATUS: DO NOT ACT.** Audited 2026-08-24 against the live tree: there is ONE
+> visibilitychange handler in presence.js (line ~290) and it already does everything
+> this section asks - heartbeat, auth refresh, realtime retry, resync and one unread
+> refresh per return. The defect described below did not exist at audit time (the
+> merge predates or accompanied P0 batches; b112f3b-era). Kept for the measurement:
+> the double-refresh it warns about is a real cost pattern to watch for when new
+> visibility handlers are added.
+
 Collapse the two visibilitychange handlers that both refresh unread. initPresence registers one at presence.js:212 (sets unreadTick = 0 then calls pollUnread(), and because unreadTick++ % 4 === 0 is now true it runs the FULL three-RPC version) and a second at presence.js:240 (calls a bare refreshUnread(), which also defaults to full). Every tab focus therefore costs six RPCs from two handlers inside the same function. Merge into one handler.
 
 - **Where.** js/core/presence.js:212-215 and js/core/presence.js:240-250
@@ -88,6 +131,15 @@ Collapse the two visibilitychange handlers that both refresh unread. initPresenc
 - **Quality cost.** None. The remaining handler does exactly what the pair did: heartbeat, refresh auth, force realtime retry, resync, refresh unread - once instead of twice.
 
 ### 4. Add the three missing visibility guards, and fix which messages the reaction sweep heals  `xs` `high`
+
+> **STATUS: DONE, with one correction.** (a) the canvas poll guard ALREADY existed
+> when audited (canvases.js skips the 4s poll while hidden and refreshes on return,
+> b112f3b-era) - this section's premise was stale on that sub-item. (b) and (c)
+> landed as commit f1df785 (2026-08-24): sweep guarded + fired immediately on
+> return to visible, ids read off #messages .msg DOM rows instead of store.seen
+> insertion order, Later badge guarded + refreshed on return. One accepted delta:
+> thread-panel rows outside #messages are no longer swept; realtime reaction
+> events remain their paint path.
 
 Add the three missing visibility guards, and fix which messages the reaction sweep heals. (a) The canvas poll runs every 4 seconds with no guard at all, including in a fully hidden tab. (b) The reaction sweep runs every 9s and is dirtied by `bus.on('message:new')`, which fires from realtime regardless of visibility - so a backgrounded tab on a busy channel sweeps reactions forever. (c) The 'Later' badge polls every 90s with no guard, the last unguarded whole-app poll. While in the sweep: it takes `[...store.seen].slice(-60)`, which is INSERTION order, so after paging up it heals the oldest rows just prepended and ignores the reactions actually on screen. Read the ids off the DOM instead.
 
@@ -232,6 +284,15 @@ Cut typing broadcasts roughly in half. (a) Delete the send-side 'stop': in send(
 - **Quality cost.** (a) is marginally better than today: the indicator currently clears one round trip AFTER the message paints; this clears it in the same frame. (b) is where the honest cost is - use 800ms, not the 1200ms proposed. At 1200ms a two-word reply typed slowly on a phone loses the indicator it should have had, and 'the indicator appears later' IS the indicator being slower. At 800ms you only kill the sub-second flash on 'ok' and 'done', which is the flicker that trains people to ignore the indicator in the first place.
 
 ### 22. Two DM fixes in one file  `xs` `high`
+
+> **STATUS: DONE, text partially stale.** The coalesced markDMRead and the
+> dm:receipts LISTENER described in (b) as missing were already present b112f3b-era
+> when audited - the doc's "zero listeners" grep result no longer held. What was
+> genuinely missing and landed as commit 1b9d0e5 (2026-08-24): flushDMRead()
+> called from openDM before the switch and from a visibilitychange->hidden
+> listener, so pocketing the tab mid-burst cannot leave a conversation unread
+> everywhere but this device; and the dm:receipts handler routed through
+> debounce(1000) because read broadcasts arrive in bursts.
 
 Two DM fixes in one file. (a) dms.js:122 calls api.markDMRead on every incoming DM with no coalescing, while the channel path coalesces the identical write at 1200ms - copy that shape (hold the highest seq, one RPC per 1200ms, monotonic), and flush the pending write on a switch to another conversation and on visibilitychange->hidden so closing the tab mid-burst does not leave it unread. (b) dms.js:85 binds `read: () => bus.emit('dm:receipts', { conversationId })` and grep for 'dm:receipts' across the whole repo returns exactly one hit - that emit. Zero listeners. Point it at a 1000ms-debounced refreshReceipts(conversationId), guarded on store.currentDM still matching.
 
