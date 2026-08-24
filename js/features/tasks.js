@@ -651,7 +651,9 @@ async function refreshCount() {
   // The header button only exists when Tasks lands inside ui.inlineCap, which on
   // a full registry it does not. Publish the number so the sidebar row - the
   // surface people actually reach this through - can carry the badge instead.
-  bus.emit('tasks:count', { open: openCount });
+  // Overdue rides along for the embed host's task badge; isOverdue is the same
+  // predicate the panel's own Overdue section groups by.
+  bus.emit('tasks:count', { open: openCount, overdue: rows.filter(isOverdue).length });
 }
 
 // Core rebuilds the header row whenever any feature adds a button, which wipes the

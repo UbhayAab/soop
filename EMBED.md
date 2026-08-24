@@ -83,8 +83,17 @@ Returned object: `on(event, fn)`, `off`, `navigate(channel)`, `identify()`,
 `signOut()`, `visible()`, `hidden()`, `setTheme(theme)`,
 `setTokens({'--c-accent': '#e5484d'})`, `destroy()`, and `.frame`.
 
-Events out: `ready`, `signed-in`, `auth-needed`, `navigated`, `unread`, `error`,
-`pong`.
+Events out: `ready`, `signed-in`, `auth-needed`, `navigated`, `unread`, `tasks`,
+`close-request`, `size`, `error`, `pong`.
+
+- `tasks {open, overdue}` fires whenever the panel recounts the signed-in
+  person's tasks - the same argument as `unread`, for products where the task
+  list is the launcher.
+- `close-request` fires when the person presses Escape with nothing left to
+  close. The panel never collapses itself on Escape (a dock is furniture, not a
+  dialog); you decide whether to hide it.
+- `size {inlineSize}` reports the panel's inner width in px, debounced to the
+  end of a drag, so a resizable splitter can snap to the app's breakpoints.
 
 Call `panel.visible()` when your layout shows the panel and `panel.hidden()`
 when it collapses it. A CSS collapse is invisible inside the iframe - visibility

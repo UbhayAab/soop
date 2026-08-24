@@ -36,6 +36,7 @@
 import { EMBED_ORIGINS, EMBED_EXCHANGE_URL } from './config.js';
 import { sb, markIntentionalSignOut, retryAllNow } from './sb.js';
 import { bus, store } from './store.js';
+import { debounce } from './util.js';
 
 const PROTO = 'Dek';
 const VERSION = 1;
@@ -269,8 +270,10 @@ async function onMessage(ev) {
 }
 
 // ------------------------------------------------------------------ outbound
-// The two things a host actually wants back: a badge number for its own launcher,
-// and enough of a signal to know the panel is alive and who is in it.
+// The things a host actually wants back: a badge number for its own launcher,
+// the task count that justifies a second one, enough of a signal to know the
+// panel is alive and who is in it, and the panel's width so a host with a
+// resizable splitter can snap its layout to the app's breakpoints.
 function wireReports() {
   const unread = () => {
     let total = 0;
@@ -291,6 +294,25 @@ function wireReports() {
   bus.on('unread', unread);
   bus.on('workspace', where);
   bus.on('channel:open', where);
+  // tasks.js publishes this on every refreshCount; overdue rides along when the
+  // emitting side computed it. unassigned is deliberately absent - the mine-filtered
+  // read behind the event cannot see other people's tasks without a second query.
+  bus.on('tasks:count', (p) => send('tasks', { open: p?.open || 0, overdue: p?.overdue ?? null }));
+}
+
+// Panel width out. ResizeObserver fires per frame during a splitter drag, so
+// posts are trailing-debounced: the host gets where the drag ENDED, which is the
+// only width it can snap to anyway. Fires once on observe, so the initial size
+// is reported shortly after boot with no extra code.
+function wireSize() {
+  const app = document.getElementById('app');
+  if (!app || typeof ResizeObserver === 'undefined') return;
+  let last = null;
+  const post = debounce((w) => send('size', { inlineSize: w }), 150);
+  new ResizeObserver((entries) => {
+    const w = entries[0] ? Math.round(entries[0].contentRect.width) : null;
+    if (typeof w === 'number' && w !== last) { last = w; post(w); }
+  }).observe(app);
 }
 
 // ------------------------------------------------------------------ pinning
@@ -400,6 +422,8 @@ export function initEmbed() {
 
   window.addEventListener('message', onMessage);
   wireReports();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wireSize);
+  else wireSize();
 
   // Told after the listener is up, so a host that replies instantly is heard.
   // Sent on DOMContentLoaded rather than load: the host wants to hand over

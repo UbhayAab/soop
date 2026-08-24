@@ -492,7 +492,20 @@ function initShortcuts() {
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); quickSwitcher(); return; }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); openPanel('search', {}); return; }
-    if (e.key === 'Escape') { closePopovers(); if (!typing) closePanel(); return; }
+    if (e.key === 'Escape') {
+      // One press peels one layer: if this press closed a popover or a modal
+      // (modals close themselves via their own key listener), the panel behind
+      // it stays. And when the stack IS empty, embedded mode must not collapse
+      // the panel - a dock is furniture, not a dialog, and Escape mid-sentence
+      // closing it is a data-loss-shaped event. The host decides: we ask.
+      const hadLayer = !!document.querySelector('.popover, .ctxmenu, .modal-back');
+      closePopovers();
+      if (!typing && !hadLayer) {
+        if (embed.active) notifyHost('close-request', {});
+        else closePanel();
+      }
+      return;
+    }
     if (typing) return;
     if (e.key === '/') { e.preventDefault(); $('composer')?.focus(); }
     // Shift+T cycles dark -> light -> colorful, for comparing them quickly.

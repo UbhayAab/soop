@@ -9,6 +9,7 @@
 import { store, bus, nameOf } from '../store.js';
 import { el, esc, plain } from '../util.js';
 import { icon } from '../icons.js';
+import { embed } from '../embed.js';
 
 const MIN = 60000;
 const HOUR = 3600000;
@@ -259,6 +260,16 @@ function renderPanel(ui, api) {
       const p = permission();
       const line = el('div', 'muted hnotif-hint');
       dev.appendChild(line);
+
+      // Embedded mode: Notification.requestPermission() can never succeed from
+      // a cross-origin iframe - the Notifications spec deliberately defines no
+      // Permissions-Policy feature for it - so instead of a button that is dead
+      // on arrival, say who does handle notifications. Push needs the same
+      // permission, so the whole device block below is skipped with it.
+      if (embed.active) {
+        line.textContent = 'Notifications are handled by your dashboard while Dek runs embedded here.';
+        return;
+      }
 
       if (p === 'unsupported') {
         line.textContent = 'This browser has no Notification API, so desktop alerts are not available here.';
