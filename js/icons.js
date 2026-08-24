@@ -81,6 +81,7 @@ export const ICONS = {
     + `<path d="M12 3.8a8.2 8.2 0 0 1 0 16.4z" fill="currentColor"/>`,
   menu: P('M4 7h16M4 12h16M4 17h16'),
   chevronDown: P('m7 10 5 5 5-5'),
+  chevronLeft: P('m14 7-5 5 5 5'),
   chevronRight: P('m10 7 5 5-5 5'),
   arrowDown: P('M12 5v13') + P('m6.5 12.5 5.5 5.5 5.5-5.5'),
   logout: P('M15 8V6a1.5 1.5 0 0 0-1.5-1.5h-7A1.5 1.5 0 0 0 5 6v12a1.5 1.5 0 0 0 1.5 1.5h7A1.5 1.5 0 0 0 15 18v-2')

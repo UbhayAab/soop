@@ -1098,11 +1098,14 @@ body.nav-open #messages::after {
 
   #messages::after { content: ""; }
 
-  /* The right panel becomes a sheet over everything, with its own header as the
-     way back out. */
+  /* The right panel becomes a sheet over everything, with its own header as
+     the way back out. Absolute against #app, not fixed against nothing:
+     #app carries container-type, which already made it the containing block
+     for fixed descendants, so this only names honestly what was true by
+     side effect - and stops leaning on it. */
   aside#panel,
   body.panel-open aside#panel {
-    position: fixed;
+    position: absolute;
     inset: 0;
     z-index: var(--z-panel);
     width: 100%;

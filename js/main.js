@@ -3,7 +3,7 @@ import { sb, session } from './sb.js';
 import { api, tryRpc } from './api.js';
 import { store, bus, nameOf } from './store.js';
 import { $, el, esc, debounceLead } from './util.js';
-import ui, { toast, openPanel, closePanel, renderHeaderButtons, modal, closePopovers } from './ui.js';
+import ui, { toast, openPanel, closePanel, popPanel, renderHeaderButtons, modal, closePopovers } from './ui.js';
 import { initAuth, showAuth, showChat, needsPasswordSetup, showSetPassword } from './core/auth.js';
 import { loadSpaces, switchWorkspace, spaceChooser, inviteDialog, copyInvite, extractToken, looksLikeOrgInvite } from './core/workspace.js';
 import { openChannel, renderChannels, wireScroll, refreshUnread, jumpToSeq,
@@ -502,7 +502,7 @@ function initShortcuts() {
       closePopovers();
       if (!typing && !hadLayer) {
         if (embed.active) notifyHost('close-request', {});
-        else closePanel();
+        else popPanel();
       }
       return;
     }
@@ -611,6 +611,9 @@ async function main() {
   }
 
   $('panelClose').onclick = closePanel;
+  // The chevron peels one drill-down layer and falls back to a plain close
+  // when the stack is empty, so it is never a dead button.
+  $('panelBack').onclick = () => popPanel();
   $('btnInvite').onclick = () => inviteDialog();
   if ($('markAllRead')) {
     $('markAllRead').onclick = async () => {

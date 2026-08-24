@@ -210,15 +210,40 @@ export function registerPanel(def) {
 }
 
 export async function openPanel(id, ctx = {}) {
+  return showPanel(id, ctx, { push: true });
+}
+
+// Drill-down stack. Opening panel B while A is live remembers A so the back
+// chevron in the panel header returns to it instead of stranding the person -
+// on a phone the sheet is full-screen, and activity -> task -> thread had no
+// way back except closing everything. Same-id reopens (tab switches inside a
+// panel, refreshPanel) replace in place; stacking those would grow without
+// bound.
+const navStack = [];
+let activeCtx = {};
+
+function paintPanelNav() {
+  const b = document.getElementById('panelBack');
+  if (b) b.classList.toggle('hidden', !navStack.length);
+}
+
+async function showPanel(id, ctx = {}, { push }) {
   const def = panels.get(id);
   if (!def) return console.warn('no panel', id);
+  if (push && activePanel && activePanel !== id) {
+    navStack.push({ id: activePanel, ctx: activeCtx });
+  }
   activePanel = id;
+  activeCtx = ctx;
+  paintPanelNav();
   const aside = $('panel');
   aside.classList.remove('hidden');
   document.body.classList.add('panel-open');
   // Android Back must close the sheet, not the app. A pushed entry per open,
   // consumed by the popstate handler in main.js. Programmatic closes (the X)
-  // leave a harmless extra entry whose popstate finds nothing to do.
+  // leave a harmless extra entry whose popstate finds nothing to do. One entry
+  // per sheet session regardless of drill depth: the chevron peels panels,
+  // hardware Back retires the whole surface.
   if (!history.state?.dekPanel) history.pushState({ dekPanel: id }, '');
   $('panelTitle').textContent = typeof def.title === 'function' ? def.title(ctx) : def.title;
   const body = $('panelContent');
@@ -234,9 +259,25 @@ export async function openPanel(id, ctx = {}) {
   }
 }
 
+// Peel one layer. Empty stack means the plain close - Escape and the chevron
+// share one entry point, and callers that must retire the whole surface (X
+// button, channel open, breakpoint crossing, Android popstate) stay on
+// closePanel below. The departed panel's onClose runs, but no 'panel:close'
+// fires: that event says the PANEL SURFACE closed, and during a pop it stays
+// open with new content.
+export async function popPanel() {
+  const prev = navStack.pop();
+  if (!prev) return closePanel();
+  panels.get(activePanel)?.onClose?.();
+  await showPanel(prev.id, prev.ctx || {}, { push: false });
+}
+
 export function closePanel() {
   const id = activePanel;
   activePanel = null;
+  activeCtx = {};
+  navStack.length = 0;
+  paintPanelNav();
   $('panel').classList.add('hidden');
   document.body.classList.remove('panel-open');
   $('panelContent').innerHTML = '';
@@ -463,7 +504,7 @@ export function emptyState(text) { return el('div', 'empty', esc(text)); }
 
 export const ui = {
   toast, modal, confirmModal, typeToConfirm, formModal, getHeaderButtons, setInlineCap,
-  registerPanel, openPanel, closePanel, refreshPanel, currentPanel,
+  registerPanel, openPanel, closePanel, popPanel, refreshPanel, currentPanel,
   addHeaderButton, renderHeaderButtons, addNavSection, renderNavSections,
   addMessageAction, getMessageActions, addComposerButton, renderComposerButtons,
   addSlashCommand, listSlash, findSlash, runSlash,
