@@ -550,8 +550,11 @@ export async function openChannel(c, opts = {}) {
   if (!onScreen) {
     if (!visible.length) {
       list.innerHTML = '';
-      list.appendChild(el('div', 'empty',
-        `This is the beginning of <b>#${esc(c.name)}</b>. Say hello.`));
+      const empty = el('div', 'empty channel-born',
+        `<div class="channel-born-mark">#</div>
+         <div class="channel-born-title">This is the beginning of <b>#${esc(c.name)}</b></div>
+         <div class="channel-born-sub">Say hello, pin what matters, or drop the first file.</div>`);
+      list.appendChild(empty);
     } else {
       for (const m of visible) claimMessage(m);
       paintPage(list, visible);

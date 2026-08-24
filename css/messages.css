@@ -1574,3 +1574,32 @@
      to layout.css; this one property has to live on the scroller itself). */
   #messages { scrollbar-gutter: stable; }
 }
+
+/* A new channel's first screen. The plain "beginning of" line read as a bug;
+   this reads as a welcome mat. Centered, quiet, with the channel mark as the
+   anchor so the eye lands before the text does. */
+.channel-born {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  min-height: 40vh;
+  text-align: center;
+  padding: var(--s-8);
+}
+.channel-born-mark {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-lg);
+  background: var(--c-accent-quiet, color-mix(in srgb, var(--c-accent) 12%, transparent));
+  color: var(--c-accent);
+  font-size: 28px;
+  font-weight: var(--t-bold, 700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--s-2);
+}
+.channel-born-title { font-size: var(--t-lg); color: var(--c-text); }
+.channel-born-sub { color: var(--c-text-2); font-size: var(--t-sm); }

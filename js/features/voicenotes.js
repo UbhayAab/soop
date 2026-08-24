@@ -139,6 +139,9 @@ export function register(app) {
       else start().then(armAutoStop);
     },
   });
+  // The tool row paints during initComposer, BEFORE features register. Without
+  // this repaint the mic button existed in the registry and nowhere on screen.
+  ui.renderComposerButtons();
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && rec && rec.state === 'recording') stop(true);
