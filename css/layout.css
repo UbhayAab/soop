@@ -1092,6 +1092,28 @@ body.nav-open #messages::after {
   }
   body.ux-one-space.nav-open #sidebar { transform: none; }
 
+  /* Pushed full-width view below 440px of app box (PLAN narrow-panel stack).
+     At 380px the 272px drawer left a 108px grey sliver of conversation - not a
+     preview, just a tap target painted grey. A pushed view covers the box:
+     no shadow, nothing peeks, so the scrim under it is moot and stays as is
+     for the 441-860px regime above. The switcher in the 40px header sits above
+     the drawer's containing block and still toggles it, so the way out never
+     depended on the sliver existing; channel pick, back gesture and tab tap
+     close it as before. Box fact, not viewport fact: container query, like the
+     rest of the stacked-nav slices. */
+  @container soop (max-width: 440px) {
+    /* The ux-one-space twin must be restated or its higher specificity keeps
+       the 272px cap alive exactly on the phones this slice exists for. */
+    #sidebar,
+    body.ux-one-space #sidebar {
+      left: 0;
+      width: 100%;
+    }
+    body.nav-open #sidebar {
+      box-shadow: none;
+    }
+  }
+
   #messages::after { content: ""; }
 
   /* The right panel becomes a sheet over everything, with its own header as
