@@ -449,7 +449,32 @@ export async function openChannel(c, opts = {}) {
   // indicator paints under a message; awaiting it before even ASKING for the
   // messages put an unbounded query (224 rows, 19 KB, 193ms on a good line, six
   // seconds on a bad one) in front of the thing the person actually clicked.
-  const pThreads = table('threads', (q) => q.eq('channel_id', c.id)).catch(() => []);
+  // Now projected to the fields any consumer reads and ordered newest first.
+  // On a warm open the pagecache snapshot already holds every thread that has
+  // not moved since it was written: reply_count cannot change without
+  // last_message_at moving, and nothing deletes threads - so only the delta
+  // past snapshot.at crosses the wire and merges over the cached array.
+  const THREAD_COLS = 'id,channel_id,root_message_id,reply_count,last_message_at,title';
+  const snap0 = pagecache.peek(store.me, c.id);
+  const cachedThreads = Array.isArray(snap0?.threads) ? snap0.threads : [];
+  let pThreads;
+  if (cachedThreads.length) {
+    const sinceIso = new Date(snap0.at).toISOString();
+    pThreads = table('threads', (q) => q.eq('channel_id', c.id)
+        .gt('last_message_at', sinceIso).select(THREAD_COLS)
+        .order('last_message_at', { ascending: false }))
+      .then((delta) => {
+        const byId = new Map(cachedThreads.map((t) => [t.id, t]));
+        for (const t of delta || []) byId.set(t.id, t);
+        return [...byId.values()].sort((a, z) =>
+          new Date(z.last_message_at || 0) - new Date(a.last_message_at || 0));
+      })
+      .catch(() => cachedThreads.slice());
+  } else {
+    pThreads = table('threads', (q) => q.eq('channel_id', c.id)
+        .select(THREAD_COLS).order('last_message_at', { ascending: false }))
+      .catch(() => []);
+  }
   const pMsgs = api.channelMessages(c.id, null, MESSAGE_PAGE)
     .then((r) => ({ rows: r || [] }), (e) => ({ err: e }));
   pThreads.then((threads) => {
