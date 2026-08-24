@@ -1,9 +1,9 @@
-// Auth: email one-time-code as the real path, guest as the zero-friction path.
+﻿// Auth: email one-time-code as the real path, guest as the zero-friction path.
 // The OTP screen is a state machine (idle -> sent -> verifying) with a resend
 // cooldown, because a code screen that silently does nothing is the fastest way
 // to lose someone at the door.
 import { sb, session, markIntentionalSignOut } from '../sb.js';
-import { CODE_SIGNIN, GUEST_SIGNIN, NOTICE_AT_SIGNUP } from '../config.js';
+import { CODE_SIGNIN, GUEST_SIGNIN, NOTICE_AT_SIGNUP, MAIL_OTP, SUPABASE_URL } from '../config.js';
 import { api, tryRpc } from '../api.js';
 import { store } from '../store.js';
 import { $, el, esc } from '../util.js';
@@ -35,7 +35,7 @@ let pwWasTyped = false;
 function busy(btn, on, label) {
   btn.disabled = on;
   btn.dataset.label = btn.dataset.label || btn.textContent;
-  btn.textContent = on ? '…' : (label || btn.dataset.label);
+  btn.textContent = on ? 'â€¦' : (label || btn.dataset.label);
 }
 
 // Supabase decides between a sign-in LINK and a numeric CODE purely from the
@@ -196,27 +196,40 @@ export function initAuth(onSignedIn) {
     busy(btn, true);
     authError('');
     try {
-      const { error } = await sb.auth.signInWithOtp({
-        email,
-        options: {
-          // Conjure an account only when CODE_SIGNIN is on. The code request button
-          // is hidden when CODE_SIGNIN is false, so when it is visible the user is
-          // explicitly choosing to create an account.
-          shouldCreateUser: CODE_SIGNIN,
-          // The link has to come back to THIS page, including when the mail app
-          // opens it in a fresh tab.
-          emailRedirectTo: location.origin + location.pathname,
-        },
-      });
-      if (error) throw error;
+      if (MAIL_OTP) {
+        // Own mailer: unlimited-ish transactional sends through JCF-Mailer,
+        // branded template, no project-wide hourly cap. Sign up and sign in
+        // are the same door - the verify step creates the account if needed.
+        const r = await fetch(SUPABASE_URL + '/functions/v1/mail-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'send', email }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.ok) throw new Error(j.error || 'Could not send the code');
+      } else {
+        const { error } = await sb.auth.signInWithOtp({
+          email,
+          options: {
+            // Conjure an account only when CODE_SIGNIN is on. The code request button
+            // is hidden when CODE_SIGNIN is false, so when it is visible the user is
+            // explicitly choosing to create an account.
+            shouldCreateUser: CODE_SIGNIN,
+            // The link has to come back to THIS page, including when the mail app
+            // opens it in a fresh tab.
+            emailRedirectTo: location.origin + location.pathname,
+          },
+        });
+        if (error) throw error;
+      }
       $('otpTarget').textContent = email;
       show('otpStep');
       hide('emailStep');
       $('code').focus();
       startCooldown();
     } catch (e) {
-      const msg = /rate|limit|seconds/i.test(e.message || '')
-        ? 'Too many codes requested. Wait a minute and try again, or continue as a guest.'
+      const msg = /rate|limit|seconds|minute/i.test(e.message || '')
+        ? 'Too many codes requested. Wait a minute and try again.'
         : e.message;
       authError(msg);
     } finally { busy(btn, false); }
@@ -237,13 +250,27 @@ export function initAuth(onSignedIn) {
     busy(btn, true);
     authError('');
     try {
-      const { error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
-      if (error) throw error;
+      if (MAIL_OTP) {
+        const r = await fetch(SUPABASE_URL + '/functions/v1/mail-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'verify', email, code: token }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.ok) throw new Error(j.error || 'That code is wrong or expired.');
+        const { error } = await sb.auth.setSession({
+          access_token: j.access_token, refresh_token: j.refresh_token,
+        });
+        if (error) throw error;
+      } else {
+        const { error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
+        if (error) throw error;
+      }
       const name = $('displayName').value.trim();
       if (name) await api.setProfile({ display_name: name });
       await onSignedIn();
     } catch (e) {
-      authError(/expired|invalid/i.test(e.message || '')
+      authError(/expired|invalid|wrong/i.test(e.message || '')
         ? 'That code is wrong or expired. Request a new one.'
         : e.message);
       busy(btn, false);

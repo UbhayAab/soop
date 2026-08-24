@@ -28,6 +28,9 @@ export const PUBLISHABLE = 'sb_publishable_5gyvKj8AtZeXGDWVLYg3VA_Uwh4T4RD';
 // `node scripts/auth-config.mjs --open-signup` or the button will be visible and
 // still fail.
 export const CODE_SIGNIN = true;
+// OTP codes ride the organisation's own mailer (JCF-Mailer) via the mail-otp
+// edge function. Flip off to fall back to Supabase's rate-limited built-in.
+export const MAIL_OTP = true;
 export const GUEST_SIGNIN = false;
 
 // ------------------------------------------------------------------ embedding
