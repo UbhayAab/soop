@@ -267,6 +267,13 @@ export function initPresence() {
   // typing change shipped; those are starts, which is what they always were.
   bus.on('typing', ({ user_id, name, state }) =>
     (state === 'stop' ? clearTyping(user_id) : showTyping(user_id, name)));
+  // Senders no longer broadcast a stop on send: the message arriving IS the
+  // proof they stopped. Healed rows re-fire this event for old messages, so
+  // they are excluded - clearing a live typer because the backfill caught up
+  // would be wrong.
+  bus.on('message:new', ({ msg, healed }) => {
+    if (!healed && msg?.author_id) clearTyping(msg.author_id);
+  });
   bus.on('unread:reload', refreshUnread);
 
   // Indicators belong to the channel they were published on. Carrying them

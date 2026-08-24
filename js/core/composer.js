@@ -268,14 +268,24 @@ const saveDraft = debounce(() => {
 //
 // The stop edge rides INSIDE the existing 'typing' event as a payload flag
 // rather than as a new broadcast event, deliberately: the handler map for the
-// typ: topic lives in channels.js, and a payload field needs no change there and
-// no coordination with a client that has not reloaded yet. An old client sends
+// typ: topic lives in channels.js, and a payload field needs no change there
+// and no coordination with a client that has not reloaded yet. An old client sends
 // no `state` and is read as a start, which is exactly what it means.
+//
+// Sending itself broadcasts nothing now: the message arriving IS the stop, and
+// presence.js clears the author off the indicator when 'message:new' lands.
+// Explicit stops remain only where no message is about to arrive - blur,
+// hidden, delete-to-empty, the 4s idle timer, and the durable outbox whose
+// queued rows produce no echo. A start is gated behind 800ms of sustained
+// composition, so "ok" and "done" cost zero broadcasts instead of two.
 const TYPING_KEEPALIVE_MS = 10000;   // < the receiver's 12s expiry, so a real typist never flickers
 const TYPING_IDLE_MS = 4000;         // fingers stopped: say so rather than let it time out
+const TYPING_GATE_MS = 800;          // sub-second replies publish nothing at all
 let typingOn = false;
 let typingSentAt = 0;
 let typingIdleTimer = null;
+let typingGateTimer = null;
+let lastSendAt = 0;
 
 function sendTyping(state) {
   const sub = getSub('typing');
@@ -288,10 +298,28 @@ function sendTyping(state) {
 
 export function stopTyping() {
   clearTimeout(typingIdleTimer);
-  typingIdleTimer = null;
+  clearTimeout(typingGateTimer);
+  typingIdleTimer = typingGateTimer = null;
   if (!typingOn) return;
   typingOn = false;
   sendTyping('stop');
+}
+
+// Send-path clear: retract locally only, because the message itself tells
+// everyone else. Broadcasting here spent V billed messages per message and
+// arrived AFTER it anyway.
+function clearTypingLocal() {
+  clearTimeout(typingIdleTimer);
+  clearTimeout(typingGateTimer);
+  typingIdleTimer = typingGateTimer = null;
+  typingOn = false;
+}
+
+function fireStart() {
+  typingGateTimer = null;
+  typingOn = true;
+  typingSentAt = Date.now();
+  sendTyping('start');
 }
 
 // Called on every keystroke. Almost all of them return without touching the
@@ -306,8 +334,13 @@ function emitTyping() {
   if (document.visibilityState === 'hidden') { stopTyping(); return; }
 
   const now = Date.now();
-  if (!typingOn || now - typingSentAt >= TYPING_KEEPALIVE_MS) {
-    typingOn = true;
+  if (!typingOn) {
+    // Not published yet: hold the start until composition looks sustained.
+    if (!typingGateTimer) typingGateTimer = setTimeout(fireStart, TYPING_GATE_MS);
+  } else if (now - typingSentAt >= TYPING_KEEPALIVE_MS || typingSentAt <= lastSendAt) {
+    // Long sentence refreshes the keepalive. A start predating my last send
+    // must be republished: that send's message:new can land after the start
+    // and clear it on receivers while I am still mid-sentence.
     typingSentAt = now;
     sendTyping('start');
   }
@@ -317,10 +350,12 @@ function emitTyping() {
 
 // Switching channel replaces the 'typing' subscription under us, so there is no
 // longer a socket to retract on. Drop the local state instead - the people still
-// in the old channel expire the indicator on their own 12s timer.
+// in the old channel expire the indicator on their own 12s timer. The gate timer
+// goes too: firing after the switch would publish onto the NEW channel's topic.
 function resetTyping() {
   clearTimeout(typingIdleTimer);
-  typingIdleTimer = null;
+  clearTimeout(typingGateTimer);
+  typingIdleTimer = typingGateTimer = null;
   typingOn = false;
   typingSentAt = 0;
 }
@@ -361,9 +396,12 @@ export async function send() {
   c.value = '';
   autogrow();
   acHide();
-  // The message itself is about to arrive on their screen. Retract the indicator
-  // in the same breath rather than leaving it to expire behind the message.
-  stopTyping();
+  // The message itself is about to arrive on their screen, which is the
+  // receiver's signal to clear the indicator. Retract locally only - a stop
+  // broadcast here was V billed messages per message, arriving after the
+  // message it retracted.
+  lastSendAt = Date.now();
+  clearTypingLocal();
   pending = [];
   renderChips();
 
@@ -418,7 +456,14 @@ export async function send() {
     // saying so. Painting a SECOND, different explanation on top of that - and
     // watching it get deleted 140ms later - is the opposite of calm. It also
     // told a lie: "not delivered" for a message that is on disk and will send.
-    if (row.dataset.obNonce || row.querySelector('.ob-state')) return;
+    if (row.dataset.obNonce || row.querySelector('.ob-state')) {
+      // A queued row produces no message:new echo for anyone, so the receivers
+      // have no arrival to clear the indicator with - send the explicit stop.
+      // Skipped when typing has already republished a start, which a late stop
+      // here would wrongly kill.
+      if (!typingOn) sendTyping('stop');
+      return;
+    }
 
     // No outbox: this row is on its own, so explain it here. Quietly - the
     // message is still there, still readable, and one button fixes it.
