@@ -10,11 +10,26 @@ export function toast(msg, kind = 'info', ms = 3200) {
   if (!toastHost) {
     toastHost = el('div', 'toasts');
     document.body.appendChild(toastHost);
+    watchComposer();
   }
   const t = el('div', 'toast toast-' + kind, esc(msg));
   toastHost.appendChild(t);
   setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 250); }, ms);
   return t;
+}
+
+// The stylesheet cannot know how tall the composer is: on a touch phone it
+// grows past 140px with attachments and reply previews, so a fixed bottom
+// offset put error toasts on top of the box being typed in. One observer
+// publishes the live height as --composer-h; a hidden composer reports zero
+// and the old floor applies. The host is created once per page life, so this
+// observes once too.
+function watchComposer() {
+  const bar = document.getElementById('composerBar');
+  if (!bar || typeof ResizeObserver === 'undefined') return;
+  new ResizeObserver(() => {
+    document.documentElement.style.setProperty('--composer-h', `${bar.offsetHeight}px`);
+  }).observe(bar);
 }
 
 // ------------------------------------------------------------------ modals

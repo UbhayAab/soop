@@ -549,9 +549,11 @@ input[type="radio"] {
 .toasts {
   position: fixed;
   left: 50%;
-  /* High enough to clear the composer bar, so an error toast never lands on top
-     of the box you are typing in. */
-  bottom: max(var(--s-12), calc(env(safe-area-inset-bottom) + var(--s-9)));
+  /* Anchored to the live composer height (--composer-h, published by ui.js's
+     ResizeObserver) so a toast clears whatever is actually above the send
+     button - which on a touch phone measures ~140px with attachments, not the
+     fixed 64px this used to assume. The floor keeps sign-in screens sane. */
+  bottom: max(var(--s-12), calc(env(safe-area-inset-bottom) + var(--composer-h, 0px) + var(--s-9)));
   z-index: var(--z-toast);
   display: flex;
   flex-direction: column;

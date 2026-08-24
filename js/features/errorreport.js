@@ -42,6 +42,19 @@ function context(err) {
   };
 }
 
+// In the conversation column the bar is a flow child, the way #obBar is: it
+// takes its height from the list's flex space instead of overlaying anything,
+// so for the thirty seconds it lives nothing underneath it - least of all the
+// send button - goes untappable. Only a screen with no conversation column
+// (sign-in) falls back to an overlay, and that overlay sits on the z-index
+// ladder rather than above modals and the lightbox.
+function mountBar(bar) {
+  const list = document.getElementById('messages');
+  const col = list?.closest('section.msgs');
+  if (col) { col.insertBefore(bar, list.nextSibling); return; }
+  document.body.appendChild(bar);
+}
+
 function show(err, ui) {
   const now = Date.now();
   const key = String(err?.message || err).slice(0, 120);
@@ -59,6 +72,8 @@ function show(err, ui) {
     <button class="errbar-btn" data-a="report">Send a report</button>
     <button class="errbar-x" data-a="close" aria-label="Dismiss">✕</button>`;
   document.body.appendChild(barEl);
+
+  mountBar(barEl);
 
   barEl.querySelector('[data-a="close"]').onclick = () => { barEl?.remove(); barEl = null; };
   barEl.querySelector('[data-a="report"]').onclick = () => {
@@ -110,17 +125,23 @@ function openReport(info, ui) {
 }
 
 const CSS = `
-.errbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom));
-  z-index:9999;display:flex;align-items:center;gap:10px;max-width:min(560px,calc(100vw - 24px));
+.errbar{display:flex;align-items:center;gap:10px;align-self:center;
+  max-width:min(560px,100%);margin:0 12px 8px;
   padding:8px 10px 8px 14px;border-radius:10px;background:var(--c-surface,#fff);
   border:1px solid color-mix(in srgb,var(--c-danger,#c2451f) 40%,transparent);
   box-shadow:var(--e-3,0 10px 28px rgba(16,24,40,.18));font-size:13px;color:var(--c-text,#14171f)}
+/* No conversation column to host it (sign-in): an overlay again, but inside
+   the ladder - a background fetch failing must not paint over a modal. */
+body > .errbar{position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(12px + env(safe-area-inset-bottom));z-index:var(--z-toast)}
 .errbar-txt{flex:1 1 auto;min-width:0}
 .errbar-btn{flex:none;padding:4px 10px;min-height:0;border-radius:6px;font-size:12.5px}
 .errbar-x{flex:none;background:transparent;border:0;padding:2px 6px;min-height:0;
   color:var(--c-text-2,#4e5768);font-size:14px;line-height:1}
 @media (prefers-reduced-motion:no-preference){.errbar{animation:errin .18s ease-out}}
-@keyframes errin{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
+@keyframes errin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+body > .errbar{animation-name:errin-fixed}
+@keyframes errin-fixed{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translateX(-50%)}}
 `;
 
 export function register(app) {
