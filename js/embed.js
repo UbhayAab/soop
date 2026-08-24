@@ -34,7 +34,7 @@
 // origin. A host not on the list gets a plain refusal rather than a half-working
 // panel.
 import { EMBED_ORIGINS, EMBED_EXCHANGE_URL } from './config.js';
-import { sb, markIntentionalSignOut } from './sb.js';
+import { sb, markIntentionalSignOut, retryAllNow } from './sb.js';
 import { bus, store } from './store.js';
 
 const PROTO = 'Dek';
@@ -98,6 +98,17 @@ function send(type, data) {
 export const notifyHost = send;
 
 // ------------------------------------------------------------------ auth
+// Reads the `sub` claim out of a JWT WITHOUT verifying it - only Supabase can
+// verify a token, but base64-decoding the payload is enough to answer "who does
+// this say it is", which is the only question the re-identify decision below
+// needs answered. Returns null on anything malformed.
+function subOf(jwt) {
+  try {
+    const p = JSON.parse(atob(String(jwt || '').split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return p?.sub || null;
+  } catch { return null; }
+}
+
 // Two ways the host can hand over a person, and the difference matters.
 //
 // `session` is the blunt one: the host's BACKEND already minted a Supabase
@@ -115,7 +126,9 @@ async function applyAuth(msg) {
     // session fallback covers auth-js versions whose setSession fills only
     // data.session; worst case is userId: null, same as before.
     let uid = null;
+    let token = null;
     if (msg.session?.access_token && msg.session?.refresh_token) {
+      token = msg.session.access_token;
       const { data, error } = await sb.auth.setSession({
         access_token: msg.session.access_token,
         refresh_token: msg.session.refresh_token,
@@ -135,6 +148,7 @@ async function applyAuth(msg) {
       if (!r.ok) throw new Error('exchange refused: ' + r.status);
       const out = await r.json();
       if (!out?.access_token || !out?.refresh_token) throw new Error('exchange returned no session');
+      token = out.access_token;
       const { data, error } = await sb.auth.setSession({
         access_token: out.access_token, refresh_token: out.refresh_token,
       });
@@ -144,10 +158,15 @@ async function applyAuth(msg) {
       throw new Error('auth message carried neither a session nor a handoff token');
     }
     embed.waitingForAuth = false;
+    // uid comes from setSession's own result; the token claim is the fallback
+    // for auth-js shapes that fill neither field. main.js's listener uses this
+    // to tell a credential refresh (same person, ignore) from a re-identify
+    // (different person, follow it with a clean reload).
+    const claimed = uid || subOf(token);
     send('signed-in', { userId: uid });
     // main() parked on this rather than painting a sign-in card nobody in a
     // dashboard should ever be shown.
-    bus.emit('embed:authed');
+    bus.emit('embed:authed', { userId: claimed });
   } catch (e) {
     send('error', { where: 'auth', message: String(e?.message || e) });
     bus.emit('embed:authFailed', { message: String(e?.message || e) });
@@ -225,6 +244,23 @@ async function onMessage(ev) {
 
     case 'ping':
       send('pong', { at: Date.now() });
+      break;
+
+    case 'visible':
+      // A CSS-collapsed panel can never heal itself: inside an iframe
+      // document.visibilityState reflects the TOP-LEVEL browser tab, so the
+      // host hiding and re-showing the panel fires nothing the app observes,
+      // and sb.js measures roughly 35s where the socket still reports joined
+      // while carrying no frames. The host knows - it did the hiding - so it
+      // pushes this on show: forced socket rebuild, then an unread refresh so
+      // the badge is right before the first frame paints.
+      try { retryAllNow({ force: true }); } catch { /* socket never started */ }
+      bus.emit('unread:reload');
+      break;
+
+    case 'hidden':
+      // Accepted for protocol symmetry with the loader's visible()/hidden().
+      // Nothing to stop yet: embedded mode suppresses title flashing entirely.
       break;
 
     default:

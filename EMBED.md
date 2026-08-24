@@ -80,11 +80,18 @@ changes nothing else about the deploy.
 | `app` | app base URL, if the loader is not served next to the app |
 
 Returned object: `on(event, fn)`, `off`, `navigate(channel)`, `identify()`,
-`signOut()`, `setTheme(theme)`, `setTokens({'--c-accent': '#e5484d'})`,
-`destroy()`, and `.frame`.
+`signOut()`, `visible()`, `hidden()`, `setTheme(theme)`,
+`setTokens({'--c-accent': '#e5484d'})`, `destroy()`, and `.frame`.
 
 Events out: `ready`, `signed-in`, `auth-needed`, `navigated`, `unread`, `error`,
 `pong`.
+
+Call `panel.visible()` when your layout shows the panel and `panel.hidden()`
+when it collapses it. A CSS collapse is invisible inside the iframe - visibility
+events there reflect the browser tab, not your layout - and a panel hidden for
+a while comes back with a socket that still claims to be joined while dropping
+frames. `visible()` makes the panel rebuild the socket and refresh its unread
+badge before painting.
 
 `setTokens` accepts CSS custom properties and nothing else, so a host can take
 the panel into its brand colours but cannot restyle it into something that

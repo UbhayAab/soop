@@ -431,6 +431,12 @@ function subscribeUser(uid) {
 
 let titleTimer = null;
 function flashTitle() {
+  // Inside an embed a flashing document.title is invisible - the host tab's
+  // title is not ours - and the clear-on-visible listener below cannot fire
+  // when the HOST collapses the panel, because visibilitychange reflects the
+  // top-level tab, not the panel's layout. wireReports' unread message is the
+  // badge surface that works there.
+  if (embed.active) return;
   if (document.visibilityState === 'visible') return;
   clearInterval(titleTimer);
   let on = false;
@@ -659,6 +665,29 @@ async function main() {
       import('./lib/readcache.js').then((m) => m.wipe()),
       // Attachment cache off the device too. 'dek-storage-v1' must match
       // STORAGE in sw.js.
+      window.caches ? caches.delete('dek-storage-v1') : Promise.resolve(),
+    ]).catch(() => { /* leaving anyway */ }).finally(() => {
+      location.hash = '';
+      location.reload();
+    });
+  });
+
+  // Re-identify while running. The boot-wait branch below registers its own
+  // embed:authed listener, but a panel that booted ALREADY signed in has no
+  // listener at all - so when the host called identify() with a different
+  // person, applyAuth swapped the credentials under a live UI and every
+  // surface kept showing the previous account. Same rule as SIGNED_OUT above:
+  // caches off the device (shared-phone rule), clean reload, session() finds
+  // the new identity at boot. The common identify - same person, fresh
+  // credentials - is a no-op here. An unidentifiable handover (no uid and no
+  // readable claim) also reloads rather than risk running person A's screen on
+  // person B's tokens.
+  bus.on('embed:authed', ({ userId } = {}) => {
+    if (!embed.active || !store.me) return;
+    if (userId === store.me) return;
+    Promise.all([
+      import('./lib/pagecache.js').then((m) => m.wipe()),
+      import('./lib/readcache.js').then((m) => m.wipe()),
       window.caches ? caches.delete('dek-storage-v1') : Promise.resolve(),
     ]).catch(() => { /* leaving anyway */ }).finally(() => {
       location.hash = '';

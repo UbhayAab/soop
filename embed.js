@@ -192,6 +192,20 @@
         post('signout', {});
         return this;
       },
+      // Tell the panel it was just shown or hidden by the dashboard. A CSS
+      // collapse is invisible to the iframe: visibility events inside it
+      // reflect the top-level browser tab, not your layout, so a panel that
+      // sat collapsed for an hour has a realtime socket that still says
+      // "joined" while carrying no frames. Call visible() from whatever shows
+      // the panel again; it force-rebuilds the socket and refreshes unread.
+      visible: function () {
+        post('visible', {});
+        return this;
+      },
+      hidden: function () {
+        post('hidden', {});
+        return this;
+      },
       setTheme: function (theme) {
         post('theme', { theme: theme });
         return this;
