@@ -618,7 +618,8 @@ let liveTimer = null;
 let quietSince = 0;
 function goLive() {
   const list = $('messages');
-  if (list) list.setAttribute('aria-live', 'polite');
+  if (!list || panelGone()) return;
+  list.setAttribute('aria-live', 'polite');
 }
 function quietList() {
   const list = $('messages');
@@ -639,6 +640,38 @@ function nudgeLive() {
   liveTimer = setTimeout(goLive, 600);
 }
 
+// A log region is only polite while somebody can see it. Collapsed into a host
+// page (a display:none or zero-box frame) it would read every arriving message
+// aloud over the person's actual work. Two independent sources feed one verdict:
+// an IntersectionObserver on #app catches every collapse that changes geometry,
+// and the bridge's visible/hidden pushes catch what geometry cannot - an
+// opacity:0 panel or one stacked under host chrome still intersects. Both clear
+// through the burst machinery above, so a re-show gets the same half-second of
+// quiet a channel paint gets instead of snapping straight to polite.
+let bridgeHidden = false;
+let boxGone = false;
+function panelGone() { return bridgeHidden || boxGone; }
+function applyGate() {
+  if (!$('messages')) return;
+  if (panelGone()) { quietList(); return; }
+  nudgeLive();
+}
+
+// The log's accessible name tracks the open surface, so a screen-reader user
+// switching channels hears which buffer they just landed in. Same label source
+// dms.js:40 uses for the header.
+function labelMessages() {
+  const list = $('messages');
+  if (!list) return;
+  let name = store.current?.name || null;
+  if (!name && store.currentDM) {
+    const conv = store.dms.find((d) => d.conversation_id === store.currentDM);
+    const others = (conv?.other_user_ids || []).filter((u) => u !== store.me);
+    name = others.length ? others.map(nameOf).join(', ') : 'Direct messages';
+  }
+  list.setAttribute('aria-label', name ? 'Messages in ' + name : 'Messages');
+}
+
 function wireMessageList() {
   const list = $('messages');
   if (!list || list.dataset.uxWired) return;
@@ -646,8 +679,22 @@ function wireMessageList() {
   list.setAttribute('role', 'log');
   list.setAttribute('aria-live', 'polite');
   list.setAttribute('aria-relevant', 'additions');
-  list.setAttribute('aria-label', 'Conversation');
   list.tabIndex = 0;
+  labelMessages();
+
+  // Hidden-panel gate, PLAN keyboard/a11y section. One observer for the page's
+  // life; the callback also fires once at observe() with the current truth.
+  const app = $('app');
+  if (app && typeof IntersectionObserver === 'function') {
+    new IntersectionObserver((entries) => {
+      const gone = !entries.some((e) => e.isIntersecting);
+      if (gone !== boxGone) { boxGone = gone; applyGate(); }
+    }).observe(app);
+  }
+  bus.on('embed:hidden', () => { bridgeHidden = true; applyGate(); });
+  bus.on('embed:visible', () => { bridgeHidden = false; applyGate(); });
+  bus.on('channel:open', labelMessages);
+  bus.on('dm:open', labelMessages);
 
   list.addEventListener('keydown', (e) => {
     if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;

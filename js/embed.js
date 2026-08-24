@@ -257,11 +257,17 @@ async function onMessage(ev) {
       // the badge is right before the first frame paints.
       try { retryAllNow({ force: true }); } catch { /* socket never started */ }
       bus.emit('unread:reload');
+      // Geometry-blind hiding (opacity:0, a host panel stacked on top) fires no
+      // IntersectionObserver inside the frame - the host did it, so it says so,
+      // and the message log's live region unmutes here.
+      bus.emit('embed:visible');
       break;
 
     case 'hidden':
-      // Accepted for protocol symmetry with the loader's visible()/hidden().
-      // Nothing to stop yet: embedded mode suppresses title flashing entirely.
+      // Was accepted for protocol symmetry only; now it mutes the message log's
+      // live region (uxfix gate) so a collapsed panel stops reading arriving
+      // messages aloud over the host app the person is actually working in.
+      bus.emit('embed:hidden');
       break;
 
     default:
