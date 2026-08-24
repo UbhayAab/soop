@@ -762,7 +762,11 @@ export function register({ ui }) {
       if (s.dataset.msg === from) { s.dataset.msg = id; paintChip(s, byMessage.get(id) || []); }
     }
   });
-  bus.on('channel:open', () => { scheduleBind(); refreshChips(); });
+  // No refreshChips here: channel:subscribed always fires right after an open,
+  // so this was a second identical read of every task in the Space per open.
+  // The task_update broadcast paints live changes; the subscribed refetch heals
+  // anything dropped while the socket was down.
+  bus.on('channel:open', scheduleBind);
   // Core replaces the 'chan' object on a recovered drop as well as on a switch,
   // and emits this precisely so features can re-bind (channels.js). Binding only
   // on channel:open meant that after any reconnect - a tunnel, a lift, a laptop

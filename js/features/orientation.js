@@ -29,17 +29,20 @@ const cache = new Map();
 const shownThisSession = new Set();
 
 function humanError(e) {
-  const m = String(e?.message || '');
-  if (/failed to fetch|networkerror|load failed/i.test(m)) return 'No connection. Try again when you are back online.';
+  if (!e || /failed to fetch|networkerror|load failed/i.test(String(e?.message || ''))) return 'No connection. Try again when you are back online.';
   if (/forbidden/i.test(m)) return 'Only someone who can manage this channel can change that.';
   if (/purpose_too_long/i.test(m)) return 'Keep the purpose to a line or two.';
   if (/body_too_long/i.test(m)) return 'That guide is too long. Keep it to the first few things someone needs.';
   return 'That did not work. Try again in a moment.';
 }
 
+// Returns the guide or null (offline / gone / RLS). Deliberately never throws:
+// one caller is a bus handler on channel:open, where a rejection would be an
+// unhandled promise inside core's emit. Callers null-check instead of try/catch.
 async function load(channelId, force = false) {
   if (!force && cache.has(channelId)) return cache.get(channelId);
-  const data = await rpc('get_channel_guide', { p_channel: channelId });
+  const [data] = await tryRpc('get_channel_guide', { p_channel: channelId });
+  if (!data) return null;                          // never cache a failure
   cache.set(channelId, data);
   return data;
 }
@@ -219,9 +222,11 @@ async function whenListReady(channelId, timeoutMs = 9000) {
 async function onChannelOpen(channel) {
   const id = channel?.id;
   if (!id) return;
-  const [g] = await tryRpc('get_channel_guide', { p_channel: id });
+  // Through the cache, not a bare refetch: this fired on EVERY channel switch,
+  // and the cache is already invalidated on every mutation path plus the
+  // guide_update broadcast, so a warm answer here was always thrown away.
+  const g = await load(id);
   if (!g) return;                                    // offline or gone; say nothing
-  cache.set(id, g);
 
   const firstVisit = !g.seen && !shownThisSession.has(id);
   // Show the welcome only when there is actually something to orient someone with.
@@ -249,8 +254,8 @@ async function onChannelOpen(channel) {
 
 // ------------------------------------------------------------------ editing
 async function editDialog(channelId) {
-  let g;
-  try { g = await load(channelId, true); } catch (e) { uiRef.toast(humanError(e), 'error'); return; }
+  const g = await load(channelId, true);
+  if (!g) { uiRef.toast(humanError(null), 'error'); return; }
 
   const out = await uiRef.formModal({
     title: 'Start here for #' + (g.channel_name || ''),
@@ -278,7 +283,7 @@ async function editDialog(channelId) {
     cache.delete(channelId);
     uiRef.toast('Saved', 'success');
     const fresh = await load(channelId, true);
-    if (store.current?.id === channelId) showCard(fresh, false);
+    if (fresh && store.current?.id === channelId) showCard(fresh, false);
     if (uiRef.currentPanel?.() === PANEL) uiRef.openPanel(PANEL, { channelId });
   } catch (e) { uiRef.toast(humanError(e), 'error'); }
 }
@@ -292,9 +297,8 @@ async function renderPanel(body, ctx = {}) {
   }
   body.innerHTML = '<div class="muted pad">loading…</div>';
 
-  let g;
-  try { g = await load(id, true); }
-  catch (e) { body.innerHTML = `<div class="empty">${esc(humanError(e))}</div>`; return; }
+  const g = await load(id, true);
+  if (!g) { body.innerHTML = `<div class="empty">${esc(humanError(null))}</div>`; return; }
 
   body.innerHTML = '';
   body.appendChild(buildCard(g, { firstVisit: false, dismissable: false }));
