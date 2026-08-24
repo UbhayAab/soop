@@ -139,8 +139,11 @@ Browsers partition storage by the pair (top-level site, embedded site). Measured
 in Chrome: `localStorage` inside the frame **works**, and the Supabase session
 persists - but it is scoped to that one dashboard. The same person on a different
 dashboard gets a different partition and a separate handover. That is the correct
-security posture rather than a limitation, and it is why the handover has to be
-cheap enough to run on every load.
+security posture rather than a limitation - but the handover is NOT free, so do
+not pay for it per route change. `ready` fires once per iframe MOUNT: mount the
+panel once when your app loads and drive it afterwards with `navigate()` /
+`identify()`. An SPA that tears down and remounts on every route change pays a
+full mint round trip each time, which at scale is its own quota line.
 
 Safari is stricter. If a Safari embed fails to persist, the fix is a memory-only
 storage adapter passed to `createClient` in `js/sb.js` plus a handover on every

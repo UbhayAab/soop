@@ -110,31 +110,41 @@ export const notifyHost = send;
 // inside its TTL; a stolen refresh token is worth the account.
 async function applyAuth(msg) {
   try {
+    // setSession already returns the user, so the id comes from its result -
+    // sb.auth.getUser() here was a second network GET for a fact in hand. The
+    // session fallback covers auth-js versions whose setSession fills only
+    // data.session; worst case is userId: null, same as before.
+    let uid = null;
     if (msg.session?.access_token && msg.session?.refresh_token) {
-      const { error } = await sb.auth.setSession({
+      const { data, error } = await sb.auth.setSession({
         access_token: msg.session.access_token,
         refresh_token: msg.session.refresh_token,
       });
       if (error) throw error;
+      uid = data?.user?.id || data?.session?.user?.id || null;
     } else if (msg.handoff) {
       if (!EMBED_EXCHANGE_URL) throw new Error('no exchange endpoint configured');
+      // text/plain is CORS-safelisted, so this POST skips its preflight -
+      // application/json forced one OPTIONS per redeem. The function reads the
+      // body with req.json(), which parses it regardless of the declared type.
       const r = await fetch(EMBED_EXCHANGE_URL, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'text/plain' },
         body: JSON.stringify({ token: msg.handoff, origin: embed.host }),
       });
       if (!r.ok) throw new Error('exchange refused: ' + r.status);
       const out = await r.json();
       if (!out?.access_token || !out?.refresh_token) throw new Error('exchange returned no session');
-      const { error } = await sb.auth.setSession({
+      const { data, error } = await sb.auth.setSession({
         access_token: out.access_token, refresh_token: out.refresh_token,
       });
       if (error) throw error;
+      uid = data?.user?.id || data?.session?.user?.id || null;
     } else {
       throw new Error('auth message carried neither a session nor a handoff token');
     }
     embed.waitingForAuth = false;
-    send('signed-in', { userId: (await sb.auth.getUser()).data?.user?.id || null });
+    send('signed-in', { userId: uid });
     // main() parked on this rather than painting a sign-in card nobody in a
     // dashboard should ever be shown.
     bus.emit('embed:authed');
