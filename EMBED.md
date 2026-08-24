@@ -106,6 +106,22 @@ badge before painting.
 the panel into its brand colours but cannot restyle it into something that
 misrepresents what it is.
 
+One token is load-bearing rather than cosmetic: `--kb`, the keyboard inset.
+Inside an iframe the panel cannot see the on-screen keyboard - VisualViewport
+always reports layout-viewport numbers there - so the composer can only clear
+it if you tell it. Push the covered height when the keyboard appears over the
+panel and reset it when it closes:
+
+```js
+panel.setTokens({ '--kb': '336px' });   // keyboard opened over the panel
+panel.setTokens({ '--kb': '0px' });     // keyboard closed
+```
+
+The composer's bottom padding consumes it (`calc(max(spacing, safe-area) +
+var(--kb))`), so the input row lifts above your keyboard instead of hiding
+behind it. The same channel carries the safe-area overrides (`--safe-t/b/l/r`)
+if you dock the panel under device bars.
+
 ## Identity: the part that matters
 
 The whole point is that somebody already signed into your dashboard never sees a

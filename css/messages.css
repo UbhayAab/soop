@@ -1044,7 +1044,10 @@
 #composerBar {
   position: relative;
   flex: none;
-  padding: var(--s-2) var(--s-6) max(var(--s-5), var(--safe-b));
+  /* --kb is the host-pushed keyboard inset (embed frames cannot measure the
+     keyboard themselves); it adds to the safe-area clearance rather than
+     competing with it. */
+  padding: var(--s-2) var(--s-6) calc(max(var(--s-5), var(--safe-b)) + var(--kb));
   background: var(--c-bg);
 }
 
@@ -1307,7 +1310,7 @@
   .att-aud audio { width: 200px; }
 
   #typing, .receipt { padding-inline: var(--s-5); }
-  #composerBar { padding: var(--s-2) var(--s-5) max(var(--s-5), var(--safe-b)); }
+  #composerBar { padding: var(--s-2) var(--s-5) calc(max(var(--s-5), var(--safe-b)) + var(--kb)); }
   /* The phone composer stacks the field above the tools, so it is ~30px taller
      than the desktop one. Measured at 390px the pill was landing on top of the
      typing indicator; this clears the whole strip. */

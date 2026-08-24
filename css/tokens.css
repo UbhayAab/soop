@@ -42,6 +42,13 @@
   --safe-l: env(safe-area-inset-left, 0px);
   --safe-r: env(safe-area-inset-right, 0px);
 
+  /* Keyboard inset, embed frames only. An iframe's VisualViewport always equals
+     the layout viewport, so the on-screen keyboard is invisible inside the
+     frame; only the host can measure it. Hosts push the covered height here
+     over the bridge (setTokens({'--kb': '336px'})) and the composer clears it.
+     Standalone never sets it - env() already handles notched devices. */
+  --kb: 0px;
+
   /* ---------------------------------------------------------------- radius */
   --r-xs: 4px;
   --r-sm: 6px;
