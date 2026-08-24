@@ -445,12 +445,21 @@ button.cb-title {
   #channelbar { gap: var(--s-2); padding-inline: var(--s-3); }
   .cb-title strong { font-size: var(--t-base); }
   .cb-topic { display: none; }
-  #headerActions,
+  /* Two ids: #channelbar .hdr-actions's display:flex (one id, one class) would
+     otherwise out-rank a bare #headerActions here. */
+  #channelbar #headerActions,
   #channelbar #btnInvite { display: none; }
   #voicebar {
     flex-wrap: nowrap;
     gap: var(--s-2);
     padding: var(--s-1) var(--s-3);
+  }
+  /* The strip is 28px because its buttons are: the touch-tier 36px ghosts are
+     what made this bar eat two rows on a phone in the first place. */
+  #voicebar button {
+    min-height: 0;
+    height: 24px;
+    padding-block: 0;
   }
 }
 

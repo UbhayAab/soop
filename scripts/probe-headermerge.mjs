@@ -68,7 +68,7 @@ await page.waitForTimeout(250);
 await page.evaluate(() => document.getElementById("btnMore").click());
 await page.waitForTimeout(250);
 const menuLabels = await page.evaluate(() =>
-  [...document.querySelectorAll(".ctxmenu button")].map((n) => n.textContent?.trim()).filter(Boolean)
+  [...document.querySelectorAll(".ctxmenu .ctx-item")].map((n) => n.textContent?.trim()).filter(Boolean)
 );
 const hasSearch = menuLabels.some((t) => t === "Search");
 const hasMark = menuLabels.some((t) => t === "Mark everything read");
@@ -81,17 +81,20 @@ await page.waitForTimeout(200);
 const voice = await page.evaluate(() => {
   const v = document.getElementById("voicebar");
   v.classList.remove("hidden");
+  const cs = getComputedStyle(v);
   const r = v.getBoundingClientRect();
   const leave = document.getElementById("vleave")?.getBoundingClientRect();
   const label = v.querySelector(".vlabel")?.getBoundingClientRect();
-  const sp = getComputedStyle(v.querySelector(".sp"));
+  const mid = (r) => r.top + r.height / 2;
   return {
+    wrap: cs.flexWrap,
+    pad: cs.padding,
     h: r.height,
-    sameLine: !!leave && !!label && Math.abs(leave.top - label.top) < 4,
-    spBasis: sp.flexBasis,
+    sameLine: !!leave && !!label && Math.abs(mid(leave) - mid(label)) < 4,
   };
 });
-ok(voice.h <= 34, `voicebar height ${voice.h}, want a ~28px strip`);
+ok(voice.wrap === "nowrap", `voicebar flex-wrap ${voice.wrap}`);
+ok(voice.h <= 32, `voicebar height ${voice.h}, want a ~28px strip`);
 ok(voice.sameLine, "voicebar wrapped onto two lines");
 ok(voice.spBasis !== "100%", `spacer hack still present (flex-basis ${voice.spBasis})`);
 
