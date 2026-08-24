@@ -163,6 +163,10 @@ export function initPresence() {
   // event already paints the common case; this loop only exists to heal a
   // dropped one. So run it when the visible set of messages plausibly changed -
   // a new message, a channel switch - and otherwise fall back to a slow sweep.
+  //
+  // It only ticks while the tab is VISIBLE. message:new arrives from realtime
+  // regardless of visibility, so without the guard a pocketed phone on a busy
+  // channel swept forever for rows nobody could see.
   let rxnDirty = true;
   let rxnLast = 0;
   const RXN_IDLE_MS = 60000;
@@ -170,14 +174,21 @@ export function initPresence() {
   bus.on('message:new', markRxnDirty);
   bus.on('channel:open', markRxnDirty);
   bus.on('dm:open', markRxnDirty);
-  setInterval(() => {
+  const sweepReactions = () => {
+    if (document.visibilityState !== 'visible') return;
     if (!rxnDirty && Date.now() - rxnLast < RXN_IDLE_MS) return;
-    const ids = [...store.seen].filter((x) => typeof x === 'string' && !x.startsWith('n:')).slice(-60);
+    // Ids come off the screen, not out of store.seen: seen is insertion order,
+    // so after paging up it named the oldest rows just prepended while the
+    // reactions actually in view went unhealed. What is on screen is exactly
+    // the set worth healing.
+    const rows = $('messages')?.querySelectorAll('.msg') || [];
+    const ids = [...rows].map((r) => r.dataset.id).filter(Boolean).slice(-60);
     if (!ids.length) return;
     rxnDirty = false;
     rxnLast = Date.now();
     loadReactions(ids);
-  }, 9000);
+  };
+  setInterval(sweepReactions, 9000);
   // THE MOST EXPENSIVE LOOP IN THE APP, and it was the one nobody looked at.
   //
   // refreshUnread() is three network calls, not one: get_unread, then the
@@ -253,6 +264,8 @@ export function initPresence() {
     // to be wrong, and it is the one moment somebody is about to look at them.
     unreadTick = 0;
     refreshUnread();
+    // Heal the reactions on screen now instead of waiting up to 9s for the tick.
+    sweepReactions();
   });
 
   window.addEventListener('online', () => {

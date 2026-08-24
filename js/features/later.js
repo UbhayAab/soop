@@ -150,8 +150,15 @@ export function register({ ui, api }) {
   bus.on('auth', refreshCount);
   bus.on('workspace', refreshCount);
   // Core's "Save for later" menu item does not announce itself, so a slow beat
-  // keeps the badge honest without hammering the server.
-  setInterval(refreshCount, 90000);
+  // keeps the badge honest without hammering the server - and only while
+  // somebody can actually see the badge. Returning to the tab refreshes at once.
+  setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    refreshCount();
+  }, 90000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshCount();
+  });
   refreshCount();
 }
 
