@@ -112,17 +112,45 @@ function userMenu(ev) {
 // Everything a feature registered that did not fit inline. Built from the same
 // registry, so a feature never has to know whether it landed on the bar or in
 // the menu.
+//
+// Below 480px of app-box width the merged single header hides #topbar and
+// #headerActions entirely (css/shell.css container block), so the functions
+// that lived there ride here instead - same pattern as the registered buttons:
+// the menu is where a control goes when its surface disappears. The cutoff is
+// read off #app's box, not the viewport, for the same box-fact reason the CSS
+// uses a container query; keep the 480 in sync with that block.
+function narrowBox() {
+  const app = document.getElementById('app');
+  return !!app && app.getBoundingClientRect().width <= 480;
+}
+
+function mergedHeaderRows() {
+  const rows = [
+    { label: 'Search', onClick: () => openPanel('search', {}) },
+    { label: 'Mark everything read', onClick: () => $('markAllRead')?.click() },
+    { label: 'Keyboard shortcuts', onClick: () => bus.emit('shortcuts:open') },
+  ];
+  const install = $('installBtn');
+  if (install && !install.classList.contains('hidden')) {
+    rows.push({ label: 'Install app', onClick: () => install.click() });
+  }
+  return rows;
+}
+
 function overflowMenu(ev) {
   const all = ui.getHeaderButtons ? ui.getHeaderButtons() : [];
   const rest = all.slice(visibleActions());
-  if (!rest.length) {
+  const extra = narrowBox() ? mergedHeaderRows() : [];
+  if (!rest.length && !extra.length) {
     contextMenu(ev, [{ label: 'Nothing else here yet', onClick: () => {} }]);
     return;
   }
-  contextMenu(ev, rest.map((b) => ({
+  const items = rest.map((b) => ({
     label: b.title || b.id,
     onClick: () => b.onClick(ev),
-  })));
+  }));
+  if (extra.length) items.push('-', ...extra);
+  contextMenu(ev, items);
 }
 
 // ------------------------------------------------------------------ channel bar

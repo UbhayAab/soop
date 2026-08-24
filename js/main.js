@@ -672,6 +672,14 @@ async function main() {
     // the panel sheet: one pushed entry per open, consumed by popstate below.
     if (opening && !history.state?.dekPanel) history.pushState({ dekDrawer: 1 }, '');
   };
+  // The merged phone header's place switcher opens the same drawer. Gated on
+  // the drawer actually being off-canvas: nav-open drops a scrim that is only
+  // correct while the drawer is absolute, so firing it at desktop width would
+  // eat every click on the message list.
+  $('placeSwitcher').onclick = () => {
+    if (!window.matchMedia('(max-width: 860px)').matches) return;
+    $('navToggle').click();
+  };
   // The Back button's whole new job: peel the topmost mobile surface instead of
   // exiting. Panel first (it overlays the drawer), then drawer, then fall
   // through to the browser default.

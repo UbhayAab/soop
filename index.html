@@ -226,10 +226,11 @@
          Contextual actions live here, next to the thing they act on, with the
          long tail behind one overflow menu instead of spread across the top. -->
     <div id="channelbar">
-      <div class="cb-title">
+      <button type="button" class="cb-title" id="placeSwitcher" title="Channels and conversations" aria-label="Switch place">
         <strong id="hdrName">#</strong>
         <span class="cb-topic muted" id="hdrTopic"></span>
-      </div>
+        <span class="ps-caret" data-ico="chevronDown"></span>
+      </button>
       <span class="sp"></span>
       <button class="cb-members" id="btnMembersCount" aria-label="Members">
         <span class="dot on"></span><span id="onlineCount">1</span>

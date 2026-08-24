@@ -194,6 +194,25 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* The title is a real button (the place switcher); strip the component chrome
+   so it keeps reading as a label at every width where it is not pressed. */
+button.cb-title {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: start;
+}
+.ps-caret {
+  align-self: center;
+  flex: none;
+  display: inline-flex;
+  color: var(--c-text-2);
+}
+.ps-caret .ico { width: 15px; height: 15px; }
 .cb-topic {
   font-size: var(--t-sm);
   overflow: hidden;
@@ -389,6 +408,50 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
   .userchip .meName { display: none; }
   .userchip { padding: 0 var(--s-2); }
   #topbar #spaceName { display: none; }
+}
+
+/* ONE 40px header below 480px of BOX width (same box-fact rule as the block
+   above): the global bar collapses to zero and only its connection banner
+   survives, floated over the conversation when delivery is actually down; the
+   channel bar becomes the single header - place switcher centre-left, members
+   count and overflow right. Everything the hidden bars carried stays reachable:
+   identity lives in the drawer footer, search / mark-read / shortcuts / install
+   fold into the More menu (js/shell.js, same narrowBox() cutoff), and the
+   switcher itself opens the drawer the old navToggle did. Keep the 480 in sync
+   with narrowBox() there. */
+@container soop (max-width: 480px) {
+  #chat { --header-h: 0px; --channelbar-h: 40px; }
+  #topbar {
+    position: relative;
+    height: 0;
+    min-height: 0;
+    padding: 0;
+    border-bottom: none;
+    overflow: visible;
+  }
+  #topbar .tb-left,
+  #topbar .tb-center { display: none; }
+  #topbar .tb-right > :not(#connState) { display: none; }
+  /* Delivery-down is exactly when a phone most needs the retry button, so the
+     banner outlives the bar that used to hold it: a strip pinned under the one
+     remaining header. */
+  #connState {
+    position: absolute;
+    top: calc(var(--channelbar-h) + var(--safe-t));
+    left: var(--s-3);
+    right: var(--s-3);
+    z-index: calc(var(--z-nav) + 1);
+  }
+  #channelbar { gap: var(--s-2); padding-inline: var(--s-3); }
+  .cb-title strong { font-size: var(--t-base); }
+  .cb-topic { display: none; }
+  #headerActions,
+  #channelbar #btnInvite { display: none; }
+  #voicebar {
+    flex-wrap: nowrap;
+    gap: var(--s-2);
+    padding: var(--s-1) var(--s-3);
+  }
 }
 
 /* Touch ergonomics: the channel bar's icon buttons were 30x30 boxes while

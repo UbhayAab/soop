@@ -1020,15 +1020,11 @@ body.nav-open #messages::after {
   #installBtn.install { flex: none; }
 
   #voicebar { padding: var(--s-3) var(--s-5); }
-  /* A busy room must not eat the phone. Two rows, always: who is in the room,
-     then the controls. The spacer is given a full-width basis so it cannot fit
-     beside anything and therefore forces the break at exactly that point -
-     without it the buttons pack in next to the names and every extra person
-     pushes another row onto a screen that has none to give. */
-  #voicebar .sp {
-    flex: 1 0 100%;
-    height: 0;
-  }
+  /* One line, always: who is in the room, then the controls, with #vparts
+     scrolling sideways when a busy room overflows instead of wrapping onto a
+     second row. (The old `flex: 1 0 100%` spacer that forced that break was
+     deleted - it predates vparts' nowrap+scroll and its whole job was to
+     protect a wrap the strip no longer does.) */
   /* Basis 0, not auto: with an auto basis the strip is as wide as all its pills
      laid end to end, which sends it to a line of its own. */
   #vparts {
