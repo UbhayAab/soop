@@ -840,11 +840,11 @@ body.admin-page #chat{display:none!important}
 body.admin-page #topbar,body.admin-page #spaceRail,body.admin-page #sidebar,
 body.admin-page #chat main,body.admin-page #channelbar{display:none!important}
 .adminpage{position:fixed;inset:0;z-index:60;overflow-y:auto;background:var(--c-bg);
-  padding-bottom:env(safe-area-inset-bottom)}
+  padding-bottom:var(--safe-b)}
 .adminpage.hidden{display:none}
 .ap-top{position:sticky;top:0;z-index:2;background:var(--c-bg);
   border-bottom:1px solid var(--c-border);padding:var(--s-5) var(--s-6);
-  padding-top:calc(var(--s-5) + env(safe-area-inset-top))}
+  padding-top:calc(var(--s-5) + var(--safe-t))}
 .ap-back{background:transparent;border:0;padding:0;min-height:0;color:var(--c-text-2);font-size:var(--t-sm)}
 .ap-back:hover{color:var(--c-text)}
 .ap-title{display:flex;align-items:center;gap:var(--s-5);margin-top:var(--s-4)}

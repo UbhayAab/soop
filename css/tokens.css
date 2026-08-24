@@ -33,6 +33,15 @@
   --s-11: 48px;
   --s-12: 64px;
 
+  /* --------------------------------------------------- safe area (override hook)
+     env() insets are only exposed to the top-level document, so inside an
+     embed frame these resolve to 0 and the host pushes real values onto
+     :root (directly or over the bridge). */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+
   /* ---------------------------------------------------------------- radius */
   --r-xs: 4px;
   --r-sm: 6px;

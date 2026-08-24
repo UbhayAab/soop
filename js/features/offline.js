@@ -208,7 +208,7 @@ const STYLE = `
 #obBar.ob-up .ico{color:var(--c-success)}
 /* Only if section.msgs was not there to host it. */
 body > #obBar.on{position:fixed;left:0;right:0;
-  top:calc(var(--header-h,44px) + var(--channelbar-h,49px) + env(safe-area-inset-top));
+  top:calc(var(--header-h,44px) + var(--channelbar-h,49px) + var(--safe-t));
   z-index:var(--z-toast)}
 @media (max-width:860px){
   #obBar{font-size:var(--t-xs);padding:var(--s-3) var(--s-4);align-items:flex-start}

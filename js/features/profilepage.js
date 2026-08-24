@@ -378,11 +378,11 @@ body.profile-page #chat{display:none!important}
 body.profile-page #topbar,body.profile-page #spaceRail,body.profile-page #sidebar,
 body.profile-page #chat main,body.profile-page #channelbar{display:none!important}
 .profpage{position:fixed;inset:0;z-index:60;overflow-y:auto;background:var(--c-bg);
-  padding-bottom:env(safe-area-inset-bottom)}
+  padding-bottom:var(--safe-b)}
 .profpage.hidden{display:none}
 .pp-top{position:sticky;top:0;z-index:2;background:var(--c-bg);
   border-bottom:1px solid var(--c-border);padding:var(--s-5) var(--s-6);
-  padding-top:calc(var(--s-5) + env(safe-area-inset-top))}
+  padding-top:calc(var(--s-5) + var(--safe-t))}
 .pp-body{max-width:760px;margin:0 auto;padding:var(--s-6)}
 .pp-hero{display:flex;gap:var(--s-5);align-items:flex-start;flex-wrap:wrap}
 .pp-hero-main{flex:1 1 240px;min-width:0}

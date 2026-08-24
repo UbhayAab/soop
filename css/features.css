@@ -1650,7 +1650,7 @@
   :root .ev-toggle { max-width: none; }
 
   :root .forum-board {
-    padding: var(--s-4) var(--s-4) calc(var(--s-9) + env(safe-area-inset-bottom));
+    padding: var(--s-4) var(--s-4) calc(var(--s-9) + var(--safe-b));
   }
   :root .forum-tools { width: 100%; margin-left: 0; }
 
@@ -1688,7 +1688,7 @@
 
   :root .intg-emoji-cell { width: 76px; }
 
-  :root .cv-add { padding-bottom: env(safe-area-inset-bottom); }
+  :root .cv-add { padding-bottom: var(--safe-b); }
 }
 
 /* ============================================================================

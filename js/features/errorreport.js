@@ -133,7 +133,7 @@ const CSS = `
 /* No conversation column to host it (sign-in): an overlay again, but inside
    the ladder - a background fetch failing must not paint over a modal. */
 body > .errbar{position:fixed;left:50%;transform:translateX(-50%);
-  bottom:calc(12px + env(safe-area-inset-bottom));z-index:var(--z-toast)}
+  bottom:calc(12px + var(--safe-b));z-index:var(--z-toast)}
 .errbar-txt{flex:1 1 auto;min-width:0}
 .errbar-btn{flex:none;padding:4px 10px;min-height:0;border-radius:6px;font-size:12.5px}
 .errbar-x{flex:none;background:transparent;border:0;padding:2px 6px;min-height:0;

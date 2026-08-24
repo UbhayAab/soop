@@ -125,7 +125,7 @@ function style() {
 /* On a phone it docks to the full width above the composer rather than floating
    in a corner, where at 390px it would cover the conversation it is about. */
 @media (max-width: 520px){
-  .${CLS}-win{right:var(--s-3);left:var(--s-3);bottom:calc(var(--s-3) + env(safe-area-inset-bottom));
+  .${CLS}-win{right:var(--s-3);left:var(--s-3);bottom:calc(var(--s-3) + var(--safe-b));
     width:auto}
 }
 #vshare.on{background:var(--c-danger);color:var(--c-text-inverse);border-color:transparent}`;
