@@ -3,7 +3,7 @@
 // at-most-once by design).
 import { table, api } from '../api.js';
 import { store, bus, nameOf } from '../store.js';
-import { $, esc } from '../util.js';
+import { $, esc, debounceLead } from '../util.js';
 import { requestResync, refreshUnread, renderChannels } from './channels.js';
 import { loadReactions } from './messages.js';
 import { refreshVoice } from './voice.js';
@@ -67,7 +67,15 @@ export function initPresence() {
   // That is the semantic we want - a hold, not a mode - and it means a shared
   // phone cannot carry one person's Away into the next person's session.
   let myStatus = 'online';
-  const beat = () => api.heartbeat(myStatus, store.current?.id || null).catch(() => {});
+  const beat = () => api.heartbeat(
+    myStatus,
+    // The channel claim rides the beat only while somebody can actually be
+    // looking: viewer_count is the input to the digest valve, and a pocketed
+    // phone asserting its last channel made that number a lie for up to 45s
+    // (or forever, on a tab frozen mid-channel). The status half still beats
+    // every 45s from hidden tabs, so presence itself stays correct.
+    document.visibilityState === 'visible' ? (store.current?.id || null) : null,
+  ).catch(() => {});
   bus.on('presence:mine', (s) => {
     if (s !== 'online' && s !== 'away' && s !== 'dnd') return;
     myStatus = s;
@@ -77,9 +85,14 @@ export function initPresence() {
   setInterval(beat, 45000);
   // Opening a channel is the moment the census changes; waiting up to 45s to
   // report it would make the monitor lag a crowd arriving in a channel, which is
-  // exactly the event it exists to catch.
-  bus.on('channel:open', beat);
-  bus.on('dm:open', beat);
+  // exactly the event it exists to catch. But rapid A->B->C switching used to
+  // write the busiest row in the database once per switch on top of the 45s
+  // interval - coalesced to leading-edge + one trailing catch-up per 10s window,
+  // so the first switch still beats instantly and the final channel is caught
+  // by the trailing call instead of waiting out the full interval.
+  const eventBeat = debounceLead(beat, 10000);
+  bus.on('channel:open', eventBeat);
+  bus.on('dm:open', eventBeat);
 
   // Who else is around. This also has to pick up people who joined AFTER my
   // bootstrap snapshot: without it a new member is invisible in the member list,
