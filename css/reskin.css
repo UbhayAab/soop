@@ -1,0 +1,91 @@
+/* ============================================================================
+   RESKIN - the Slack-2026 polish layer.
+   Loads LAST. Touches only visual constants and component skins, never layout
+   geometry or behaviour. Every rule here could be folded back into its home
+   file once adopted; it lives apart so the reskin is one readable unit and one
+   revert.
+   ========================================================================= */
+
+/* ---- type: a real UI stack, slightly larger voice ------------------------ */
+:root {
+  --font-ui: 'Inter', 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system,
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --r-md: 10px;
+  --r-lg: 14px;
+}
+
+body, button, input, select, textarea {
+  font-family: var(--font-ui);
+}
+
+/* ---- dark theme: deeper floor, clearer layering -------------------------- */
+:root[data-theme='dark'] {
+  --c-bg: #101216;
+  --c-surface: #16191f;
+  --c-surface-2: #1d2128;
+  --c-nav-bg: #0b0d11;
+  --c-nav-bg-2: #111419;
+  --c-border: #262b33;
+  --c-hover: #1b1f26;
+  --e-3: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --e-4: 0 24px 64px rgba(0, 0, 0, 0.65);
+}
+
+/* ---- avatars: rounded squares, the modern shape -------------------------- */
+.avatar { border-radius: 10px !important; }
+
+/* ---- messages: room to breathe, soft hover landing ----------------------- */
+.msg {
+  padding-block: 3px;
+  border-radius: 10px;
+  transition: background 120ms ease;
+}
+.msg:hover { border-radius: 10px; }
+.msg .body { font-size: 15px; line-height: 1.5; }
+.msg .m-head b, .m-head strong { font-size: 15px; font-weight: 650; }
+.msg .m-head .muted { font-size: 12px; }
+
+/* ---- sidebar: calmer headers, rounder rows ------------------------------- */
+#sidebar h3, .navgroup h3 {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-nav-text-2);
+}
+#channels .chan, #navExtra .chan {
+  border-radius: 8px;
+  margin-inline: 6px;
+  padding-inline: 10px;
+}
+#channels .chan .ch-name, #navExtra .chan .truncate { font-size: 14.5px; }
+
+/* ---- composer: a surface, not a border ----------------------------------- */
+#composerBar .crow {
+  border-radius: 14px;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+#composerBar .crow:focus-within {
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 3px var(--c-accent-quiet), var(--e-1);
+}
+
+/* ---- channel bar: quieter chrome, stronger title ------------------------- */
+#channelbar .cb-title strong { font-size: 15.5px; font-weight: 700; }
+#channelbar { border-bottom: 1px solid var(--c-border-subtle, var(--c-border)); }
+
+/* ---- top bar: flat, borderless, modern ----------------------------------- */
+#topbar { border-bottom: none; box-shadow: none; }
+
+/* ---- modals, panels, sheets: generous rounding + real depth -------------- */
+.modal, [role='dialog'] { border-radius: 16px; box-shadow: var(--e-4); }
+aside#panel { box-shadow: var(--e-2); }
+
+/* ---- tab bar: floating feel ---------------------------------------------- */
+.tabbar { border-top: 1px solid var(--c-border-subtle, var(--c-border)); }
+.tabbar .tab span:last-child { font-weight: 550; }
+
+/* ---- buttons: slightly rounder, consistent ------------------------------- */
+button, .btn { border-radius: var(--r-md); }
+
+/* ---- empty states: centered, calm ---------------------------------------- */
+.empty { text-align: center; }

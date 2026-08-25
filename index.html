@@ -83,6 +83,10 @@
      Costs a standalone tab one request and nothing else: every rule inside is
      scoped to html.embed, which only js/embed.js ever sets. -->
 <link rel="stylesheet" href="./css/embed.css" />
+<!-- The polish layer. Last of all, by design: it overrides skins only, never
+     geometry or behaviour, and it is the single file to read (or revert) when
+     asking "why does it look like this now". -->
+<link rel="stylesheet" href="./css/reskin.css" />
   <meta name="vapid-public-key" content="BEsEiFEZiqwd_F3dTemo44wvKM9JEk0Ykwsk7j5KX62Y3ttfCCgZCYxgL76Ns0oA_vbJjA24jPZ4yfClUPiWdCc" />
 </head>
 <body>

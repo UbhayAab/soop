@@ -6,11 +6,15 @@
 // its original byte, and re-decode that byte run as strict UTF-8. Any run whose
 // bytes are not valid UTF-8 is left untouched, so legitimate accented chars
 // survive (a lone e-acute is a one-char run and is never even attempted).
-// Usage: node scripts/fix-encoding.mjs [--apply]   (default: report only)
+// Usage: node scripts/fix-encoding.mjs [--apply | --check]
+//   default: report only   --apply: repair in place   --check: exit 1 if any
+//   repairable run, UTF-8 BOM or not-valid-UTF-8 text file exists (pre-commit
+//   gate mode, see .githooks/pre-commit).
 import { readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const APPLY = process.argv.includes('--apply');
+const CHECK = process.argv.includes('--check');
 const SKIP_DIRS = new Set(['node_modules', '.git', 'screenshots']);
 const EXT_OK = /\.(js|mjs|cjs|ts|html|css|json|md|webmanifest|yml|yaml|sql|txt)$/i;
 
@@ -40,16 +44,22 @@ function* walk2(dir) {
 }
 
 const dec = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
-let totalFiles = 0, totalRuns = 0;
+let totalFiles = 0, totalRuns = 0, totalBoms = 0, totalSkips = 0;
 
 async function main() {
   for (const file of walk2(process.cwd())) {
     const buf = readFileSync(file);
-    let high = false;
+    const bom = buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf;
+    if (bom) {
+      totalBoms++;
+      console.log(`[bom] ${file}: UTF-8 BOM at byte 0`);
+    }
+    let high = bom;
     for (const b of buf) if (b > 0x7f) { high = true; break; }
     if (!high) continue;
     let s;
     try { s = dec.decode(buf); } catch {
+      totalSkips++;
       console.log(`[skip] ${file}: not valid UTF-8 at top level`);
       continue;
     }
@@ -92,10 +102,16 @@ async function main() {
         console.log(`  L${n.line}: ${JSON.stringify(n.from)} -> ${JSON.stringify(n.to)}`);
       }
       if (notes.length > 12) console.log(`  ... ${notes.length - 12} more`);
-      if (APPLY) writeFileSync(file, out, 'utf8');
+      if (APPLY) {
+        // Strip a leading BOM too: it is the same writer-class damage and no
+        // file in this repo needs one.
+        const clean = out.charCodeAt(0) === 0xfeff ? out.slice(1) : out;
+        writeFileSync(file, clean, 'utf8');
+      }
     }
   }
-  console.log(`\n${totalRuns} runs across ${totalFiles} files ${APPLY ? 'FIXED' : '(report only)'}`);
+  console.log(`\n${totalRuns} runs across ${totalFiles} files, ${totalBoms} BOMs, ${totalSkips} invalid ${APPLY ? 'FIXED' : CHECK ? '' : '(report only)'}`.trimEnd());
+  if (CHECK && (totalRuns || totalBoms || totalSkips)) process.exitCode = 1;
 }
 
 main();
