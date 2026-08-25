@@ -16,6 +16,7 @@ import { api } from '../api.js';
 import { $, el, esc, initials, hueOf, relTime } from '../util.js';
 import { loadSpaces, switchWorkspace } from '../core/workspace.js';
 import { resetPersonPassword, addPeopleDialog } from './people.js';
+import { embed } from '../embed.js';
 
 let UI = null;
 let current = null;        // { org, overview, section }
@@ -800,6 +801,11 @@ async function drawRules(host, org) {
 
 // ------------------------------------------------------------------ register
 export function register(app) {
+  // Belt and braces beside the registry gate in features/index.js: if this file
+  // is ever reached through another path, an embedded frame still must not
+  // mount the org console - #/admin in a host's iframe is the exact thing the
+  // gating exists to stop.
+  if (embed.active) return;
   UI = app.ui;
   injectCss();
 

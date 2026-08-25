@@ -4,6 +4,8 @@
 // loaded dynamically and independently: one feature failing to load never takes
 // the app down with it, and adding a feature means adding a filename here and
 // nothing else. That is what lets features be built in parallel.
+import { embed } from '../embed.js';
+
 const FEATURES = [
   // The DMs tab's list surface; tabbar.js opens this panel when no conversation
   // is active. Early so the tab never races its registration.
@@ -68,10 +70,18 @@ const FEATURES = [
   'uxfix',
 ];
 
+// Roadmap 9: operator surfaces, not panel surfaces. Embedded, #/admin was
+// reachable straight off the hash bar inside somebody else's frame, orgadmin
+// paints invite/password machinery, and integrations holds credentials - all
+// three are the host dashboard's job, on the host's side of the glass. Skipped
+// at load, so no route, header button or slash command for them ever exists.
+const EMBED_SKIPPED = ['admin', 'orgadmin', 'integrations'];
+
 export async function registerFeatures(app) {
   const loaded = [];
   await Promise.all(FEATURES.map(async (name) => {
     try {
+      if (embed.active && EMBED_SKIPPED.includes(name)) return;
       const mod = await import(`./${name}.js`);
       if (typeof mod.register === 'function') {
         await mod.register(app);

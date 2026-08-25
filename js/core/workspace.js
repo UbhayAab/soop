@@ -8,6 +8,7 @@ import { PERM } from '../config.js';
 import { $, el, esc, initials, hueOf, debounceLead } from '../util.js';
 import { toast, formModal, modal, confirmModal, contextMenu, renderHeaderButtons } from '../ui.js';
 import { renderChannels, openChannel, refreshUnread, lastChannelId } from './channels.js';
+import { embed, pinnedSpaceOf } from '../embed.js';
 
 // ------------------------------------------------------------------ rail
 // The rail groups by ORGANISATION. Until 0064 there was nothing to group by:
@@ -183,6 +184,14 @@ export async function handOverDialog(s, { thenLeave = false } = {}) {
 
 export async function leaveSpace(s) {
   if (!s) return;
+  // Roadmap 9 pin guard. Embedded, membership is provisioned by the host
+  // dashboard; leaving from inside a 400px frame silently orphans this person's
+  // account behind a panel that then has nothing to show. The host owns the way
+  // out, so the client does not offer one.
+  if (embed.active) {
+    toast('Membership is managed from your dashboard, so you cannot leave a server from here.');
+    return;
+  }
   if (!(await confirmModal({
     title: 'Leave ' + (s.name || 'this server') + '?',
     body: 'You lose access immediately and need a fresh invite to come back. '
@@ -238,8 +247,12 @@ function spaceMenu(ev, s) {
     }
     items.push({ label: 'Hand this server over', onClick: () => handOverDialog(s) });
   }
-  if (items.length) items.push('-');
-  items.push({ label: 'Leave this server', danger: true, onClick: () => leaveSpace(s) });
+  // Embedded, leaveSpace refuses - never offer the menu row that leads there,
+  // and take its separator with it so the menu cannot end on a stray line.
+  if (!embed.active) {
+    if (items.length) items.push('-');
+    items.push({ label: 'Leave this server', danger: true, onClick: () => leaveSpace(s) });
+  }
   contextMenu(ev, items);
 }
 
@@ -523,6 +536,16 @@ function showSpaceFailed(target, err) {
 
 export async function switchWorkspace(target) {
   if (!target) return;
+  // Roadmap 9 pin guard. Embedded, the host named one Space in the iframe src
+  // and the panel booted into it; every switch surface (rail icons, the org
+  // directory, post-join flows) funnels through here, so one guard covers them.
+  // Only binds once the pin is actually ON screen - a misconfigured embed that
+  // resolved no Space keeps today's free navigation rather than getting stranger.
+  if (embed.active && store.ws?.id && target.id !== store.ws.id
+      && store.ws.id === pinnedSpaceOf(store.spaces)?.id) {
+    toast('Your dashboard pinned this panel to ' + (store.ws.name || 'this server') + '.');
+    return;
+  }
   store.ws = target;
   store.current = null;
   store.currentDM = null;

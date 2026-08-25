@@ -18,6 +18,7 @@ import { store, bus, hasPerm } from '../store.js';
 import { PERM } from '../config.js';
 import { el, esc } from '../util.js';
 import { icon } from '../icons.js';
+import { embed } from '../embed.js';
 import { addPeopleDialog, canManagePeople } from './people.js';
 
 const CLS = 'anav';
@@ -48,7 +49,7 @@ const ROWS = [
     id: 'people',
     ico: 'members',
     label: 'Who is in this Space',
-    show: () => hasPerm(PERM.MANAGE_WORKSPACE) || store.isAdmin,
+    show: () => !embed.active && (hasPerm(PERM.MANAGE_WORKSPACE) || store.isAdmin),
     run: () => uiRef.openPanel('admin', { tab: 'members' }),
   },
   {
@@ -59,7 +60,7 @@ const ROWS = [
     // rules, and removing any of them. It was reachable only by long-pressing a
     // rail tile - a gesture with nothing on screen to suggest it exists - or by
     // typing /org, and on a phone the rail tile is 44px of initials.
-    show: () => (store.orgs || []).find((o) => o.org_id === store.ws?.org_id)?.org_role === 'admin',
+    show: () => !embed.active && (store.orgs || []).find((o) => o.org_id === store.ws?.org_id)?.org_role === 'admin',
     run: () => bus.emit('orgadmin:open', { orgId: store.ws?.org_id }),
   },
   {

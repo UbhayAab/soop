@@ -19,6 +19,7 @@ import ui, { openPanel, contextMenu, toast, closePopovers, closePanel } from './
 import { openThemePicker, effectiveTheme, THEMES, setTheme } from './theme.js';
 import { api, tryRpc } from './api.js';
 import { sb, markIntentionalSignOut } from './sb.js';
+import { embed } from './embed.js';
 
 // How many registered header buttons stay visible on the channel bar before the
 // rest collapse into the overflow. Four is about where a row stops being
@@ -88,7 +89,10 @@ function userMenu(ev) {
     { label: 'Keyboard shortcuts', onClick: () => bus.emit('shortcuts:open') },
     '-',
     { label: 'Invite people to this Space', onClick: () => bus.emit('invite:open') },
-    { label: 'Sign out', danger: true, onClick: async () => {
+    // Roadmap 9: embedded, identity belongs to the host dashboard - the bridge
+    // carries the signout verb with the full teardown, and a self-service Sign
+    // out here would reload into an auth-wait frame that can never sign back in.
+    ...(embed.active ? [] : [{ label: 'Sign out', danger: true, onClick: async () => {
       // The local-first caches keep this person's conversations on the device so
       // the app can paint before the network. On a shared phone - which is most
       // of them here - signing out has to take them with it. Imported here, not
@@ -104,7 +108,7 @@ function userMenu(ev) {
       await sb.auth.signOut();
       location.hash = '';
       location.reload();
-    } },
+    } }]),
   ]);
 }
 
