@@ -1,5 +1,5 @@
 // Bootstrap: sign in, load the Space, wire the shell, register features.
-import { sb, session } from './sb.js';
+import { sb, session, isIntentionalSignOut } from './sb.js';
 import { api, tryRpc } from './api.js';
 import { store, bus, nameOf } from './store.js';
 import { $, el, esc, debounceLead, migrateLegacyKeys } from './util.js';
@@ -716,9 +716,10 @@ async function main() {
   // are refused, and nothing explains why. So a forced sign-out takes the same
   // path as the menu one: local caches off the device (shared-phone rule), then
   // a clean reload onto the sign-in card. Deliberate sign-outs latch first via
-  // markIntentionalSignOut() and never land here.
+  // markIntentionalSignOut() and never land here - the latch read below is what
+  // makes that sentence true.
   sb.auth.onAuthStateChange((evt) => {
-    if (evt !== 'SIGNED_OUT' || !store.me) return;
+    if (evt !== 'SIGNED_OUT' || !store.me || isIntentionalSignOut()) return;
     try { sessionStorage.setItem('dekKicked', '1'); } catch { /* storage blocked */ }
     Promise.all([
       import('./lib/pagecache.js').then((m) => m.wipe()),

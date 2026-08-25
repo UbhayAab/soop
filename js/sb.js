@@ -212,6 +212,10 @@ export function realtimeHealth() {
 // ended" as if something had gone wrong.
 let intentionalSignOut = false;
 export const markIntentionalSignOut = () => { intentionalSignOut = true; };
+// The one reader main.js's SIGNED_OUT handler consults: without it the latch
+// is dead state and a person who chose Sign out still lands on the
+// "Your session ended" greeting after the reload their own click triggered.
+export const isIntentionalSignOut = () => intentionalSignOut;
 
 // Keep the socket's JWT fresh. Realtime authorization is evaluated at connect
 // time and only re-evaluated on a new token, so pushing every refresh is what
