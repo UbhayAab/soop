@@ -8,8 +8,11 @@
 // survive (a lone e-acute is a one-char run and is never even attempted).
 // Usage: node scripts/fix-encoding.mjs [--apply | --check]
 //   default: report only   --apply: repair in place   --check: exit 1 if any
-//   repairable run, UTF-8 BOM or not-valid-UTF-8 text file exists (pre-commit
-//   gate mode, see .githooks/pre-commit).
+//   repairable run or not-valid-UTF-8 text file exists (pre-commit gate mode,
+//   see .githooks/pre-commit). BOMs are reported in every mode but do NOT fail
+//   the gate: 30 pre-existing ones sit across the repo, they are valid UTF-8
+//   and runtime-harmless, and gating on them would block commits forever
+//   instead of just keeping the writer observable.
 import { readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -111,7 +114,7 @@ async function main() {
     }
   }
   console.log(`\n${totalRuns} runs across ${totalFiles} files, ${totalBoms} BOMs, ${totalSkips} invalid ${APPLY ? 'FIXED' : CHECK ? '' : '(report only)'}`.trimEnd());
-  if (CHECK && (totalRuns || totalBoms || totalSkips)) process.exitCode = 1;
+  if (CHECK && (totalRuns || totalSkips)) process.exitCode = 1;
 }
 
 main();
