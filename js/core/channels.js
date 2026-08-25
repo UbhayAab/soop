@@ -120,7 +120,7 @@ export async function renderChannels() {
   for (const cat of store.categories) {
     const list = byCat.get(cat.id) || [];
     if (!list.length) continue;
-    const collapsed = localStorage.getItem('hearth.cat.' + cat.id) === '0';
+    const collapsed = localStorage.getItem('dak.cat.' + cat.id) === '0';
     h += `<h3 data-cat="${cat.id}"><span>${collapsed ? '▸' : '▾'} ${esc(cat.name)}</span></h3>
       <div class="navgroup" ${collapsed ? 'style="display:none"' : ''}>${list.map(chanRow).join('')}</div>`;
   }
@@ -184,7 +184,7 @@ export async function renderChannels() {
     () => createChannelDialog({ kind: 'voice' }));
   host.querySelectorAll('h3[data-cat]').forEach((n) => {
     n.onclick = () => {
-      const k = 'hearth.cat.' + n.dataset.cat;
+      const k = 'dak.cat.' + n.dataset.cat;
       localStorage.setItem(k, localStorage.getItem(k) === '0' ? '1' : '0');
       renderChannels();
     };
@@ -374,7 +374,7 @@ function paintPage(list, ordered, { head = HEAD_ROWS } = {}) {
 // channel is painted from disk into the (still hidden) chat shell. When
 // openChannel() reaches it a few seconds later it finds the rows already there,
 // keeps them, and only folds in what changed.
-const LAST_CH_KEY = 'Dek.lastChannel';
+const LAST_CH_KEY = 'dak.lastChannel';
 let prepainted = null;          // { id, uid } already on screen from the cache
 
 function rememberLastChannel(c) {

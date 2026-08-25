@@ -134,7 +134,7 @@ function raise(m) {
     body,
     icon: './icons/icon-192.png',
     badge: './icons/icon-192.png',
-    tag: 'hearth-' + (m.channel_id || 'msg'),
+    tag: 'dak-' + (m.channel_id || 'msg'),
     data: { url, messageId: m.id },
   };
 

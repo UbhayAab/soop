@@ -307,8 +307,8 @@ const STATE_LABEL = {
 };
 // Validated, not trusted: a stale value from an older build would make
 // TABS.find() return undefined and throw while rendering the empty state.
-let activeTab = TABS.some((t) => t.key === localStorage.getItem('hearth.tasks.tab'))
-  ? localStorage.getItem('hearth.tasks.tab') : 'mine';
+let activeTab = TABS.some((t) => t.key === localStorage.getItem('dak.tasks.tab'))
+  ? localStorage.getItem('dak.tasks.tab') : 'mine';
 
 async function renderPanel(body, ctx = {}) {
   if (ctx.tab) activeTab = ctx.tab;
@@ -320,7 +320,7 @@ async function renderPanel(body, ctx = {}) {
     const b = el('button', 'sm ghost' + (t.key === activeTab ? ' on' : ''), esc(t.label));
     b.onclick = () => {
       activeTab = t.key;
-      localStorage.setItem('hearth.tasks.tab', t.key);
+      localStorage.setItem('dak.tasks.tab', t.key);
       uiRef.openPanel(PANEL, { tab: t.key });
     };
     bar.appendChild(b);
@@ -787,7 +787,7 @@ export function register({ ui }) {
   // open. Once per task per due stamp, deduped in localStorage, visible-tab only.
   // A server cron (migration 0102) will eventually cover closed laptops; this
   // covers every session that exists today.
-  const REMIND_KEY = 'hearth.task.reminded';
+  const REMIND_KEY = 'dak.task.reminded';
   let reminded = [];
   try { reminded = JSON.parse(localStorage.getItem(REMIND_KEY) || '[]'); } catch { reminded = []; }
   const remindedSet = new Set(Array.isArray(reminded) ? reminded : []);

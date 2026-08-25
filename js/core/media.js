@@ -183,15 +183,25 @@ export async function uploadFile(file, onProgress) {
 // L2 for minted URLs: IndexedDB, so scrolling back after a RELOAD reuses the
 // still-valid signed URL instead of paying a fresh edge-function invocation per
 // attachment. The in-memory Map stays the fast path; this is the cold path.
-const URL_DB = 'hearth.media';
+const URL_DB = 'dak.media';
+const LEGACY_URL_DB = 'hearth.media';   // dropped once, below, after the first open
 const URL_STORE = 'urls';
 const URL_TTL_MS = 230000;   // soft under-the-mint-lifetime fallback; real expiry from edge fn
 
+let legacyDbDropped = false;
 function urlDb() {
   return new Promise((resolve) => {
     const rq = indexedDB.open(URL_DB, 1);
     rq.onupgradeneeded = () => { if (!rq.result.objectStoreNames.contains(URL_STORE)) rq.result.createObjectStore(URL_STORE); };
-    rq.onsuccess = () => resolve(rq.result);
+    rq.onsuccess = () => {
+      // The cache moved off the first product name; the old database holds
+      // nothing but signed URLs that expire anyway. Fire-and-forget, once.
+      if (!legacyDbDropped) {
+        legacyDbDropped = true;
+        try { indexedDB.deleteDatabase(LEGACY_URL_DB); } catch { /* best effort */ }
+      }
+      resolve(rq.result);
+    };
     rq.onerror = () => resolve(null);
   });
 }

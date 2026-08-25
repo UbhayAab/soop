@@ -1332,7 +1332,7 @@ function addPeopleToCurrentChannel(ui) {
 // operators as the first thing a non-technical user sees - with no recent
 // searches and no way to search the channel they were already reading.
 // ==========================================================================
-const RECENT_KEY = 'hearth.ux.recentSearch';
+const RECENT_KEY = 'dak.ux.recentSearch';
 const recentSearches = () => {
   try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; }
 };

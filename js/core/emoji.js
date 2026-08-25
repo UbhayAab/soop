@@ -77,7 +77,7 @@ const parsed = EMOJI_GROUPS.map(([name, blob]) => ({
 
 const ALL = parsed.flatMap((g) => g.items);
 
-const RECENT_KEY = 'hearth.emoji.recent';
+const RECENT_KEY = 'dak.emoji.recent';
 export function recentEmoji() {
   try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; }
 }

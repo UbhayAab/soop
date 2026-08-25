@@ -90,10 +90,10 @@ export async function registerFeatures(app) {
     } catch (e) {
       // A missing or broken feature module is a degraded app, not a dead one.
       if (!/Failed to fetch|not found|404/i.test(e.message || '')) {
-        console.warn(`[hearth] feature "${name}" failed to load:`, e);
+        console.warn(`[dak] feature "${name}" failed to load:`, e);
       }
     }
   }));
-  console.info('[hearth] features loaded:', loaded.join(', ') || 'none');
+  console.info('[dak] features loaded:', loaded.join(', ') || 'none');
   return loaded;
 }

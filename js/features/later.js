@@ -12,7 +12,7 @@ import { icon } from '../icons.js';
 
 const PANEL = 'later';
 const BTN = 'later';
-const SEC_KEY = 'hearth.later.sec.';
+const SEC_KEY = 'dak.later.sec.';
 
 const STATES = [
   { key: 'todo', label: 'To do', hint: 'Messages you have not started on yet.' },

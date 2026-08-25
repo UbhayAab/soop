@@ -10,7 +10,7 @@
 //   node scripts/smoke.mjs --path "?embed=1&host=http://localhost:8098" --port 8098
 //   node scripts/smoke.mjs --root /tmp/fixture      # negative tests
 //   node scripts/smoke.mjs --expect-features 36     # also fail if the boot's
-//                                                   # [hearth] features loaded
+//                                                   # [dak] features loaded
 //                                                   # line counts under N
 //
 // Exit codes: 0 SMOKE CLEAN, 1 pageerror(s) found, 2 usage or launch failure.
@@ -122,7 +122,7 @@ try {
   page.on("console", (msg) => {
     const t = msg.type();
     const text = msg.text();
-    if (text.startsWith("[hearth] features loaded:")) featureLine = text;
+    if (text.startsWith("[dak] features loaded:")) featureLine = text;
     if (t === "error" || t === "warning") lines.push(`[console.${t}] ${text}`);
   });
 
@@ -134,13 +134,13 @@ try {
   const want = args["expect-features"];
   let featureCount = null;
   if (featureLine) {
-    const list = featureLine.slice("[hearth] features loaded:".length).trim();
+    const list = featureLine.slice("[dak] features loaded:".length).trim();
     featureCount = list === "none" || !list ? 0 : list.split(",").filter((s) => s.trim()).length;
     console.log(`smoke: features loaded: ${featureCount}`);
   }
   if (want !== undefined && want !== true) {
     if (featureCount === null) {
-      console.error("SMOKE FAILED: no [hearth] features loaded line seen");
+      console.error("SMOKE FAILED: no [dak] features loaded line seen");
       exitCode = 1;
     } else if (featureCount < Number(want)) {
       console.error(`SMOKE FAILED: expected >= ${want} features, saw ${featureCount}`);

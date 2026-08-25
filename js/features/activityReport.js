@@ -19,7 +19,7 @@ import { icon } from '../icons.js';
 const CLS = 'rep';
 const PANEL = 'activity-report';
 let uiRef = null;
-let quietDays = Number(localStorage.getItem('hearth.report.quiet')) || 30;
+let quietDays = Number(localStorage.getItem('dak.report.quiet')) || 30;
 
 function humanError(e) {
   const m = String(e?.message || '');
@@ -69,7 +69,7 @@ async function renderPanel(body, ctx = {}) {
     const b = el('button', 'sm ghost' + (d === quietDays ? ' on' : ''), dayWord(d));
     b.onclick = () => {
       quietDays = d;
-      localStorage.setItem('hearth.report.quiet', String(d));
+      localStorage.setItem('dak.report.quiet', String(d));
       uiRef.openPanel(PANEL, { quietDays: d });
     };
     ctrl.appendChild(b);

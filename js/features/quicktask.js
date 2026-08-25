@@ -26,7 +26,7 @@ import { icon } from '../icons.js';
 import { parseAsk, sayDue } from '../lib/asks.js';
 
 const CLS = 'qtk';
-const OFF_KEY = 'hearth.quicktask.off';
+const OFF_KEY = 'dak.quicktask.off';
 
 let app = null;
 // Messages this session has already offered on, so a re-render - a reaction

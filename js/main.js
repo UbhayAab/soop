@@ -2,7 +2,7 @@
 import { sb, session } from './sb.js';
 import { api, tryRpc } from './api.js';
 import { store, bus, nameOf } from './store.js';
-import { $, el, esc, debounceLead } from './util.js';
+import { $, el, esc, debounceLead, migrateLegacyKeys } from './util.js';
 import ui, { toast, openPanel, closePanel, popPanel, renderHeaderButtons, modal, escDepth, wireEscLayers } from './ui.js';
 import { initAuth, showAuth, showChat, needsPasswordSetup, showSetPassword } from './core/auth.js';
 import { loadSpaces, switchWorkspace, spaceChooser, inviteDialog, copyInvite, extractToken, looksLikeOrgInvite } from './core/workspace.js';
@@ -106,7 +106,7 @@ async function redeemFromRoute(r) {
 // land in the demo Space wondering where their organisation went. localStorage
 // survives the round trip; the 30 minute TTL stops a stale token from hijacking
 // an unrelated sign-in days later.
-const INVITE_KEY = 'hearth.pendingInvite';
+const INVITE_KEY = 'dak.pendingInvite';
 const INVITE_TTL_MS = 30 * 60 * 1000;
 
 function stashPendingInvite(token) {
@@ -589,6 +589,11 @@ async function main() {
   // the reason on screen; carrying on would paint a sign-in card in a frame we
   // have just said we do not trust.
   if (embed.refused) return;
+
+  // Before anything reads a preference: keys still on the first product name
+  // move to dak.* here (see util.js). tasks.js and activityReport.js read
+  // theirs at module eval, which happens inside registerFeatures below.
+  migrateLegacyKeys();
 
   // stash an invite arriving before sign-in so it survives the auth round trip
   const r = route();

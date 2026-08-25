@@ -347,3 +347,31 @@ export function toLocalInput(d) {
 export const fromLocalInput = (v) => (v ? new Date(v).toISOString() : null);
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// One-time migration of persisted keys left on older product names. The
+// rename moved surfaces to Dak but left a dozen hearth.* keys behind, so the
+// app carried three storage namespaces (hearth., dak., Dek.) and any future
+// code enumerating dak.* would silently miss this state. Copies each legacy
+// key to its new name unless that already exists, then removes the old one.
+// Called once at the top of main(), before any feature module evaluates -
+// tasks.js and activityReport.js read their keys at import time.
+export function migrateLegacyKeys() {
+  try {
+    const LEGACY = 'hearth.';
+    const pairs = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(LEGACY)) pairs.push([k, 'dak.' + k.slice(LEGACY.length)]);
+    }
+    // Named survivors of earlier renames that the prefix walk cannot reach.
+    pairs.push(['Dek.lastChannel', 'dak.lastChannel']);
+    for (const [k, next] of pairs) {
+      try {
+        if (localStorage.getItem(next) === null) {
+          localStorage.setItem(next, localStorage.getItem(k));
+        }
+        localStorage.removeItem(k);
+      } catch { /* leave this one; private-mode writes fail per key */ }
+    }
+  } catch { /* private mode: nothing stored, nothing to migrate */ }
+}
