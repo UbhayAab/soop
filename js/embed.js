@@ -194,12 +194,40 @@ async function onMessage(ev) {
       await applyAuth(msg);
       break;
 
-    case 'signout':
-      markIntentionalSignOut();
-      await sb.auth.signOut().catch(() => {});
+    case 'signout': {
+      // The host drove a sign-out - its person switched accounts, or the
+      // dashboard session ended. shell.js's own Sign out takes the local-first
+      // caches WITH it (pagecache, readcache, attachment cache) because a
+      // shared machine must not hand one person's conversations to the next;
+      // this verb used to drop only the credentials, so the conversation stayed
+      // painted under the auth-wait screen and every message body stayed in
+      // IndexedDB indefinitely. The forced-kick path that closes this gap for
+      // revoked tokens can never fire here, because the intentional latch below
+      // is exactly what makes its handler stand down.
       embed.waitingForAuth = true;
       send('auth-needed', { reason: 'host-signout' });
+      // allSettled, not all: every piece is independent best-effort cleanup,
+      // and one rejected member must not let the reload strand the others
+      // half-done.
+      const wiped = Promise.allSettled([
+        import('./lib/pagecache.js').then((m) => m.wipe()),
+        import('./lib/readcache.js').then((m) => m.wipe()),
+        // Same fixed name as shell.js and main.js delete; must match STORAGE
+        // in sw.js.
+        window.caches ? caches.delete('dek-storage-v1') : Promise.resolve(),
+      ]);
+      markIntentionalSignOut();
+      await sb.auth.signOut().catch(() => {});
+      await wiped;
+      // Nobody signed in means nothing of theirs is on screen, and reloading
+      // would only fight the host mid-handshake; the panel is already on (or
+      // heading for) the auth-wait frame. With an identity, follow the shell
+      // menu: clean reload, session() finds nobody at boot, auth-wait shows.
+      if (!store.me) break;
+      location.hash = '';
+      location.reload();
       break;
+    }
 
     case 'navigate':
       // Hash routing is the app's own, so the host does not need to know it: it

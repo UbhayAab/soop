@@ -44,7 +44,12 @@ function openDb() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve) => {
     let req;
-    try { req = indexedDB.open(DB_NAME, 1); } catch { resolve(null); return; }
+    // VERSION, not a literal: the schema const above is the bump lever ("bump
+    // to invalidate every stored snapshot") and must be the version we OPEN at.
+    // Opening 1 against any database already at 2 throws VersionError, which
+    // resolved null, set dead=true below and quietly disabled pagecache - wipe
+    // included - for the rest of the session.
+    try { req = indexedDB.open(DB_NAME, VERSION); } catch { resolve(null); return; }
     // Some Android WebViews leave open() pending forever instead of erroring. A
     // cache we cannot reach is the same as no cache, and this one sits on the
     // path to a paint - give up fast rather than hold the channel open.
