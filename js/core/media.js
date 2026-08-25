@@ -55,6 +55,31 @@ function probeDims(file) {
 // untouched; a failed optimisation must never block an upload.
 const IMAGE_DOWNSCALE_MIN = 400 * 1024;
 const IMAGE_MAX_EDGE = 1600;
+// The inline box is capped at 340 CSS px; a 700px thumb stays retina-sharp at
+// 2x while cutting the bytes a scrolled-in message actually downloads by ~3.5x.
+// Carried separately (data-thumb) so the lightbox and Save keep the full image.
+const THUMB_MAX_EDGE = 700;
+
+export async function makeThumb(file) {
+  if (!/^image\//.test(file.type) || file.type === 'image/gif') return null;
+  try {
+    const bmp = await createImageBitmap(file);
+    const longest = Math.max(bmp.width, bmp.height);
+    if (longest <= THUMB_MAX_EDGE) { bmp.close?.(); return null; }
+    const scale = THUMB_MAX_EDGE / longest;
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * scale);
+    c.height = Math.round(bmp.height * scale);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    bmp.close?.();
+    const type = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    const blob = await new Promise((r) => c.toBlob(r, type, 0.75));
+    if (!blob || blob.size >= file.size) return null;
+    return blob;
+  } catch {
+    return null;
+  }
+}
 
 async function downscaleImage(file) {
   if (!/^image\//.test(file.type) || file.type === 'image/gif' || file.size < IMAGE_DOWNSCALE_MIN) return file;
@@ -116,9 +141,41 @@ export async function uploadFile(file, onProgress) {
       width: d?.w ?? null, height: d?.h ?? null, durationMs: d?.ms ?? null, thumbhash: null,
     });
   }
+
+  // Thumbnail: a second independent content-addressed upload through the same
+  // mint pipeline. The attachment row's schema is not in this repo, so the
+  // thumb key travels inside the message's jsonb attachments instead of
+  // finalize_attachment - old clients ignore the unknown field. Any failure
+  // here degrades to the full image and must never fail the upload itself.
+  let thumbKey = null;
+  try {
+    const tb = await makeThumb(file);
+    if (tb) {
+      const tbuf = await tb.arrayBuffer();
+      const tsha = await sha256hex(tbuf);
+      const tres = await fetch(SUPABASE_URL + '/functions/v1/mint-upload', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + (await accessToken()),
+          apikey: PUBLISHABLE,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ workspace_id: store.ws.id, mime: tb.type, byte_size: tb.size, sha256: tsha }),
+      });
+      const tj = await tres.json();
+      if (tres.ok && tj.object_key) {
+        if (!tj.deduped) {
+          await sb.storage.from('attachments')
+            .uploadToSignedUrl(tj.object_key, tj.token, tb, { cacheControl: '31536000', contentType: tb.type });
+        }
+        thumbKey = tj.object_key;
+      }
+    }
+  } catch { thumbKey = null; }
+
   onProgress?.(1);
   return {
-    object_key: j.object_key, mime, width: d?.w, height: d?.h,
+    object_key: j.object_key, thumb_key: thumbKey, mime, width: d?.w, height: d?.h,
     duration_ms: d?.ms, name: file.name, size: file.size,
   };
 }
@@ -252,7 +309,7 @@ export function attsHtml(m) {
       ? `${num(x.width, 4)}/${num(x.height, 3)}` : '4/3';
     const w = Math.min(340, num(x.width, 340));
     if (mime.startsWith('image/')) {
-      return `<div class="att-img" data-key="${esc(x.object_key)}" data-name="${esc(x.name || 'image')}"
+      return `<div class="att-img" data-key="${esc(x.object_key)}" data-name="${esc(x.name || 'image')}"${x.thumb_key ? ` data-thumb="${esc(x.thumb_key)}"` : ''}
         style="width:${w}px;aspect-ratio:${ratio}"><img loading="lazy" alt="${esc(x.name || 'image')}"></div>`;
     }
     if (mime.startsWith('video/')) {
@@ -273,7 +330,13 @@ export function attsHtml(m) {
 export async function hydrateMedia(root) {
   const keys = new Set();
   const imgs = [...root.querySelectorAll('.att-img')];
-  for (const box of imgs) keys.add(box.dataset.key);
+  for (const box of imgs) {
+    keys.add(box.dataset.key);
+    // Thumbs ride the same batched mint-download call as every other key; the
+    // inline img prefers one when present, while openViewer and Save below
+    // keep reading data-key (the full image) exactly as before.
+    if (box.dataset.thumb) keys.add(box.dataset.thumb);
+  }
   const vids = [...root.querySelectorAll('.att-vid')];
   for (const box of vids) keys.add(box.dataset.key);
   const auds = [...root.querySelectorAll('.att-aud')];
@@ -311,7 +374,7 @@ export async function hydrateMedia(root) {
   const urlByKey = new Map(Array.from(keys).map((k, i) => [k, urlArray[i]]));
 
   for (const box of imgs) {
-    const url = urlByKey.get(box.dataset.key);
+    const url = urlByKey.get(box.dataset.thumb) || urlByKey.get(box.dataset.key);
     if (!url) { box.classList.add('att-broken'); continue; }
     box.querySelector('img').src = url;
     box.onclick = () => openViewer(imgs.map((b) => ({

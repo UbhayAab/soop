@@ -385,7 +385,8 @@ export async function send() {
   }
   if (pending.some((a) => a.uploading)) { toast('Still uploading…'); return; }
   const atts = pending.filter((a) => a.object_key).map((a) => ({
-    object_key: a.object_key, mime: a.mime, width: a.width, height: a.height,
+    object_key: a.object_key, thumb_key: a.thumb_key || null, mime: a.mime,
+    width: a.width, height: a.height,
     duration_ms: a.duration_ms, name: a.name, size: a.size,
   }));
   if (!text && !atts.length) return;
