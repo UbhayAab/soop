@@ -16,8 +16,12 @@
 //                   via either the feature spread or an explicit standalone
 //                   entry, and exists on disk
 //   4. version      sw.js VERSION matches dek-v<N> (reported, and fails if absent)
+//   5. orphan sync  every js/features/*.js on disk is either registered in
+//                   FEATURES or statically imported somewhere under js/ - a
+//                   file nobody references loads never and reports nothing
+//                   (the people.js near-miss class)
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const root = resolve(process.argv[2] || '.');
@@ -97,10 +101,35 @@ for (const n of featNames) {
 for (const n of featMissingShell) fail(`feature-sync: FEATURES entry "${n}" is not precached (neither spread nor standalone entry)`);
 for (const n of featMissingDisk) fail(`feature-sync: precached feature "${n}.js" does not exist on disk`);
 
+function walkJs(dir) {
+  const out = [];
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) out.push(...walkJs(p));
+    else if (e.name.endsWith('.js')) out.push(p);
+  }
+  return out;
+}
+
+const jsSources = walkJs(join(root, 'js')).map((p) => ({ p, src: readFileSync(p, 'utf8') }));
+const regSet = new Set(featNames);
+const diskFeatures = readdirSync(join(root, 'js', 'features'))
+  .filter((f) => f.endsWith('.js') && f !== 'index.js')
+  .map((f) => f.slice(0, -3));
+let importedOnly = 0;
+for (const n of diskFeatures) {
+  if (regSet.has(n)) continue;
+  const referenced = jsSources.some(({ src }) =>
+    src.includes(`/${n}.js'`) || src.includes(`/${n}.js"`));
+  if (!referenced) fail(`orphan-sync: js/features/${n}.js is neither registered in FEATURES nor imported anywhere`);
+  else importedOnly++;
+}
+
 console.log(`audit-shell @ ${version}`);
 console.log(`  index.html local refs checked : ${localRefs.length}${skipped.length ? ` (skipped: ${skipped.join(', ')})` : ''}`);
 console.log(`  SHELL_FILES entries           : ${entries.length} (${spreadCount} via feature spread)`);
 console.log(`  FEATURES registry             : ${featNames.length} named, ${spreadNames.length} in spread`);
+console.log(`  features files on disk        : ${diskFeatures.length} (${importedOnly} imported-only, 0 orphans expected)`);
 console.log(failures.length ? `\nAUDIT FAIL (${failures.length})` : '\nAUDIT CLEAN');
 for (const f of failures) console.log(`  - ${f}`);
 process.exit(failures.length ? 1 : 0);
