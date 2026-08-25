@@ -8,10 +8,12 @@
 //
 // THIS COMMENT USED TO SAY "two states, open and done. No projects, no boards, no
 // dependencies, no subtasks", and it also said tasks land in the assignee's
-// existing Later queue. Neither is true any more and the second may never have
-// been: there are eight states with a proposal round trip and a review round
-// trip, and nothing in this client calls later_add. The header is the first thing
-// anybody designing against this file reads, so it is worth more than the code.
+// existing Later queue. The first half was long untrue; the second half is now
+// PROVEN true - the exported create_task (supabase/migrations/0104_tasks_base.sql)
+// inserts a saved_items row for the assignee on every accepted assignment, and
+// nothing in this client calls later_add because it does not need to. The Later
+// panel joins that saved row back onto the task at read time (step 21), so an
+// assigned task shows up in your queue carrying its due date and state.
 //
 // What is actually here:
 //   proposed    somebody asked; it is nobody's until accepted

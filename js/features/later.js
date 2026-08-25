@@ -45,11 +45,16 @@ function style() {
 }
 
 // ------------------------------------------------------------------ badge
+// One personal queue, one badge: overdue + due-today + waiting-on-me tasks
+// plus plain to-do items. The Tasks board keeps its own count for its own
+// surface; this is the number for "what is mine to move".
+let queueCount = 0;
+
 function paintBadge() {
   const btn = document.getElementById('hb-' + BTN);
   if (!btn) return;
-  const want = todoCount > 0
-    ? `📥<span class="badge later-badge">${todoCount > 99 ? '99+' : todoCount}</span>`
+  const want = queueCount > 0
+    ? `📥<span class="badge later-badge">${queueCount > 99 ? '99+' : queueCount}</span>`
     : '📥';
   if (btn.innerHTML !== want) btn.innerHTML = want;
 }
@@ -64,9 +69,15 @@ function watchHeader() {
 
 async function refreshCount() {
   if (!store.me) return;
-  const [rows] = await tryRpc('get_later', {});
+  const [[rows], [tasks]] = await Promise.all([
+    tryRpc('get_later', {}),
+    store.ws ? tryRpc('list_tasks', {
+      p_workspace: store.ws.id, p_filter: 'mine', p_channel: null, p_include_done: false }) : Promise.resolve([[]]),
+  ]);
   if (!Array.isArray(rows)) return;
   todoCount = rows.filter((r) => (r.state || 'todo') === 'todo').length;
+  queueCount = todoCount
+    + (Array.isArray(tasks) ? tasks.filter((t) => t.state !== 'in_review').length : 0);
   paintBadge();
 }
 
@@ -95,6 +106,15 @@ function untilLabel(iso) {
 const whenText = (iso) =>
   new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+function dueLabel(iso) {
+  const ms = new Date(iso).getTime() - Date.now();
+  const abs = Math.abs(ms);
+  const unit = abs < 3600000 ? `${Math.round(abs / 60000)}m`
+    : abs < 172800000 ? `${Math.round(abs / 3600000)}h`
+    : `${Math.round(abs / 86400000)}d`;
+  return ms <= 0 ? `${unit} overdue` : `due in ${unit}`;
+}
+
 // ------------------------------------------------------------------ panel
 export function register({ ui, api }) {
   style();
@@ -106,15 +126,42 @@ export function register({ ui, api }) {
     async render(body) {
       body.innerHTML = '<div class="muted pad">loading…</div>';
 
-      const [raw, err] = await tryRpc('get_later', {});
-      if (err) {
-        body.innerHTML = `<div class="empty">Could not load your queue.<br>${esc(err.message)}</div>`;
+      // One personal queue, read side: the saved queue plus my assigned tasks
+      // joined on the message they came from. create_task already writes the
+      // saved row server-side, so every assigned task shows up here carrying
+      // its own facts - due dates and state - instead of as a bare todo.
+      const [[raw], [tasksRaw]] = await Promise.all([
+        tryRpc('get_later', {}),
+        store.ws ? tryRpc('list_tasks', {
+          p_workspace: store.ws.id, p_filter: 'mine', p_channel: null, p_include_done: false }) : Promise.resolve([[]]),
+      ]);
+      if (!Array.isArray(raw)) {
+        body.innerHTML = `<div class="empty">Could not load your queue.</div>`;
         return;
       }
       let rows = Array.isArray(raw) ? raw : [];
+      const tasks = Array.isArray(tasksRaw) ? tasksRaw : [];
+      const byMsg = new Map(tasks.map((t) => [t.message_id, t]));
+      rows = rows.map((r) => {
+        const t = byMsg.get(r.message_id);
+        return t ? { ...r, task: t } : r;
+      });
       try { rows = await withAuthors(rows); } catch { /* names are a nicety, not the point */ }
 
-      todoCount = rows.filter((r) => (r.state || 'todo') === 'todo').length;
+      const now = Date.now();
+      const endOfDay = new Date(); endOfDay.setHours(23, 59, 59, 999);
+      const isTask = (r) => r.task && r.task.state !== 'done';
+      const hasDue = (r) => !!r.task.due_at;
+      const dueMs = (r) => new Date(r.task.due_at).getTime();
+      // No date is not an overdue date - undated work waits in its own section.
+      const overdue = rows.filter((r) => isTask(r) && hasDue(r) && dueMs(r) <= now);
+      const today = rows.filter((r) => isTask(r) && hasDue(r)
+        && dueMs(r) > now && dueMs(r) <= endOfDay.getTime());
+      // Assigned work with no date pressure: my move is the next move.
+      const waiting = rows.filter((r) => isTask(r) && !overdue.includes(r) && !today.includes(r));
+
+      todoCount = rows.filter((r) => !isTask(r) && (r.state || 'todo') === 'todo').length;
+      queueCount = overdue.length + today.length + waiting.length + todoCount;
       paintBadge();
 
       const redraw = () => ui.openPanel(PANEL, {});
@@ -128,12 +175,27 @@ export function register({ ui, api }) {
           + 'In progress and Done.'));
       }
 
+      const taskSection = (key, label, items) => {
+        if (!items.length) return;
+        section(body, key, label, items.length, (host) => {
+          for (const r of items) host.appendChild(taskCard(r, redraw, ui));
+        });
+      };
+
+      taskSection('overdue', 'Overdue',
+        overdue.sort((a, b) => new Date(a.task.due_at) - new Date(b.task.due_at)));
+      taskSection('today', 'Due today',
+        today.sort((a, b) => new Date(a.task.due_at) - new Date(b.task.due_at)));
+      taskSection('waiting', 'Waiting on me', waiting);
+
       for (const s of STATES) {
-        const items = rows.filter((r) => (r.state || 'todo') === s.key);
+        // Task-backed rows live in the sections above; only plain saved items
+        // walk the To do / In progress / Done flow here.
+        const items = rows.filter((r) => !isTask(r) && (r.state || 'todo') === s.key);
         // An empty queue already explained itself above; do not repeat it three times.
         if (!rows.length) break;
         section(body, s.key, s.label, items.length, (host) => {
-          if (!items.length) { host.appendChild(el('div', 'empty', esc(s.hint))); return; }
+          if (!items.length && s.key !== 'done') { host.appendChild(el('div', 'empty', esc(s.hint))); return; }
           for (const r of items) host.appendChild(itemCard(r, s.key, redraw, ui, api));
         });
       }
@@ -221,6 +283,39 @@ function itemCard(r, stateKey, redraw, ui, api) {
     } catch (err) { ui.toast(err.message, 'error'); }
   };
   bar.appendChild(rm);
+
+  card.appendChild(bar);
+  card.onclick = () => bus.emit('message:jump', { messageId: r.message_id });
+  return card;
+}
+
+// A task-backed queue row: the board owns the state machine, so this card
+// reads and jumps - it does not offer the saved-item To do / Done buttons.
+function taskCard(r, redraw, ui) {
+  const t = r.task;
+  const card = el('div', 'result later-item');
+  const who = r.author_id ? nameOf(r.author_id) : 'someone';
+  const overdue = new Date(t.due_at || 0).getTime() <= Date.now();
+  card.innerHTML = `
+    <div class="muted later-meta">
+      <b>${esc(t.title || r.body_text?.slice(0, 60) || 'Task')}</b>
+      <span>in #${esc(r.channel_name || t.channel_name || 'unknown')}</span>
+      ${t.due_at ? `<span class="${overdue ? 'later-over' : 'later-when'}">${esc(dueLabel(t.due_at))}</span>` : ''}
+      <span>${esc(t.state || '')}</span>
+    </div>
+    ${t.blocker_note ? `<div class="body later-over">${esc(plain(t.blocker_note, 160))}</div>`
+      : `<div class="body">${fmt(plain(r.body_text || '', 240))}</div>`}`;
+
+  const bar = el('div', 'row gap later-bar');
+  const open = el('button', 'sm ghost', 'Open in Tasks');
+  open.title = 'Work this on the Tasks board';
+  open.onclick = (e) => { e.stopPropagation(); ui.openPanel('tasks', { tab: 'mine' }); };
+  bar.appendChild(open);
+
+  const jump = el('button', 'sm ghost', 'Jump');
+  jump.title = 'Open the message in its channel';
+  jump.onclick = (e) => { e.stopPropagation(); bus.emit('message:jump', { messageId: r.message_id }); };
+  bar.appendChild(jump);
 
   card.appendChild(bar);
   card.onclick = () => bus.emit('message:jump', { messageId: r.message_id });
