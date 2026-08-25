@@ -44,15 +44,21 @@ LANDED since this plan was written, client side:
   (commits 7552bac, fec9789, 7cebd18 among others).
 
 STILL OPEN:
-- Roadmap 9-11: embed registry tables, ensure_embed_space, OIDC tier A,
-  ticket tier B. Verified this sweep: js/features/index.js has NO embed
-  gating yet, so admin/orgadmin/integrations still load in embed mode.
+- Roadmap 10-11: embed registry tables, ensure_embed_space, OIDC tier A,
+  ticket tier B - backend-heavy, DB deploy window needed.
+  BANNER 2026-08-25: roadmap 9's CLIENT half landed (f1218a0) - the registry
+  gate in features/index.js keeps admin/orgadmin/integrations out of embeds,
+  sign-out/leave-space removed in embed mode, pinned Space refuses switching;
+  verified live (embed boot loads 33 features, standalone all 36). Do not
+  re-implement gating from the stale text above.
 - Task system steps 12-17, 19-30 (schema v2, forecast on the card, nudges,
   digest, Jira interop): backend-heavy, none started.
 - Density attribute tier (#app[data-density]): blocked on choosing concrete
   compact/cozy --s-* values, a design decision no headless burst will make.
+  NOTE 2026-08-25: the concurrent ground-up session reworked sidebar density
+  directly (33px rows, 442f875) rather than via a data-density tier.
 - Voice ICE batching (EFFICIENCY rank 20): needs a real call to verify;
-  rejected by eleven consecutive bursts for exactly that reason.
+  rejected by thirteen consecutive bursts for exactly that reason.
 
 ---
 

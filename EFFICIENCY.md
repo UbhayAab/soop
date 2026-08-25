@@ -24,7 +24,7 @@ work is almost entirely server-side (needs a deploy window and tokens).
 | 8 | NOT DONE - server-side index, needs deploy |
 | 9 | Client half DONE (signed-URL IndexedDB cache + batched mint-download POST, media.js); server expires_at/array return still pending deploy |
 | 10 | DONE commit 8f6e242, stale-while-revalidate form (sha256 claim unconfirmable from this repo), LRU cap + sign-out wipes included |
-| 11 | PARTIAL - downscale landed at 1600px q0.8 keep-original-if-smaller (state log: 8-15x); the 700px thumbnail half NOT shipped, dimensions reporting not shipped |
+| 11 | DONE commits e644d57 + fbb5efb: uploads mint a second 700px content-addressed thumb through mint-upload, thumb_key rides the message jsonb attachments, inline img prefers it while lightbox/Save keep the full key, whole block failure-isolated; dimensions reporting verified already landed (probeDims feeds finalizeAttachment width/height/duration_ms). probe-thumb.mjs PROBE CLEAN 10/10. |
 | 12 | DONE commit 6e650fb (debounceLead coalescing, {open} bypass kept) |
 | 13 | DONE commit 64e256b (visibility guard, 30s, backstop %4) |
 | 14 | DONE commit e6d4b34 (a+b) |
