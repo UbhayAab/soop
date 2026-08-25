@@ -17,22 +17,5 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Syntax check every JS module
-        run: |
-          total=0
-          fails=0
-          while IFS= read -r -d '' f; do
-            total=$((total+1))
-            if ! node --check "$f"; then
-              fails=$((fails+1))
-              echo "SYNTAX FAIL: $f"
-            fi
-          done < <(find . -path ./node_modules -prune -o -path ./.git -prune -o \( -name '*.js' -o -name '*.mjs' \) -print0)
-          echo "node --check: $total files, $fails failures"
-          test "$fails" -eq 0
-
-      - name: Encoding guard (repairable mojibake, invalid UTF-8)
-        run: node scripts/fix-encoding.mjs --check
-
-      - name: Shell integrity audit (index refs vs precache vs features)
-        run: node scripts/audit-shell.mjs .
+      - name: Standing guards (syntax, encoding, shell audit)
+        run: npm test

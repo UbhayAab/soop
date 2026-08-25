@@ -4,7 +4,10 @@
   "description": "",
   "main": "embed.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node scripts/check-syntax.mjs && node scripts/fix-encoding.mjs --check && node scripts/audit-shell.mjs .",
+    "smoke": "node scripts/smoke.mjs",
+    "probe": "node scripts/probe-all.mjs",
+    "audit": "node scripts/audit-shell.mjs ."
   },
   "repository": {
     "type": "git",
