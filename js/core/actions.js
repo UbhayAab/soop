@@ -41,7 +41,7 @@ function moreMenu(m, ev) {
     { label: 'Forward to a channel', onClick: () => forwardDialog(m) },
     { label: 'Copy link to message', onClick: () => copyLink(m) },
     { label: 'Save for later', onClick: () => api.laterAdd(m.id).then(() => toast('Added to Later')).catch((e) => toast(e.message, 'error')) },
-    { label: 'Remind meâ€¦', onClick: () => remindDialog(m) },
+    { label: 'Remind me…', onClick: () => remindDialog(m) },
     { label: 'Bookmark', onClick: () => api.saveItem(m.id).then(() => toast('Saved')).catch((e) => toast(e.message, 'error')) },
     { label: 'Mark unread from here', onClick: () => api.markUnread('channel', store.current.id, m.seq).then(() => { toast('Marked unread'); bus.emit('unread:reload'); }).catch((e) => toast(e.message, 'error')) },
     '-',
@@ -126,7 +126,7 @@ export async function copyLink(m) {
 function forwardDialog(m) {
   const box = el('div', 'picker-list');
   const search = el('input');
-  search.placeholder = 'Forward toâ€¦';
+  search.placeholder = 'Forward to…';
   const list = el('div', 'picker-rows');
   box.append(search, list);
   const draw = (q = '') => {
@@ -191,7 +191,7 @@ registerPanel({
         results.innerHTML = '<div class="empty">Type something to search.</div>';
         return;
       }
-      results.innerHTML = '<div class="muted pad">searchingâ€¦</div>';
+      results.innerHTML = '<div class="muted pad">searching…</div>';
       try {
         const rows = await api.search({ ...parsed, workspace: store.ws.id, limit: 40 });
         if (!rows?.length) { results.innerHTML = '<div class="empty">No matches.</div>'; return; }
@@ -200,7 +200,7 @@ registerPanel({
           const ch = store.channels.find((c) => c.id === r.channel_id);
           const card = el('div', 'result');
           card.innerHTML = `<div class="muted">${avatarHtml(r.author_id, 18)} <b>${esc(nameOf(r.author_id))}</b>
-            in #${esc(ch?.name || '?')} Â· ${esc(relTime(r.created_at))}</div>
+            in #${esc(ch?.name || '?')} · ${esc(relTime(r.created_at))}</div>
             <div class="body">${fmt(r.body_text)}</div>`;
           card.onclick = () => {
             if (ch) openChannel(ch, { keepPanel: true, jumpSeq: r.seq });
@@ -258,7 +258,7 @@ registerPanel({
       const off = filtered.filter((p) => !store.online.has(p.id));
       const section = (title, arr) => {
         if (!arr.length) return;
-        list.appendChild(el('h4', 'sec', `${esc(title)} â€” ${arr.length}`));
+        list.appendChild(el('h4', 'sec', `${esc(title)} - ${arr.length}`));
         for (const p of arr) {
           const r = el('div', 'member');
           r.innerHTML = `${avatarHtml(p.id, 28)}
@@ -320,7 +320,7 @@ registerPanel({
         : a.kind === 'reaction' ? 'reacted to your message' : 'replied in a thread';
       const card = el('div', 'result');
       card.innerHTML = `<div class="muted">${avatarHtml(a.actor_id, 18)}
-        <b>${esc(nameOf(a.actor_id))}</b> ${esc(verb)} in #${esc(ch?.name || '?')} Â· ${esc(relTime(a.created_at))}</div>
+        <b>${esc(nameOf(a.actor_id))}</b> ${esc(verb)} in #${esc(ch?.name || '?')} · ${esc(relTime(a.created_at))}</div>
         <div class="body">${fmt(plain(a.snippet, 160))}</div>`;
       card.onclick = () => { if (ch) openChannel(ch, { keepPanel: true }); };
       body.appendChild(card);
@@ -333,7 +333,7 @@ registerPanel({
   id: 'saved',
   title: 'Saved & Later',
   async render(body) {
-    body.innerHTML = '<div class="muted pad">loadingâ€¦</div>';
+    body.innerHTML = '<div class="muted pad">loading…</div>';
     const [later] = await tryRpc('get_later', {});
     const [saved] = await tryRpc('list_saved', {});
     body.innerHTML = '';
@@ -346,7 +346,7 @@ registerPanel({
 
     section('Later', later, (r) => {
       const card = el('div', 'result');
-      card.innerHTML = `<div class="muted">${esc(nameOf(r.author_id))} Â· ${esc(r.state || 'todo')}</div>
+      card.innerHTML = `<div class="muted">${esc(nameOf(r.author_id))} · ${esc(r.state || 'todo')}</div>
         <div class="body">${fmt(plain(r.body_text, 160))}</div>`;
       const bar = el('div', 'row gap');
       for (const s of ['todo', 'in_progress', 'done']) {
@@ -466,7 +466,7 @@ bus.on('profile:open', async ({ userId, anchor } = {}) => {
     box.querySelector('#pcStatus').innerHTML = `
       ${card.status_emoji || ''} ${esc(card.status_text || '')}
       ${card.online ? '<span class="dot on"></span> online' : '<span class="dot off"></span> offline'}
-      ${card.dnd ? ' Â· do not disturb' : ''}
+      ${card.dnd ? ' · do not disturb' : ''}
       ${(card.roles || []).map((r) => `<span class="rolechip">${esc(r.name)}</span>`).join('')}`;
   }
 });

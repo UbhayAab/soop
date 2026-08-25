@@ -35,7 +35,7 @@ let pwWasTyped = false;
 function busy(btn, on, label) {
   btn.disabled = on;
   btn.dataset.label = btn.dataset.label || btn.textContent;
-  btn.textContent = on ? 'â€¦' : (label || btn.dataset.label);
+  btn.textContent = on ? '…' : (label || btn.dataset.label);
 }
 
 // Supabase decides between a sign-in LINK and a numeric CODE purely from the

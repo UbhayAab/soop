@@ -355,13 +355,13 @@ export async function openViewer(items, startIndex = 0) {
   lb.innerHTML = `
     <div class="lb-stage"><img alt=""></div>
     <div class="lb-bar">
-      <button class="ghost" data-a="zoomout">âˆ’</button>
+      <button class="ghost" data-a="zoomout">−</button>
       <button class="ghost" data-a="zoomin">+</button>
       <button class="ghost" data-a="save">Save</button>
-      <button class="ghost" data-a="close">âœ•</button>
+      <button class="ghost" data-a="close">✕</button>
     </div>
-    <button class="lb-nav lb-prev" data-a="prev">â€¹</button>
-    <button class="lb-nav lb-next" data-a="next">â€º</button>
+    <button class="lb-nav lb-prev" data-a="prev">‹</button>
+    <button class="lb-nav lb-next" data-a="next">›</button>
     <div class="lb-count"></div>`;
   const img = lb.querySelector('img');
   const stage = lb.querySelector('.lb-stage');

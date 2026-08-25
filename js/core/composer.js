@@ -66,7 +66,7 @@ function updateAutocomplete() {
   if (slash) {
     const q = slash[1].toLowerCase();
     const cmds = listSlash().filter((s) => s.name.startsWith(q)).slice(0, 8);
-    return acShow(cmds.map((s) => ({ label: '/' + s.name, hint: s.description, icon: 'âŒ˜', value: s })),
+    return acShow(cmds.map((s) => ({ label: '/' + s.name, hint: s.description, icon: '⌘', value: s })),
       (it) => replaceToken(/^\/(\w*)$/, '/' + it.value.name + ' '));
   }
 
@@ -221,7 +221,7 @@ function renderChips() {
       <span class="chip-name">${esc(a.name || 'file')}</span>
       <span class="muted">${esc(fmtSize(a.size))}</span>
       ${a.uploading ? `<span class="chip-prog" style="width:${Math.round((a.progress || 0) * 100)}%"></span>` : ''}
-      <span class="x" data-i="${i}">âœ•</span></div>`).join('');
+      <span class="x" data-i="${i}">✕</span></div>`).join('');
   host.querySelectorAll('.x').forEach((x) => {
     x.onclick = () => { pending.splice(+x.dataset.i, 1); renderChips(); };
   });
@@ -383,7 +383,7 @@ export async function send() {
     toast('Open a channel or a conversation first');
     return;
   }
-  if (pending.some((a) => a.uploading)) { toast('Still uploadingâ€¦'); return; }
+  if (pending.some((a) => a.uploading)) { toast('Still uploading…'); return; }
   const atts = pending.filter((a) => a.object_key).map((a) => ({
     object_key: a.object_key, mime: a.mime, width: a.width, height: a.height,
     duration_ms: a.duration_ms, name: a.name, size: a.size,
@@ -508,10 +508,10 @@ export function setReply(m) {
   store.replyTarget = { id: m.id, author_id: m.author_id, body_text: m.body_text };
   const bar = $('replyBar');
   bar.classList.remove('hidden');
-  bar.innerHTML = `<span class="reply-ico">â†©</span>
+  bar.innerHTML = `<span class="reply-ico">↩</span>
     <span>Replying to <b>${esc(nameOf(m.author_id))}</b></span>
     <span class="muted reply-snip">${esc((m.body_text || '').slice(0, 70))}</span>
-    <button class="icon" id="cancelReply">âœ•</button>`;
+    <button class="icon" id="cancelReply">✕</button>`;
   $('cancelReply').onclick = clearReply;
   composerEl().focus();
 }
@@ -556,7 +556,7 @@ export function initComposer() {
 
   c.addEventListener('input', () => { autogrow(); updateAutocomplete(); emitTyping(); saveDraft(); });
   c.addEventListener('blur', () => { setTimeout(acHide, 120); stopTyping(); });
-  // A tab going away mid-sentence would otherwise leave "Asha is typingâ€¦" on
+  // A tab going away mid-sentence would otherwise leave "Asha is typing…" on
   // everyone else's screen until it expired, which is the state that makes a
   // typing indicator feel like a lie.
   document.addEventListener('visibilitychange', () => {
