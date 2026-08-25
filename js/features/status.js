@@ -381,8 +381,13 @@ export function register({ ui, api }) {
   // ---- decorate member rows ----
   const panelHost = $('panelContent');
   if (panelHost && typeof MutationObserver !== 'undefined') {
-    // decorateMembers is idempotent, so the observer settles after one extra pass.
-    new MutationObserver(() => { decorateMembers(); refreshPresenceDetail(); })
+    // New rows only: decorateMembers is idempotent and stops before mutating
+    // when there is nothing to paint. refreshPresenceDetail must NOT ride this
+    // observer - it removes and re-adds every badge unconditionally, so once an
+    // away/dnd badge exists in the subtree each pass generates the childList
+    // records that schedule its own next pass, and the page starves (observed
+    // live 2026-08-26). Map changes arrive on 'presence' below.
+    new MutationObserver(() => { decorateMembers(); })
       .observe(panelHost, { childList: true, subtree: true });
   }
   bus.on('presence', () => { refreshPresenceDetail(); });
