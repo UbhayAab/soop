@@ -51,11 +51,18 @@
 <meta name="mobile-web-app-capable" content="yes" />
 
 <!-- Paint the stored theme before the first frame. Doing this from a module
-     would flash the default dark theme at every light-mode user on every load. -->
+     would flash the default dark theme at every light-mode user on every load.
+     Must read the same key chain as js/theme.js: dak.theme is the choice's
+     home since the rename, hearth.theme is the migrated legacy source - if
+     this snippet lags that contract again it flashes system over every
+     stored choice (probe-theme.mjs owns this). -->
 <script>
   (function () {
     try {
-      var c = localStorage.getItem('hearth.theme') || 'system';
+      var c = localStorage.getItem('dak.theme') || localStorage.getItem('hearth.theme') || 'system';
+      if (!localStorage.getItem('dak.theme') && c !== 'system') {
+        try { localStorage.setItem('dak.theme', c); } catch (e) { /* private mode */ }
+      }
       var r = c === 'system'
         ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
         : c;

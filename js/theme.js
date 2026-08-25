@@ -61,7 +61,8 @@ export function applyTheme(choice) {
   document.documentElement.setAttribute('data-theme', resolved);
   // `data-theme-choice` was written here and read by nothing in the entire app;
   // a selector that never existed. The choice itself persists in localStorage
-  // under hearth.theme, which is what the picker and boot actually read.
+  // under dak.theme (migrated from the pre-rename hearth.theme on read) - the
+  // same contract index.html's pre-paint snippet implements.
 
   // Keep the mobile browser chrome in step with the app, otherwise a light theme
   // sits under a black status bar and looks broken on a phone.
