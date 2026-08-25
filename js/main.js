@@ -30,8 +30,9 @@ function hydrateIcons(root) {
     if (n.firstElementChild?.classList.contains('ico')) continue;
     n.insertAdjacentHTML('afterbegin', icon(n.dataset.ico));
   }
-  const mark = root.querySelector?.('#brandMark');
-  if (mark && !mark.firstElementChild) mark.innerHTML = logoMark(44);
+  for (const mark of root.querySelectorAll?.('#brandMark, #brandMarkCard') || []) {
+    if (mark && !mark.firstElementChild) mark.innerHTML = logoMark(mark.id === 'brandMarkCard' ? 34 : 44);
+  }
 }
 
 // ------------------------------------------------------------------ routing

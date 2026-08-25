@@ -1,4 +1,4 @@
-/* ============================================================================
+﻿/* ============================================================================
    Layout: the app frame.
 
    Sign-in screen, top bar, Space rail, channel sidebar, voice bar, the main
@@ -41,16 +41,63 @@
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+  background: var(--c-bg);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* The brand panel: half the screen on desktop, the reason the product exists
+   in four lines. Hidden on phones, where the form IS the page. */
+.authbrand {
+  display: none;
+  flex-direction: column;
+  flex: 0 0 44%;
+  max-width: 560px;
+  /* A fixed dark stage in BOTH themes - the brand panel is a poster, not a
+     themed surface. Light-theme tokens would wash it to invisible. */
+  background:
+    radial-gradient(120% 90% at 0% 0%,
+      rgba(64, 111, 224, 0.32), transparent 62%),
+    linear-gradient(160deg, #10141c, #0a0d13 70%);
+  color: #aeb7c4;
+  padding: var(--s-11) var(--s-10);
+}
+.authbrand-inner { max-width: 400px; margin: auto 0; }
+.authbrand .brand { margin-bottom: var(--s-6); }
+.authbrand .brand h1 { color: #f2f5f9; font-size: 30px; letter-spacing: -0.02em; }
+.authbrand-line {
+  font-size: var(--t-xl);
+  line-height: var(--t-tight);
+  font-weight: var(--t-semibold);
+  color: #f2f5f9;
+  margin: 0 0 var(--s-7);
+}
+.authbrand-points { list-style: none; padding: 0; margin: 0 0 var(--s-9); }
+.authbrand-points li {
+  padding: var(--s-3) 0;
+  font-size: var(--t-base);
+  color: #aeb7c4;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+.authbrand-points li:last-child { border-bottom: none; }
+.authbrand-points b { color: #ffffff; font-weight: var(--t-semibold); }
+.authbrand-foot { font-size: var(--t-xs); color: #6d7885; }
+@media (min-width: 861px) {
+  .authbrand { display: flex; }
+}
+
+/* The form side owns the remaining width and centres its card. */
+.authside {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--s-8) var(--s-6) calc(var(--s-8) + var(--safe-b));
-  /* A wash rather than a flat field, so the card has something to sit on. */
-  background:
-    radial-gradient(120% 80% at 50% -10%,
-      color-mix(in srgb, var(--c-accent) 16%, transparent), transparent 68%),
-    var(--c-bg);
   overflow-y: auto;
-  overscroll-behavior: contain;
 }
 
 .authcard {
@@ -58,7 +105,7 @@
      phone in landscape, which align-items:center alone would clip. */
   margin: auto;
   width: 100%;
-  max-width: 420px;
+  max-width: 440px;
   display: flex;
   flex-direction: column;
   gap: var(--s-5);
@@ -68,6 +115,27 @@
   border-radius: var(--r-xl);
   box-shadow: var(--e-3);
 }
+
+/* Phones: no room for a brand panel - the card is the page, as before. */
+@media (max-width: 860px) {
+  .authwrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--s-6) var(--s-4) calc(var(--s-6) + var(--safe-b));
+    background:
+      radial-gradient(120% 80% at 50% -10%,
+        color-mix(in srgb, var(--c-accent) 16%, transparent), transparent 68%),
+      var(--c-bg);
+  }
+  .authbrand { display: none; }
+  .authside { padding: 0; overflow: visible; }
+  .authcard { box-shadow: var(--e-2); }
+  /* The card carries its own compact brand when the panel is gone. */
+  .brand-card { display: flex; }
+}
+/* Desktop: the panel owns the brand, so the card's copy does not duplicate. */
+.brand-card { display: none; }
 
 /* The card owns its rhythm through gap, so fields must not add a second margin.
    .field itself belongs to components.css; this only neutralises its spacing
@@ -759,9 +827,10 @@ section.msgs {
   display: flex;
   align-items: center;
   gap: var(--s-4);
-  min-height: 30px;
-  padding: var(--s-2) var(--s-4);
-  border-radius: var(--r-sm);
+  min-height: 33px;
+  margin-inline: var(--s-1);
+  padding: var(--s-2) 10px;
+  border-radius: var(--r-md);
   color: var(--c-nav-text);
   font-size: var(--t-md);
   line-height: var(--t-tight);
@@ -1158,7 +1227,6 @@ body.nav-open #messages::after {
    360px wide, nothing may run off the side. */
 @media (max-width: 380px) {
   .hdr-actions { max-width: 26vw; }
-  .authwrap { padding: var(--s-6) var(--s-4) calc(var(--s-6) + var(--safe-b)); }
   .authcard { padding: var(--s-7) var(--s-5); }
   #voicebar { padding: var(--s-3) var(--s-4); }
 }
