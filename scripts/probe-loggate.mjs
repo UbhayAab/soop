@@ -50,4 +50,16 @@ console.log('bridge hidden -> aria-live:', bridgeOff, '| visible -> ', bridgeLiv
 
 console.log('pageerrors standalone:', errors.length, errors.slice(0, 3));
 console.log('pageerrors embed:', errs2.length, errs2.slice(0, 3));
+
+// 6893a9f's recorded proof: hiding mutes to 'off', restore returns 'polite'
+// through the quiet window, the bridge drives both transitions end to end.
+const problems = [];
+if (offHidden !== 'off') problems.push(`standalone IO hide -> aria-live ${offHidden}, want off`);
+if (backLive !== 'polite') problems.push(`standalone restore -> aria-live ${backLive}, want polite`);
+if (bridgeOff !== 'off') problems.push(`embed bridge hidden -> aria-live ${bridgeOff}, want off`);
+if (bridgeLive !== 'polite') problems.push(`embed bridge visible -> aria-live ${bridgeLive}, want polite`);
+if (errors.length) problems.push(`standalone pageerrors: ${errors.length}`);
+if (errs2.length) problems.push(`embed pageerrors: ${errs2.length}`);
+console.log(problems.length ? `PROBE FAIL (${problems.length}):\n- ` + problems.join('\n- ') : 'PROBE CLEAN');
+process.exitCode = problems.length ? 1 : 0;
 await browser.close();
