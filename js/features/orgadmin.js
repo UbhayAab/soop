@@ -1,4 +1,4 @@
-﻿// The organisation console: a PAGE, at #/admin, not a side panel.
+// The organisation console: a PAGE, at #/admin, not a side panel.
 //
 // Why a page and not another tab in the existing console. That one is scoped to
 // one Space, opens as a 780px drawer over the conversation, and answers "how is

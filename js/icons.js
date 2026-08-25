@@ -1,4 +1,4 @@
-﻿// A hand-built inline SVG icon set.
+// A hand-built inline SVG icon set.
 //
 // The chrome used emoji (💬 🔔 🔖 🔍 📌 👥). Emoji are rendered by the operating
 // system, so the same button is a flat glyph on Windows, a glossy 3D blob on

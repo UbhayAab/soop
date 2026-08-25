@@ -1,4 +1,4 @@
-﻿// The last page of each channel, kept on this phone, so reopening a channel
+// The last page of each channel, kept on this phone, so reopening a channel
 // paints before the network is touched.
 //
 // WHY. Measured on the real app: clicking a channel in the sidebar puts the

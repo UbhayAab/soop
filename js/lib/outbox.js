@@ -1,4 +1,4 @@
-﻿// The durable outbox: unsent messages, on this phone, surviving the tab.
+// The durable outbox: unsent messages, on this phone, surviving the tab.
 //
 // WHY this is not a JS array. A send today lives in a closure and a DOM node.
 // Android kills backgrounded PWAs hard - Xiaomi and Samsung are the two worst

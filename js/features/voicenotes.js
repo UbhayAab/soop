@@ -1,4 +1,4 @@
-﻿// Voice notes, the way the phone in a depot actually expects them to work.
+// Voice notes, the way the phone in a depot actually expects them to work.
 //
 // WHAT SHIPPED FIRST AND WHY IT FAILED IN THE FIELD: a mic button that flipped
 // state with no visible change, a toast nobody read, and a race that could

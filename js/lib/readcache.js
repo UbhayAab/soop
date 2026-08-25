@@ -1,4 +1,4 @@
-﻿// The last answer the server gave, kept on this phone so the app can OPEN with
+// The last answer the server gave, kept on this phone so the app can OPEN with
 // no network.
 //
 // WHY this exists. Without it, a cold start with no signal is worse than a blank

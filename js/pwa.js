@@ -1,4 +1,4 @@
-﻿// Install + offline. Two very different platforms:
+// Install + offline. Two very different platforms:
 //   Chromium (Android, desktop) fires beforeinstallprompt, so we stash it and
 //   call prompt() from a real click - the only thing the browser accepts.
 //   iOS Safari has no such API at all: the honest answer is a sheet that shows

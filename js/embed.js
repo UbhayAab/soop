@@ -1,4 +1,4 @@
-﻿// Embedded mode: Dek running as a panel inside somebody else's dashboard.
+// Embedded mode: Dek running as a panel inside somebody else's dashboard.
 //
 // The same build serves both jobs. There is no separate embed bundle, no fork,
 // and no second deploy - the app notices it was opened with ?embed=1 and changes

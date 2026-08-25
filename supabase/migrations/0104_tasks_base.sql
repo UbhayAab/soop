@@ -1,4 +1,4 @@
-﻿-- 0103 - task RPCs, exported from the live database so deploys stop drifting.
+-- 0103 - task RPCs, exported from the live database so deploys stop drifting.
 -- Exported 2026-08-23 via Management API. These are the definitions the
 -- client has been calling blind since day one.
 

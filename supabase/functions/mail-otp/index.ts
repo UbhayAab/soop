@@ -1,4 +1,4 @@
-﻿// Dek's own OTP sign-in, delivered through the organisation's mailer.
+// Dek's own OTP sign-in, delivered through the organisation's mailer.
 //
 // WHY THIS EXISTS: Supabase's built-in OTP mailer caps the whole project at a
 // few messages per hour - a signup funnel that dies on launch day. The org

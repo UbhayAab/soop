@@ -1,4 +1,4 @@
-﻿// Default message actions and the core side panels (search, pins, members,
+// Default message actions and the core side panels (search, pins, members,
 // activity, saved). Feature modules add to these registries rather than editing
 // this file.
 import { sb } from '../sb.js';

@@ -1,4 +1,4 @@
-﻿// A person, as a PAGE, at #/u/<id>.
+// A person, as a PAGE, at #/u/<id>.
 //
 // The existing profile is a card in a modal: name, pronouns, a presence dot, the
 // roles you happen to share. That answers "who just said that" and stops. In an

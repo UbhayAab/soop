@@ -1,4 +1,4 @@
-﻿// The UI kit and the extension registry. Feature modules never touch the shell
+// The UI kit and the extension registry. Feature modules never touch the shell
 // markup directly - they register through here, so features can be added in
 // parallel without colliding.
 import { $, el, esc } from './util.js';

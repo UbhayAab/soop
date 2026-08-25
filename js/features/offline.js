@@ -1,4 +1,4 @@
-﻿// Offline resilience: a durable outbox, readable delivery state, and a
+// Offline resilience: a durable outbox, readable delivery state, and a
 // connection strip that speaks plain language.
 //
 // The deployment this is written for is Android phones on Indian mobile data in

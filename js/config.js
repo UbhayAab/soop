@@ -1,4 +1,4 @@
-﻿// Build-time config. Only client-safe values live here: the project URL and the
+// Build-time config. Only client-safe values live here: the project URL and the
 // publishable (anon) key. The secret key never reaches the browser.
 export const SUPABASE_URL = 'https://ybddogqphinruyunnuwx.supabase.co';
 export const PUBLISHABLE = 'sb_publishable_5gyvKj8AtZeXGDWVLYg3VA_Uwh4T4RD';

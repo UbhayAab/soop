@@ -1,4 +1,4 @@
-﻿// Media: upload through the mint-upload edge function, inline render, and an
+// Media: upload through the mint-upload edge function, inline render, and an
 // in-app viewer. The hard rule for this product: tapping media NEVER hands off to
 // another app or another tab. Everything renders in-page.
 import { SUPABASE_URL, PUBLISHABLE, MAX_UPLOAD_BYTES } from '../config.js';

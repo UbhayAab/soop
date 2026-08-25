@@ -1,4 +1,4 @@
-﻿// TURN credentials for voice rooms.
+// TURN credentials for voice rooms.
 //
 // Cloudflare moved TURN credential generation to an API-call model: a long-
 // lived TURN KEY is created once (dashboard or /calls/turn_keys), and short-

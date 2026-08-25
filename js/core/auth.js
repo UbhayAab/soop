@@ -1,4 +1,4 @@
-﻿// Auth: email one-time-code as the real path, guest as the zero-friction path.
+// Auth: email one-time-code as the real path, guest as the zero-friction path.
 // The OTP screen is a state machine (idle -> sent -> verifying) with a resend
 // cooldown, because a code screen that silently does nothing is the fastest way
 // to lose someone at the door.

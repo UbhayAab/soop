@@ -1,4 +1,4 @@
-﻿// Code snippets: write once, keep it, drop it into any conversation.
+// Code snippets: write once, keep it, drop it into any conversation.
 //
 // The posted message carries the code itself in a fenced block, not just a link.
 // get_snippet is owner-scoped on the server, so a bare link would open for the

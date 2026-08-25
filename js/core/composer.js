@@ -1,4 +1,4 @@
-﻿// The composer: autocomplete (@people, #channels, :emoji, /commands), attachments,
+// The composer: autocomplete (@people, #channels, :emoji, /commands), attachments,
 // server-synced drafts, typing broadcast, and optimistic send.
 import { api, table } from '../api.js';
 import { store, bus, nameOf } from '../store.js';

@@ -97,14 +97,16 @@ async function main() {
       i = j;
     }
 
-    if (notes.length) {
+    if (notes.length || (bom && APPLY)) {
       totalFiles++;
       totalRuns += notes.length;
-      console.log(`\n${APPLY ? '[fix]' : '[would fix]'} ${file} (${notes.length} runs)`);
-      for (const n of notes.slice(0, 12)) {
-        console.log(`  L${n.line}: ${JSON.stringify(n.from)} -> ${JSON.stringify(n.to)}`);
+      if (notes.length) {
+        console.log(`\n${APPLY ? '[fix]' : '[would fix]'} ${file} (${notes.length} runs)`);
+        for (const n of notes.slice(0, 12)) {
+          console.log(`  L${n.line}: ${JSON.stringify(n.from)} -> ${JSON.stringify(n.to)}`);
+        }
+        if (notes.length > 12) console.log(`  ... ${notes.length - 12} more`);
       }
-      if (notes.length > 12) console.log(`  ... ${notes.length - 12} more`);
       if (APPLY) {
         // Strip a leading BOM too: it is the same writer-class damage and no
         // file in this repo needs one.

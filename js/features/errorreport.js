@@ -1,4 +1,4 @@
-﻿// Somewhere for a broken screen to be reported from.
+// Somewhere for a broken screen to be reported from.
 //
 // For four days the only channel was somebody describing a blank screen over
 // WhatsApp, and every one of those took a round of questions to place: which

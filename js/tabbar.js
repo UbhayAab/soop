@@ -1,4 +1,4 @@
-﻿// Mobile bottom tab bar. Slack's phone shell keeps Home / DMs / Activity one
+// Mobile bottom tab bar. Slack's phone shell keeps Home / DMs / Activity one
 // thumb away; Dek buried everything behind a hamburger, which the gap matrix
 // ranked the number-one week-one trust killer. This module adds the bar, wires
 // each tab to machinery that already exists (openChannel, dm:request,

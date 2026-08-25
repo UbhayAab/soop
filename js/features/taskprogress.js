@@ -1,4 +1,4 @@
-﻿// Saying how a task is going, and saying what is in the way.
+// Saying how a task is going, and saying what is in the way.
 //
 // The task system already has states, and a state change is a fine record of
 // what happened but a poor record of WHY. "Blocked" with one mutable note cannot

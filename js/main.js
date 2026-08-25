@@ -1,4 +1,4 @@
-﻿// Bootstrap: sign in, load the Space, wire the shell, register features.
+// Bootstrap: sign in, load the Space, wire the shell, register features.
 import { sb, session } from './sb.js';
 import { api, tryRpc } from './api.js';
 import { store, bus, nameOf } from './store.js';

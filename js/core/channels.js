@@ -1,4 +1,4 @@
-﻿// Channel list (categories, text, voice, DMs) and the open-channel lifecycle:
+// Channel list (categories, text, voice, DMs) and the open-channel lifecycle:
 // load a page, subscribe to realtime, page upward on scroll, reconcile any
 // broadcast the at-most-once transport dropped.
 import { sb, subscribe, unsubscribe } from '../sb.js';
