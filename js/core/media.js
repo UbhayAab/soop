@@ -258,19 +258,33 @@ export async function mediaUrls(keys) {
   if (!keys || keys.length === 0) return Promise.resolve([]);
   const persisted = {};
   const toFetch = new Set(keys);
+  // L1 first: anything the memory map holds (including known-missing keys,
+  // which the tail stores as null) never touches disk or wire.
+  for (const key of keys) {
+    if (urlCache.has(key)) {
+      persisted[key] = urlCache.get(key);
+      toFetch.delete(key);
+    }
+  }
+  // L2 second, awaited per key: these gets used to be fire-and-forget, so
+  // missing[] below was computed before any onsuccess ran and the read side
+  // of this cache could never answer, making every batch call refetch all
+  // keys even straight after a reload.
   const db = await urlDb();
-  if (db) {
-    for (const key of keys) {
-      const rq = db.transaction(URL_STORE).objectStore(URL_STORE).get(key);
+  if (db && toFetch.size) {
+    await Promise.all([...toFetch].map((key) => new Promise((res) => {
+      let rq;
+      try { rq = db.transaction(URL_STORE).objectStore(URL_STORE).get(key); } catch { return res(); }
       rq.onsuccess = () => {
         const v = rq.result;
         if (v && v.exp > Date.now()) {
           persisted[key] = v.url;
           toFetch.delete(key);
         }
+        res();
       };
-      rq.onerror = () => {};
-    }
+      rq.onerror = () => res();
+    })));
   }
   const missing = [...toFetch];
   if (!missing.length) {
