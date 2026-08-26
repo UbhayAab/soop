@@ -67,7 +67,6 @@
         ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
         : c;
       document.documentElement.setAttribute('data-theme', r);
-      document.documentElement.setAttribute('data-theme-choice', c);
     } catch (e) {
       document.documentElement.setAttribute('data-theme', 'dark');
     }
