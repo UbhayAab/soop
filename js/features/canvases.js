@@ -61,6 +61,20 @@ const posOf = (b) => Number(b?.position ?? 0);
 const sigOf = (b) => `${b.position}|${b.checked}|${b.updated_at}`;
 
 // ------------------------------------------------------------------ styles
+// .cv-pre carried #0d1017, a near-black picked back when dark was the only
+// theme. On a light theme the block kept that near-black while the theme turned
+// the code inside it dark too, so a code block in a canvas was one solid slab
+// of unreadable. It reads --c-code-bg now, which every scheme states for itself,
+// and no rule below asks which theme is on - only the tokens, which resolve
+// from <html data-scheme> however many themes there turn out to be.
+//
+// The rest of this block referenced --line, --accent, --panel2, --faint and
+// --dim, which are not tokens. panels.css re-points those names, but only under
+// #panelContent and a few sibling roots, and ui.modal() appends the editor to
+// document.body - so inside the canvas modal every one of them was undefined
+// and the declaration around it computed to `unset`. That is why a canvas block
+// had no hover outline, the title no focus ring and the placeholder no dimming,
+// in every theme including dark.
 function injectStyles() {
   if (document.getElementById('cv-styles')) return;
   const s = el('style');
@@ -69,32 +83,34 @@ function injectStyles() {
 .cv-new{width:100%;margin:0 0 10px}
 .cv-row b{display:block;margin-bottom:2px}
 .cv-modal .modal{max-width:min(900px,94vw)}
-.cv-title{background:transparent;border:1px solid transparent;font-weight:700;font-size:16px;
-  padding:4px 7px;width:100%}
-.cv-title:hover{border-color:var(--line)}
-.cv-title:focus{border-color:var(--accent);background:var(--panel2)}
+.cv-title{background:transparent;border:var(--bw) solid transparent;font-weight:var(--t-bold);
+  font-size:var(--t-lg);padding:4px 7px;width:100%}
+.cv-title:hover{border-color:var(--c-border)}
+.cv-title:focus{border-color:var(--c-accent);background:var(--c-surface-2)}
 .cv-blocks{display:flex;flex-direction:column;gap:1px}
-.cv-block{display:flex;gap:6px;align-items:flex-start;border:1px solid transparent;
-  border-radius:8px;padding:2px 4px 2px 6px}
-.cv-block:hover{border-color:var(--line)}
+.cv-block{display:flex;gap:6px;align-items:flex-start;border:var(--bw) solid transparent;
+  border-radius:var(--r-md);padding:2px 4px 2px 6px}
+.cv-block:hover{border-color:var(--c-border)}
 .cv-main{flex:1;min-width:0}
-.cv-view{padding:5px 6px;border-radius:6px;cursor:text;min-height:28px}
-.cv-view:hover{background:var(--panel2)}
-.cv-ph{color:var(--faint)}
+.cv-view{padding:5px 6px;border-radius:var(--r-sm);cursor:text;min-height:28px}
+.cv-view:hover{background:var(--c-surface-2)}
+.cv-ph{color:var(--c-text-2)}
 .cv-edit{resize:none;overflow:hidden;min-height:34px;padding:5px 6px}
-.cv-heading .cv-view,.cv-heading .cv-edit{font-size:19px;font-weight:700;line-height:1.4}
-.cv-code .cv-edit{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px}
-.cv-pre{background:#0d1017;border:1px solid var(--line);border-radius:8px;padding:10px 12px;
-  margin:0;overflow-x:auto;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px}
-.cv-lang{width:120px;font-size:12px;padding:3px 8px;margin-bottom:5px}
+.cv-heading .cv-view,.cv-heading .cv-edit{font-size:var(--t-xl);font-weight:var(--t-bold);
+  line-height:var(--t-snug)}
+.cv-code .cv-edit{font-family:var(--t-mono);font-size:var(--t-sm)}
+.cv-pre{background:var(--c-code-bg);border:var(--bw) solid var(--c-border);
+  border-radius:var(--r-md);padding:10px 12px;margin:0;overflow-x:auto;
+  font-family:var(--t-mono);font-size:var(--t-sm)}
+.cv-lang{width:120px;font-size:var(--t-sm);padding:3px 8px;margin-bottom:5px}
 .cv-check{width:auto;margin:11px 0 0;flex:none}
-.cv-done .cv-view{text-decoration:line-through;color:var(--dim)}
-.cv-hr{border:none;border-top:1px solid var(--line);margin:12px 0;width:100%}
+.cv-done .cv-view{text-decoration:line-through;color:var(--c-text-2)}
+.cv-hr{border:none;border-top:var(--bw) solid var(--c-border);margin:12px 0;width:100%}
 .cv-tools{display:flex;opacity:0;flex:none}
 .cv-block:hover .cv-tools,.cv-block:focus-within .cv-tools{opacity:1}
-.cv-add{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);flex-wrap:wrap}
+.cv-add{margin-top:14px;padding-top:12px;border-top:var(--bw) solid var(--c-border);flex-wrap:wrap}
 .cv-type{width:auto}
-.cv-status{font-size:11.5px;margin-top:10px}`;
+.cv-status{font-size:var(--t-xs);margin-top:10px}`;
   document.head.appendChild(s);
 }
 

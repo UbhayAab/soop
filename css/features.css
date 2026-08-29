@@ -1849,7 +1849,8 @@
    the tokens, but a scanner wants dark modules on a light ground with real
    contrast, and a dark-theme QR is a code that people hold up to a camera and
    then blame themselves when it will not read. So the card paints its own white
-   and keeps it in all three themes. */
+   and keeps it under every theme and both schemes - this is one of the few
+   places where not following the theme switch is the correct behaviour. */
 :root .oshare { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 :root .oshare-load,
 :root .oshare-err { padding: 28px 8px; text-align: center; color: var(--c-text-2); font-size: 13px; }
@@ -1877,7 +1878,7 @@
 :root .oshare-url {
   flex: 1 1 auto; min-width: 0;
   font-size: 12px;
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-family: var(--t-mono);
   padding: 0 10px; height: 38px;
   border-radius: var(--r-md, 8px);
   border: var(--bw) solid var(--c-border);

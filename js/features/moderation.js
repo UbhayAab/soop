@@ -12,27 +12,48 @@ import { $, el, esc, fmt, plain, relTime } from '../util.js';
 import { icon } from '../icons.js';
 
 const STYLE_ID = 'mod-style';
+// Five colours in here were dark-only literals from the days when dark was the
+// only theme: the block chip (#31191a/#ff9a8f), the flag chip (#3a2f12/#e0a44a)
+// and the read-only strip (#5a2a24/#31191a/#ff9a8f). On any light theme they
+// paint a near-black maroon or olive behind text the theme has already turned
+// dark, which is the read-only notice above the composer going unreadable at
+// exactly the moment it has something to say. They come from the danger and
+// warn tokens now, so they follow the resolved scheme rather than one theme's
+// idea of a background. Nothing keys on a theme id: the tokens do that work.
+//
+// The legacy names (--faint, --line, --panel2, --panel3, --dim) are not tokens
+// either. They only resolve because panels.css re-points them under
+// #panelContent and .mod-note as a compatibility shim, which is a shim this
+// file no longer needs to lean on.
 const STYLE = `
 .mod-sec{margin-bottom:16px}
-.mod-sec .sec{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:10.5px;
-  text-transform:uppercase;letter-spacing:.6px;color:var(--faint)}
+.mod-sec .sec{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:var(--t-2xs);
+  text-transform:uppercase;letter-spacing:var(--t-track-caps);color:var(--c-text-2)}
 .mod-sec .sec .sp{flex:1}
 .mod-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
-.mod-line{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line)}
+.mod-line{display:flex;align-items:center;gap:8px;padding:7px 2px;
+  border-bottom:var(--bw) solid var(--c-border)}
 .mod-line .sp{flex:1}
-.mod-pat{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12.5px;
-  background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:1px 6px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%}
-.mod-kind{font-size:10px;font-weight:800;letter-spacing:.4px;padding:1px 6px;border-radius:5px;
-  background:var(--panel3);color:var(--dim)}
-.mod-kind.block{background:#31191a;color:#ff9a8f}
-.mod-kind.flag{background:#3a2f12;color:#e0a44a}
-.mod-quote{border-left:2px solid var(--line);padding:2px 9px;margin:5px 0 0;color:var(--dim);font-size:13px}
+.mod-pat{font-family:var(--t-mono);font-size:var(--t-sm);
+  background:var(--c-surface-2);border:var(--bw) solid var(--c-border);border-radius:var(--r-sm);
+  padding:1px 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%}
+.mod-kind{font-size:var(--t-2xs);font-weight:var(--t-black);letter-spacing:var(--t-track-caps);
+  padding:1px 6px;border-radius:var(--r-xs);background:var(--c-surface-3);color:var(--c-text-2)}
+.mod-kind.block{background:var(--c-danger-quiet);color:var(--c-danger)}
+.mod-kind.flag{background:var(--c-warn-quiet);color:var(--c-warn)}
+.mod-quote{border-left:2px solid var(--c-border);padding:2px 9px;margin:5px 0 0;
+  color:var(--c-text-2);font-size:var(--t-sm)}
 .mod-ctl{display:flex;align-items:center;gap:8px;margin-top:7px;flex-wrap:wrap}
 .mod-ctl select{width:auto;min-width:150px}
-.mod-note{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);
-  background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:4px 10px;margin-bottom:6px}
-.mod-note.mod-lock{border-color:#5a2a24;background:#31191a;color:#ff9a8f}
+.mod-note{display:flex;align-items:center;gap:8px;font-size:var(--t-sm);color:var(--c-text-2);
+  background:var(--c-surface-2);border:var(--bw) solid var(--c-border);border-radius:var(--r-md);
+  padding:4px 10px;margin-bottom:6px}
+/* The lock border is danger mixed INTO --c-border rather than into transparency:
+   the strip sits on the composer bar, and a transparent mix would let the bar
+   show through and give a light theme a border barely distinguishable from the
+   plain note above it. */
+.mod-note.mod-lock{border-color:color-mix(in srgb, var(--c-danger) 40%, var(--c-border));
+  background:var(--c-danger-quiet);color:var(--c-danger)}
 `;
 
 // 0 is "off"; the server rejects anything above 6 hours.

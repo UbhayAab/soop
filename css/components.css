@@ -824,107 +824,174 @@ input[type="radio"] {
    THEME PICKER
    ========================================================================= */
 
+/* Two axes, two controls: a grid of LOOKS, then brightness. They used to be one
+   list, which meant "aubergine" and "dark" competed for the same slot and you
+   could never have both. */
 .popover-theme {
-  width: min(320px, calc(100vw - var(--s-8)));
-  padding: var(--s-2);
+  width: min(392px, calc(100vw - var(--s-8)));
+  padding: var(--s-4);
 }
 
 .theme-picker {
   display: flex;
   flex-direction: column;
-  gap: var(--s-1);
+  gap: var(--s-3);
 }
 
-.theme-option {
+.tp-head {
+  color: var(--c-text-3);
+  font-size: var(--t-2xs);
+  font-weight: var(--t-semibold);
+  letter-spacing: var(--t-track-caps);
+  text-transform: uppercase;
+}
+.tp-head + * { margin-bottom: var(--s-3); }
+
+.look-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+  gap: var(--s-3);
+}
+
+.look-card {
   display: flex;
-  align-items: center;
-  gap: var(--s-5);
-  width: 100%;
-  min-height: 52px;
-  padding: var(--s-4);
-  border: none;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s-2);
+  position: relative;
+  padding: var(--s-3);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-md);
-  background: transparent;
+  background: var(--c-surface-2);
   color: var(--c-text);
-  font-weight: var(--t-normal);
   text-align: left;
   white-space: normal;
   box-shadow: none;
 }
-/* Same overlay caveat as the emoji tabs: surface-3 is the first surface that
-   separates from --c-overlay in every theme. */
-.theme-option:hover { background: var(--c-surface-3); }
-.theme-option:active { background: var(--c-selected); transform: none; }
-.theme-option.is-active { background: var(--c-selected); }
+.look-card:hover { border-color: var(--c-border-strong); background: var(--c-surface-3); }
+.look-card:active { transform: none; }
+.look-card.is-active {
+  border-color: var(--c-accent);
+  background: var(--c-accent-quiet);
+}
 
-/* A miniature of the app: a sidebar band, the conversation area, and the accent
-   sitting in it like a message. theme.js supplies the three fills inline. */
-.theme-swatch {
-  position: relative;
+/* The miniature is the whole point of this control. Three coloured dots told you
+   a theme contained a purple somewhere; this shows what the sidebar will feel
+   like next to the conversation, which is the thing actually being chosen. The
+   fills come from theme.js inline, because they are DATA about each look rather
+   than styling of this component - and critically they must NOT follow the
+   current theme, or every card would look identical to the active one. */
+.look-mini {
   display: flex;
-  /* A hairline of the swatch's own background shows between the two bands, so
-     the sidebar still reads as a separate pane in the dark theme, where the two
-     fills are only a few values apart. */
   gap: 1px;
-  flex: none;
-  width: 46px;
-  height: 32px;
+  height: 46px;
   overflow: hidden;
-  border: var(--bw) solid var(--c-border-strong);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-xs);
   background: var(--c-border-strong);
 }
-.theme-swatch i { display: block; height: 100%; }
-.theme-swatch i:nth-child(1) { width: 36%; }
-.theme-swatch i:nth-child(2) { flex: 1; }
-.theme-swatch i:nth-child(3) {
-  position: absolute;
-  right: 5px;
-  bottom: 6px;
-  width: 17px;
-  height: 5px;
-  border-radius: var(--r-full);
-}
-
-.theme-meta {
+.lm-rail { flex: 0 0 7px; }
+.lm-side {
+  flex: 0 0 30%;
   display: flex;
   flex-direction: column;
-  gap: var(--s-1);
-  flex: 1;
-  min-width: 0;
+  justify-content: flex-start;
+  gap: 3px;
+  padding: 5px 4px;
 }
-.theme-name {
+.lm-side i {
+  display: block;
+  height: 3px;
+  border-radius: var(--r-full);
+  /* The rows are the nav ground lightened, so they read on both a near-black and
+     a bone-coloured sidebar without theme.js having to supply a fourth colour. */
+  background: color-mix(in srgb, currentColor 0%, transparent);
+  box-shadow: inset 0 0 0 99px rgb(128 128 128 / 0.45);
+}
+.lm-side i:first-child { box-shadow: none; }
+.lm-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 6px 5px;
+}
+.lm-main b {
+  display: block;
+  height: 3px;
+  border-radius: var(--r-full);
+  background: rgb(128 128 128 / 0.4);
+}
+.lm-main b.lm-short { width: 55%; }
+
+.look-name {
   color: var(--c-text);
-  font-size: var(--t-base);
+  font-size: var(--t-sm);
   font-weight: var(--t-semibold);
   line-height: var(--t-tight);
 }
-.theme-hint {
+.look-hint {
   color: var(--c-text-2);
-  font-size: var(--t-xs);
+  font-size: var(--t-2xs);
   font-weight: var(--t-normal);
   line-height: var(--t-snug);
 }
 
-.theme-check {
-  flex: none;
-  width: 18px;
-  color: var(--c-accent);
-  font-size: var(--t-md);
+.look-tick {
+  position: absolute;
+  top: var(--s-3);
+  right: var(--s-3);
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: var(--r-full);
+  background: var(--c-accent);
+  color: var(--c-accent-text);
+  font-size: var(--t-2xs);
   font-weight: var(--t-bold);
-  text-align: center;
   opacity: 0;
   transform: scale(0.6);
   transition:
     opacity var(--m-base) var(--m-out),
     transform var(--m-base) var(--m-spring);
 }
-.theme-option.is-active .theme-check { opacity: 1; transform: none; }
+.look-card.is-active .look-tick { opacity: 1; transform: none; }
+
+/* Brightness: a segmented control, because the three options are exclusive and
+   equal, which a list of rows does not say. */
+.mode-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-1);
+  padding: var(--s-1);
+  border: var(--bw) solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
+}
+.mode-btn {
+  min-height: 32px;
+  padding: 0 var(--s-3);
+  border: none;
+  border-radius: calc(var(--r-md) - 2px);
+  background: transparent;
+  color: var(--c-text-2);
+  font-size: var(--t-xs);
+  font-weight: var(--t-medium);
+  box-shadow: none;
+}
+.mode-btn:hover { color: var(--c-text); background: var(--c-surface-3); }
+.mode-btn:active { transform: none; }
+.mode-btn.is-active {
+  background: var(--c-accent);
+  color: var(--c-accent-text);
+  font-weight: var(--t-semibold);
+}
 
 @media (hover: none) {
-  .theme-option { min-height: 56px; }
+  .mode-btn { min-height: 40px; }
 }
-:root[data-input="touch"] .theme-option { min-height: 56px; }
+:root[data-input="touch"] .mode-btn { min-height: 40px; }
 
 /* ============================================================================
    PICKERS AND THE QUICK SWITCHER

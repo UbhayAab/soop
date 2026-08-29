@@ -812,5 +812,28 @@ window.addEventListener('hashchange', () => {
 
 main().catch((e) => {
   console.error(e);
-  document.body.innerHTML = `<pre style="padding:20px;color:#f88">Dek failed to start:\n${esc(e.stack || e.message)}</pre>`;
+  // The screen somebody sees when everything else has already failed, so it may
+  // assume nothing. It set color:#f88 and no background at all, which is pale
+  // red on whatever the body happened to be: fine on the dark theme it was
+  // written against, effectively invisible on a light one. Painting BOTH ends of
+  // the pair is what makes it independent of which theme is on - and of whether
+  // any theme is on at all.
+  //
+  // Tokens are almost always there by this point, because index.html's pre-paint
+  // snippet stamps the theme onto <html> before a single module runs and
+  // tokens.css is a plain <link> in the head. Almost always is not good enough on
+  // the one screen whose whole job is to work when the rest of it did not, so
+  // every var() carries a literal fallback picked to contrast with the other one:
+  // if the stylesheet never arrived this is still dark red on white, rather than
+  // an unreadable message about why nothing works.
+  //
+  // min-height covers the viewport so the ground belongs to the error screen
+  // rather than to whatever was painted before it, and pre-wrap keeps a stack
+  // trace inside a 400px embed panel instead of pushing it off an edge nobody
+  // thinks to scroll.
+  document.body.innerHTML = '<pre style="margin:0;padding:20px;min-height:100vh;'
+    + 'white-space:pre-wrap;overflow-wrap:anywhere;'
+    + 'background:var(--c-bg, #ffffff);color:var(--c-danger, #b42318);'
+    + 'font-family:var(--t-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace)">'
+    + `Dek failed to start:\n${esc(e.stack || e.message)}</pre>`;
 });

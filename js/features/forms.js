@@ -469,19 +469,15 @@ function style() {
    lands at 3.16:1 on the dark accent. */
 .${CLS}-fill{min-height:36px;padding:var(--s-3) var(--s-6);border-radius:var(--r-md);border:0;
   font-weight:var(--t-semibold);background:var(--c-accent);color:var(--c-text-inverse)}
-/* polish.css section 16 carries
-     :root[data-theme="light"] .frm-fill { color: color-mix(in srgb, var(--c-accent) 88%, black) }
-   which reads .frm-fill as accent-coloured TEXT. It is a filled accent BUTTON, so
-   that rule paints dark blue on blue: measured 1.23:1 (light) and 1.20:1
-   (colorful), i.e. the primary call to action on a form is unreadable in the two
-   themes most likely to be used outdoors. That file belongs to another agent and
-   is loaded LAST (it is appended to <head> after every feature <style>), so equal
-   specificity loses on order - hence the element selector, which takes this to
-   (0,3,1) and wins without !important. The rule there should be deleted.
-   .ackl-confirm is built identically and has no such override, which is what made
-   the two buttons disagree. */
-:root[data-theme="light"] button.${CLS}-fill,
-:root[data-theme="colorful"] button.${CLS}-fill{color:var(--c-text-inverse)}
+/* There used to be a second, higher-specificity copy of that colour here, keyed
+   on :root[data-theme="light"] and :root[data-theme="colorful"], purely to beat
+   a polish.css rule that read .frm-fill as accent-coloured TEXT and painted dark
+   blue on blue - 1.23:1, the primary action on every form unreadable. That rule
+   has been deleted at the source, so the override is redundant and gone with it,
+   and the two enumerated theme ids go with it too: they named the light looks
+   that existed at the time, so the defence had already stopped covering the
+   themes added since. .ackl-confirm is built identically and never carried the
+   override, which is what made the two buttons disagree in the first place. */
 .${CLS}-done{display:inline-flex;align-items:center;gap:var(--s-2);
   color:var(--c-text-2);font-size:var(--t-sm);font-weight:var(--t-semibold)}
 .${CLS}-done svg{width:15px;height:15px;color:var(--c-success)}

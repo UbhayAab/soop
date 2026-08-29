@@ -133,6 +133,22 @@ export const hasIcon = (name) => !!ICONS[name];
 //
 // The warmth is inherited deliberately - Redtree is the parent brand, and the
 // family resemblance is worth keeping even when the shape is not.
+//
+// THE MARK DOES NOT FOLLOW THE THEME, AND THAT IS THE FIX. The plate under it
+// used to be fill="var(--c-nav-bg, #1a1030)" while the bubble sitting on top of
+// the plate stayed a literal #fff2e8. That holds only while every theme happens
+// to have a dark nav ground: the moment a look ships a pale one, the mark paints
+// a near-white bubble on a near-white plate and disappears off the sign-in card
+// with nothing on screen to say why. Half of the mark followed the theme and the
+// other half did not, which is the bug rather than the styling.
+//
+// It is pinned instead of tokenised because only two of the four colours here
+// could ever have been tokens - the gradient and the two dots are brand orange,
+// and there is no token that means "brand orange" - so a token-following plate
+// could only ever be half a fix. Every colour is a fixed literal, the plate
+// covers the whole viewBox, and the mark therefore carries its own ground: it
+// reads identically on all eight themes and on every theme added after them,
+// which is exactly what a brand asset is supposed to do.
 export function logoMark(size = 40) {
   return `<svg class="logo-mark" width="${size}" height="${size}" viewBox="0 0 48 48"
     aria-hidden="true" focusable="false">
@@ -143,7 +159,8 @@ export function logoMark(size = 40) {
         <stop offset="100%" stop-color="#d93b52"/>
       </linearGradient>
     </defs>
-    <rect x="1" y="1" width="46" height="46" rx="13" fill="var(--c-nav-bg, #1a1030)"/>
+    <!-- the plate: the mark's own ground, deliberately NOT var(--c-nav-bg) -->
+    <rect x="1" y="1" width="46" height="46" rx="13" fill="#1a1030"/>
     <!-- the room: a full bubble with its tail at the lower left -->
     <path d="M10 17a7 7 0 0 1 7-7h11a7 7 0 0 1 7 7v5a7 7 0 0 1-7 7h-8.6L13 34.4a1 1 0 0 1-1.6-.8V29a7 7 0 0 1-1.4-4.2z"
       fill="url(#dakMark)"/>

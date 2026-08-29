@@ -175,6 +175,45 @@ async function applyAuth(msg) {
 }
 
 // ------------------------------------------------------------------ inbound
+// Does the app know this theme id? The question is put to theme.js itself and
+// never answered from a copy of the list kept here. That copy is the bug this
+// pass exists to remove: the set went from three ids to eight, and a hardcoded
+// list silently refuses every id nobody remembered to add to it while looking,
+// in the diff, exactly like it is still doing its job. Nothing in this file
+// names a theme.
+//
+// Two independent ways to get the answer, neither trusting the other. First the
+// module's own predicates: the look and the resolved mode are separate axes now
+// and each exports the question for its own axis, which is authority rather than
+// inference and cannot drift out of step with the table. Failing that, any array
+// the module exports contributes its ids, which still covers a table exported
+// without predicates, in either the record or the bare-string shape.
+//
+// Both axes count as valid input because setTheme() takes either and routes it:
+// a host saying 'dark' means a mode, a host saying 'swiss' means a look, and the
+// bridge has documented the first pair since before the looks existed.
+//
+// Returns true, false, or null for "cannot tell" - which is the honest answer
+// when theme.js exports its table in a shape this cannot read, and is a bug on
+// this side of the bridge rather than something to punish a host for.
+function knowsTheme(mod, id) {
+  // isLegacyThemeValue is asked last and on purpose: it is how a host that has
+  // been sending a pre-rename id keeps working. theme.js owns the list of what
+  // those are, so no theme id is ever written down in this file.
+  const asks = [mod?.isLook, mod?.isMode, mod?.isLegacyThemeValue]
+    .filter((f) => typeof f === 'function');
+  if (asks.length) return asks.some((f) => { try { return !!f(id); } catch { return false; } });
+  const ids = new Set();
+  for (const val of Object.values(mod || {})) {
+    if (!Array.isArray(val)) continue;
+    for (const item of val) {
+      if (typeof item === 'string') ids.add(item);
+      else if (item && typeof item.id === 'string') ids.add(item.id);
+    }
+  }
+  return ids.size ? ids.has(id) : null;
+}
+
 async function onMessage(ev) {
   if (!embed.active) return;
   // All three checks matter. The source check pins the conversation to our own
@@ -254,14 +293,51 @@ async function onMessage(ev) {
       break;
 
     case 'theme':
+      // Host input, so it is checked like every other field on this bridge. It
+      // used to go straight into setTheme(), which writes the value onto
+      // <html data-theme> unexamined: a typo, or an id from a host integrated
+      // back when there were three of them, lands an attribute value nothing in
+      // the stylesheet matches. The panel then paints the fallback palette and
+      // there is nothing on screen, in the console or on the wire to say why -
+      // the host believes it set a theme and the person believes the app is
+      // broken.
+      //
+      // Refusal is reported back rather than swallowed, because the host is the
+      // only party that can fix a bad id, and it is the party that will never
+      // find out otherwise.
       if (msg.theme) {
-        import('./theme.js').then((m) => m.setTheme(msg.theme)).catch(() => {});
+        import('./theme.js').then((m) => {
+          const known = knowsTheme(m, msg.theme);
+          if (known === false) {
+            send('error', { where: 'theme', message: 'unknown theme: ' + String(msg.theme) });
+            return;
+          }
+          // Refuse only on a real no. A "cannot tell" still applies the value,
+          // because dropping every setTheme() a host makes would be a far worse
+          // failure than passing an unchecked id to a setter that ignores what
+          // it does not recognise - so warn where a developer will see it and
+          // behave as this branch always did.
+          if (known === null) console.warn('[Dek] no readable theme list in theme.js; applying', msg.theme, 'unchecked');
+          m.setTheme(msg.theme);
+        }).catch(() => { /* theme.js did not load; the person keeps their own theme */ });
       }
       break;
 
     case 'tokens':
-      // Per-host colour overrides. Only custom properties are accepted, so the
-      // worst a host can do is make its own panel ugly.
+      // Per-host overrides. Cosmetic for the colour tokens, load-bearing for the
+      // ones EMBED.md documents as such: --kb, the keyboard inset an iframe
+      // cannot measure for itself, and the --safe-* insets. Only custom
+      // properties are accepted, so the worst a host can do is make its own
+      // panel ugly.
+      //
+      // These land in documentElement.style, an inline declaration, which
+      // outranks every [data-theme] and [data-scheme] rule in the cascade. A
+      // token pushed here therefore wins, and goes on winning after the person
+      // switches theme, since no stylesheet can outrank it. That is the intended
+      // contract and not an oversight - a host asking for its own brand accent
+      // means it in every theme - but it is also why a host that pushes a
+      // hardcoded --c-bg or --c-text has quietly taken the light/dark switch
+      // away from the person sitting in front of the panel. Push what you own.
       if (msg.tokens && typeof msg.tokens === 'object') {
         for (const [k, v] of Object.entries(msg.tokens)) {
           if (/^--[a-z0-9-]+$/i.test(k) && typeof v === 'string' && v.length < 120) {
@@ -400,10 +476,18 @@ export function initEmbed() {
     embed.refused = true;
     const say = () => {
       document.documentElement.classList.add('embed-refused');
+      // base.css already paints every <a> in var(--c-accent), so on the ordinary
+      // path this changes nothing and only restates the house link colour. It is
+      // written inline because this is a refusal path: it has to stay legible in
+      // the run where the stylesheets did not arrive, and a bare <a> then falls
+      // back to the browser's own blue, which follows no theme and lands around
+      // 2:1 on a dark ground. The literal fallback carries that case for the same
+      // reason it does on the fatal screen in main.js, and the token in front of
+      // it keeps the link on the palette whenever the palette exists.
       document.body.innerHTML = '<div style="font:14px/1.6 system-ui;padding:24px;max-width:44ch">'
         + '<b>Dek will not run inside this page.</b><br>'
         + 'It is being shown in a frame on a site that is not set up to embed it. '
-        + '<a href="' + location.origin + location.pathname + '" target="_blank" rel="noopener">'
+        + '<a style="color:var(--c-accent, #1b5fcc)" href="' + location.origin + location.pathname + '" target="_blank" rel="noopener">'
         + 'Open Dek in its own tab</a>.</div>';
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', say);
