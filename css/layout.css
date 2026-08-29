@@ -714,6 +714,15 @@ section.msgs {
 }
 .sicon-off:hover { opacity: 0.72; }
 
+/* The same state one level up: a whole organisation counting down. Its heading
+   has to fade with the servers under it, or scheduling the deletion changes
+   nothing on this bar for seven days and the button reads as broken. */
+.sorg-label.sorg-off {
+  opacity: 0.42;
+  filter: grayscale(1);
+}
+.sorg-label.sorg-off:hover { opacity: 0.72; }
+
 /* Add a Space: an outline tile, never a filled one, so it stays subordinate. */
 .sicon.add {
   background: transparent;

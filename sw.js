@@ -16,7 +16,7 @@
 // (below), but the precached copy is still what wins the 3.5s race on a slow
 // phone, so without this bump the 41 installed clients would keep serving the old
 // bundle whenever the network was slow - which is the shape of 03f8074.
-const VERSION = 'dek-v20';
+const VERSION = 'dek-v21';
 const SHELL = VERSION + '-shell';
 const VENDOR = VERSION + '-vendor';
 
@@ -89,7 +89,7 @@ const SHELL_FILES = [
   // js/features/index.js; a stale entry here costs nothing (install skips 404s),
   // a missing one costs the feature on every offline cold start.
   ...['dmlist', 'polls', 'events', 'canvases', 'topics', 'forum', 'later',
-    'status', 'profile', 'profilepage', 'admin', 'orgadmin', 'moderation',
+    'status', 'profile', 'profilepage', 'admin', 'orgadmin', 'orgshare', 'moderation',
     'integrations', 'messageExtras', 'onboarding', 'roles', 'snippets',
     'bookmarks', 'notifications', 'shortcuts', 'ackloop', 'forms', 'tasks',
     'quicktask', 'taskprogress', 'orientation', 'activityReport', 'coordnav',
@@ -105,6 +105,11 @@ const SHELL_FILES = [
   // the feature still vanishes.
   './js/lib/asks.js',
   './js/lib/forecast.js',
+  // The QR encoder orgshare.js statically imports. It has to be in the shell:
+  // the whole reason it is hand-rolled rather than fetched is that the room
+  // where somebody holds a phone up to be scanned is a warehouse floor with no
+  // signal, and an uncached module there is a blank square.
+  './js/lib/qr.js',
   // Same shape: adminnav.js statically imports this support module.
   './js/features/people.js',
   // The last page of each channel is painted from here BEFORE the network is

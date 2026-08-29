@@ -1840,3 +1840,147 @@
   :root .orgdir-head { flex-wrap: wrap; }
   :root .orgdir-row { flex-wrap: wrap; }
 }
+
+/* ------------------------------------------------------------------ org share
+   The invite sheet. Reading order top to bottom is the order the actions are
+   actually used in: scan it, send it, copy it, and only then the settings.
+
+   The QR block is deliberately NOT theme-aware. Every other surface here follows
+   the tokens, but a scanner wants dark modules on a light ground with real
+   contrast, and a dark-theme QR is a code that people hold up to a camera and
+   then blame themselves when it will not read. So the card paints its own white
+   and keeps it in all three themes. */
+:root .oshare { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+:root .oshare-load,
+:root .oshare-err { padding: 28px 8px; text-align: center; color: var(--c-text-2); font-size: 13px; }
+:root .oshare-err { color: var(--c-danger); }
+
+:root .oshare-qrwrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+:root .oshare-qr {
+  background: #fff;
+  padding: 12px;
+  border-radius: var(--r-lg, 12px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  line-height: 0;
+}
+:root .oshare-qr svg { display: block; width: min(232px, 58vw); height: auto; }
+:root .oshare-scan {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--c-text-3);
+}
+:root .oshare-scan .ico { width: 15px; height: 15px; }
+
+/* The link row. The field is the wide half because the URL is what people check
+   before they send it; the button never wraps under it. */
+:root .oshare-linkrow { display: flex; gap: 8px; align-items: stretch; min-width: 0; }
+:root .oshare-url {
+  flex: 1 1 auto; min-width: 0;
+  font-size: 12px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  padding: 0 10px; height: 38px;
+  border-radius: var(--r-md, 8px);
+  border: 1px solid var(--c-border);
+  background: var(--c-surface-2);
+  color: var(--c-text-2);
+  text-overflow: ellipsis;
+}
+:root .oshare-copy {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 38px; padding: 0 14px;
+  border-radius: var(--r-md, 8px);
+  border: 1px solid transparent;
+  background: var(--c-accent); color: var(--c-accent-text);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+:root .oshare-copy:hover { background: var(--c-accent-hover); }
+:root .oshare-copy.is-done { background: var(--c-success); }
+:root .oshare-copy .ico { width: 16px; height: 16px; }
+
+/* Send row: equal-width chips so no single channel is privileged by size. The
+   WhatsApp one carries its brand colour because that is what makes it findable
+   in a glance, and it is the one that gets used. */
+:root .oshare-send { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+:root .oshare-chip {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  padding: 12px 6px;
+  border-radius: var(--r-md, 8px);
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text-2);
+  font-size: 12px; font-weight: 550; cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+:root .oshare-chip:hover { border-color: var(--c-border-strong); color: var(--c-text); }
+:root .oshare-chip .ico { width: 20px; height: 20px; }
+:root .oshare-wa { color: #25d366; }
+:root .oshare-wa:hover { border-color: #25d366; color: #25d366; }
+
+:root .oshare-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--c-text-2); }
+:root .oshare-small { font-size: 11px; }
+
+/* Folds. Closed by default: the whole point of the sheet is that the common
+   path needs no decisions. */
+:root .oshare-fold { border-top: 1px solid var(--c-border-subtle); padding-top: 12px; }
+:root .oshare-fold > summary {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 600; color: var(--c-text-2);
+  cursor: pointer; list-style: none; user-select: none;
+  min-height: 28px;
+}
+:root .oshare-fold > summary::-webkit-details-marker { display: none; }
+:root .oshare-fold > summary:hover { color: var(--c-text); }
+:root .oshare-fold > summary .ico { width: 16px; height: 16px; }
+:root .oshare-fold[open] > summary { margin-bottom: 10px; }
+
+:root .oshare-form { display: flex; flex-direction: column; gap: 10px; }
+:root .oshare-form label {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  font-size: 13px; color: var(--c-text-2);
+}
+:root .oshare-form select,
+:root .oshare-form input {
+  width: 148px; height: 34px; padding: 0 8px;
+  border-radius: var(--r-md, 8px);
+  border: 1px solid var(--c-border);
+  background: var(--c-surface-2); color: var(--c-text);
+  font-size: 13px;
+}
+:root .oshare-form > button { align-self: flex-start; }
+:root .oshare-form p { margin: 0; }
+
+:root .oshare-list { display: flex; flex-direction: column; gap: 2px; }
+:root .oshare-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: var(--r-md, 8px);
+}
+:root .oshare-row:hover { background: var(--c-hover); }
+:root .oshare-rowmain { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+:root .oshare-rowmain b { font-size: 13px; font-weight: 600; }
+/* A revoked or spent link is history, not an option. */
+:root .oshare-row.is-dead { opacity: 0.5; }
+:root .oshare-row.is-dead b { text-decoration: line-through; }
+
+@media (max-width: 520px) {
+  :root .oshare-linkrow { flex-wrap: wrap; }
+  :root .oshare-url { flex: 1 1 100%; }
+  :root .oshare-copy { flex: 1 1 100%; justify-content: center; }
+  :root .oshare-form label { flex-wrap: wrap; }
+  :root .oshare-form select,
+  :root .oshare-form input { width: 100%; }
+}
+
+/* The dead-link warning. Amber rather than red: the link is not broken, it just
+   leads somewhere empty, and the fix is one button away. It sits ABOVE the QR
+   because handing the code out is exactly what it is warning against. */
+:root .oshare-warn {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  padding: 12px 14px;
+  border-radius: var(--r-lg, 12px);
+  border: 1px solid var(--c-warn);
+  background: var(--c-warn-quiet);
+  font-size: 12px; line-height: 1.5; color: var(--c-text-2);
+}
+:root .oshare-warn b { font-size: 13px; color: var(--c-text); }
+:root .oshare-warn button { margin-top: 4px; }

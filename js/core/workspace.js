@@ -6,7 +6,7 @@ import { sb, subscribe } from '../sb.js';
 import { store, bus, hasPerm } from '../store.js';
 import { PERM } from '../config.js';
 import { $, el, esc, initials, hueOf, debounceLead } from '../util.js';
-import { toast, formModal, modal, confirmModal, contextMenu, renderHeaderButtons } from '../ui.js';
+import { toast, formModal, modal, confirmModal, typeToConfirm, contextMenu, renderHeaderButtons } from '../ui.js';
 import { renderChannels, openChannel, refreshUnread, lastChannelId } from './channels.js';
 import { embed, pinnedSpaceOf } from '../embed.js';
 
@@ -56,14 +56,27 @@ export function renderSpaceRail() {
   const placed = new Set();
   for (const o of orgs) {
     const mine = byOrg.get(o.org_id) || [];
+    // An org counting down to deletion has to LOOK different, for exactly the
+    // reason a dying Space does: scheduling the delete used to change nothing on
+    // this bar for seven days, so "I deleted it" and "it is still there" were the
+    // same screen and the button read as broken.
+    const dying = !!o.scheduled_delete_at;
+    // An org contributing none of my servers gets no heading and no separator -
+    // that furniture is what turned an org I had left into a ghost sitting on the
+    // rail with nothing under it. One tile is enough to get back in through.
+    const bare = mine.length === 0;
+    const why = dying ? ' (being deleted)' : bare ? ' (no servers you are in)' : '';
     // The label is what turns "five icons" into "these three are Jarurat Care".
     // Only worth drawing when the person is actually in more than one org.
-    if (orgs.length > 1) h += `<div class="sorg-label" title="${esc(o.name)}">${esc(initials(o.name))}</div>`;
+    if (orgs.length > 1 && !bare) {
+      h += `<div class="sorg-label${dying ? ' sorg-off' : ''}" data-org="${o.org_id}"
+        title="${esc(o.name + why)}">${esc(initials(o.name))}</div>`;
+    }
     for (const s of mine) { h += icon(s); placed.add(s.id); }
     // "in that org there can be multiple servers, which they can look into"
-    h += `<div class="sicon sorg-more" data-org="${o.org_id}"
-      title="Servers in ${esc(o.name)}">…</div>`;
-    if (orgs.length > 1) h += '<div class="sorg-sep"></div>';
+    h += `<div class="sicon sorg-more${dying || bare ? ' sicon-off' : ''}" data-org="${o.org_id}"
+      title="${esc((bare ? o.name : 'Servers in ' + o.name) + why)}">…</div>`;
+    if (orgs.length > 1 && !bare) h += '<div class="sorg-sep"></div>';
   }
   // A Space whose org this person is not a member of - the demo Space, or one
   // joined by a plain Space invite. Still theirs; just not under a heading.
@@ -102,9 +115,138 @@ export function renderSpaceRail() {
     n.addEventListener('click', (e) => { if (fired) { e.stopPropagation(); fired = false; } }, true);
   });
   r.querySelectorAll('[data-org]').forEach((n) => {
+    const orgOf = () => (store.orgs || []).find((o) => o.org_id === n.dataset.org);
     n.onclick = () => orgDirectory(n.dataset.org);
+    // The org tile had a left-click and nothing else, so leaving or deleting an
+    // organisation lived only at #/admin and the rail offered no way out of one
+    // at all. Same gesture pair the Space tiles use, for the same reason.
+    n.oncontextmenu = (e) => { e.preventDefault(); orgMenu(e, orgOf()); };
+    let timer = null;
+    let fired = false;
+    const cancel = () => { clearTimeout(timer); timer = null; };
+    n.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse') return;
+      fired = false;
+      timer = setTimeout(() => {
+        fired = true;
+        orgMenu({ clientX: e.clientX, clientY: e.clientY }, orgOf());
+      }, 500);
+    });
+    for (const evt of ['pointerup', 'pointercancel', 'pointerleave', 'pointermove']) {
+      n.addEventListener(evt, cancel);
+    }
+    n.addEventListener('click', (e) => { if (fired) { e.stopPropagation(); fired = false; } }, true);
   });
   r.querySelector('[data-add]').onclick = spaceChooser;
+}
+
+// Everything you can do to an ORGANISATION, on the organisation's own tile.
+//
+// Before this the tile answered one gesture - left click, open the directory -
+// and the two things people actually wanted from an org they regretted were
+// somewhere else entirely: leaving lived inside a Space's admin panel, deleting
+// lived on a separate page at #/admin. So an organisation you had left every
+// server of sat on the rail with no visible way to be rid of it, which is what
+// "the ghost of that organization still stays on my left bar" describes.
+export function orgMenu(ev, org) {
+  if (!org) return;
+  const admin = org.org_role === 'admin';
+  const dying = !!org.scheduled_delete_at;
+  const items = [
+    { label: 'Invite people to ' + org.name, onClick: () => orgInviteDialog(org.org_id) },
+    { label: 'Servers in ' + org.name, onClick: () => orgDirectory(org.org_id) },
+  ];
+  if (admin) {
+    items.push({
+      label: 'Manage organisation',
+      onClick: () => import('../features/orgadmin.js')
+        .then(({ openAdminPage }) => openAdminPage(org.org_id))
+        .catch(() => toast('The organisation console did not load', 'error')),
+    });
+  }
+  items.push('-');
+
+  if (dying) {
+    // The countdown is reversible right up until it is not, so the way back is
+    // the first thing offered, and finishing it early is the deliberate second.
+    items.push({
+      label: 'Cancel deletion',
+      onClick: async () => {
+        try {
+          await api.restoreOrganization(org.org_id);
+          await loadSpaces();
+          toast('Deletion cancelled. Every server is back.', 'success');
+        } catch (e) { toast(serverError(e), 'error'); }
+      },
+    });
+    if (admin) {
+      items.push({
+        label: 'Delete now',
+        danger: true,
+        onClick: async () => {
+          const ok = await confirmModal({
+            title: 'Finish deleting ' + org.name + ' now?',
+            body: 'This skips the rest of the seven days. Every server, channel, message and '
+                + 'file in it goes immediately, and nothing brings it back.',
+            confirmLabel: 'Delete now',
+            danger: true,
+          });
+          if (!ok) return;
+          try {
+            await api.purgeOrgNow(org.org_id);
+            await loadSpaces();
+            toast(org.name + ' is gone.', 'success');
+          } catch (e) { toast(serverError(e), 'error'); }
+        },
+      });
+    }
+  } else {
+    items.push({
+      label: 'Leave ' + org.name,
+      danger: true,
+      onClick: async () => {
+        const alone = org.spaces === 0 || org.my_spaces === 0;
+        const ok = await confirmModal({
+          title: 'Leave ' + org.name + '?',
+          body: alone
+            ? 'You lose your place in this organisation and it stops showing on your rail.'
+            : 'You leave every server in it too, and it stops showing on your rail.',
+          confirmLabel: 'Leave',
+          danger: true,
+        });
+        if (!ok) return;
+        try {
+          await api.leaveOrg(org.org_id);
+          await loadSpaces();
+          toast('You have left ' + org.name + '.', 'success');
+        } catch (e) { toast(serverError(e), 'error'); }
+      },
+    });
+    if (admin) {
+      items.push({
+        label: 'Delete ' + org.name,
+        danger: true,
+        onClick: async () => {
+          const ok = await typeToConfirm({
+            title: 'Delete ' + org.name,
+            body: `Everything in ${org.name} goes: every server, every channel, every message and `
+                + 'file, and everybody\'s place in it. It is scheduled for seven days out so you '
+                + 'can still stop it, and after that nothing brings it back.',
+            phrase: org.name,
+            confirmLabel: 'Schedule deletion',
+          });
+          if (!ok) return;
+          try {
+            const when = await api.deleteOrganization(org.org_id);
+            await loadSpaces();
+            toast(`Scheduled for ${new Date(when).toLocaleDateString()}. You can still cancel it.`,
+              'success');
+          } catch (e) { toast(serverError(e), 'error'); }
+        },
+      });
+    }
+  }
+  contextMenu(ev, items);
 }
 
 // Turn a raise from the server into a sentence. The leave path used to print
@@ -117,7 +259,12 @@ export function serverError(e) {
     return 'You are the only admin of this server, and the organisation has no admin either, '
          + 'so nobody could take it on after you. Hand it over to somebody first.';
   }
-  if (/last_admin/.test(m)) return 'You are the only admin left. Make somebody else an admin first.';
+  if (/last_admin/.test(m)) {
+    return 'You are the only admin, and other people are still in here. Make somebody else '
+         + 'an admin first, or delete the organisation instead.';
+  }
+  if (/not_a_member/.test(m)) return 'You are not in that organisation any more.';
+  if (/org_deleted/.test(m)) return 'That organisation is being deleted, so it takes no new people.';
   if (/not_in_server/.test(m)) return 'They are not in this server. Add them to it first.';
   if (/not_scheduled/.test(m)) return 'Schedule the deletion first.';
   if (/workspace_archived/.test(m)) return 'This server is archived, so it takes no new messages.';
@@ -315,10 +462,10 @@ export async function orgDirectory(orgId) {
               : '<span class="muted orgdir-locked">Ask to be added</span>'}
         </div>`).join('')
       || '<div class="empty">No servers yet. Make the first one.</div>'}</div>
-      ${canAdmin ? `<div class="orgdir-foot">
-        <button class="sm ghost" data-a="invite">Invite people to ${esc(org.name)}</button>
-        <button class="sm ghost" data-a="people">People and roles</button>
-      </div>` : ''}`;
+      <div class="orgdir-foot">
+        <button class="sm" data-a="invite">Invite people to ${esc(org?.name || 'this organisation')}</button>
+        ${canAdmin ? '<button class="sm ghost" data-a="people">People and roles</button>' : ''}
+      </div>`;
 
     box.querySelector('[data-a="new"]').onclick = () => { m.close(); createTeamSpaceDialog(orgId); };
     box.querySelector('[data-a="invite"]')?.addEventListener('click', () => { m.close(); orgInviteDialog(orgId); });
@@ -380,42 +527,24 @@ export async function createTeamSpaceDialog(orgId) {
 }
 
 // ------------------------------------------------------------------ org invite
+// The one door to the share sheet, kept at this name because the rail menu, the
+// servers directory and the + chooser all already call it.
+//
+// It used to BE the flow: a three-field form that asked for a role, a use cap
+// and an expiry before it would give you anything, then printed a URL in a
+// read-only input. Nobody sharing an organisation with the twenty-two people in
+// their sales area wants to answer three questions first, and none of those
+// three answers is one they had an opinion about. The sheet in features/orgshare
+// opens with a working link already made and puts the QR code first, because the
+// real gesture is holding a phone up in a room. Dynamic import so the QR encoder
+// is not in the boot path of a client that never opens it.
 export async function orgInviteDialog(orgId) {
-  const org = (store.orgs || []).find((o) => o.org_id === orgId);
-  const out = await formModal({
-    title: 'Invite people to ' + (org?.name || 'this organisation'),
-    note: 'This link joins the ORGANISATION, not one server. Whoever opens it can '
-        + 'then see every server in it and join the open ones.',
-    fields: [
-      { name: 'role', label: 'They join as', type: 'select', value: 'member',
-        options: [
-          { value: 'member', label: 'Member - can see the servers and make new ones' },
-          { value: 'admin', label: 'Admin - can also invite, and open any server' },
-        ] },
-      { name: 'uses', label: 'How many people may use it', type: 'number',
-        placeholder: 'leave blank for no limit' },
-      { name: 'expires', label: 'Expires after (days)', type: 'number',
-        placeholder: 'leave blank for no expiration' },
-    ],
-    submitLabel: 'Create link',
-  });
-  if (!out) return;
   try {
-    const expiresAt = out.expires != null ? new Date(Date.now() + 864e5 * out.expires).toISOString() : null;
-    const token = await api.rpc('create_org_invite', {
-      p_org: orgId,
-      p_role: out.role || 'member',
-      p_max_uses: out.uses ? +out.uses : null,
-      p_expires_at: expiresAt,
-    });
-    const link = location.origin + location.pathname + '#/join-org/' + token;
-    await navigator.clipboard?.writeText(link).catch(() => {});
-    const body = el('div');
-    body.innerHTML = `<p class="muted">Send this to the people you want in
-      <b>${esc(org?.name || 'this organisation')}</b>. It is copied already.</p>
-      <input class="wide" readonly value="${esc(link)}" />`;
-    modal({ title: 'Join link', body });
-  } catch (e) { toast(e.message || 'Could not make a link', 'error'); }
+    const { openShareSheet } = await import('../features/orgshare.js');
+    await openShareSheet(orgId);
+  } catch (e) {
+    toast(e?.message || 'Could not open the invite sheet', 'error');
+  }
 }
 
 // ------------------------------------------------------------------ org people
@@ -775,6 +904,12 @@ export async function spaceChooser() {
       <div class="cc-ico">🗂️</div><div><b>Browse ${esc(o.name)}</b>
       <div class="muted">${o.spaces} server${o.spaces === 1 ? '' : 's'} - see what exists and join.</div></div>
     </button>`).join('')}
+    ${orgs.filter((o) => !o.scheduled_delete_at).map((o) => `
+    <button class="chooser-card" data-inv="${o.org_id}">
+      <div class="cc-ico">✉️</div><div><b>Invite people to ${esc(o.name)}</b>
+      <div class="muted">A link that joins the organisation itself, so they land in every
+        open server at once instead of being added one at a time.</div></div>
+    </button>`).join('')}
     <button class="chooser-card" data-a="create">
       <div class="cc-ico">🏗️</div><div><b>Start a new organisation</b>
       <div class="muted">A separate organisation of your own, unrelated to the ones above.</div></div>
@@ -789,6 +924,9 @@ export async function spaceChooser() {
   });
   box.querySelectorAll('[data-dir]').forEach((n) => {
     n.onclick = () => { m.close(); orgDirectory(n.dataset.dir); };
+  });
+  box.querySelectorAll('[data-inv]').forEach((n) => {
+    n.onclick = () => { m.close(); orgInviteDialog(n.dataset.inv); };
   });
   box.querySelector('[data-a="create"]').onclick = () => { m.close(); createSpaceDialog(); };
   box.querySelector('[data-a="join"]').onclick = () => { m.close(); joinDialog(); };
