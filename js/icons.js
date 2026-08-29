@@ -86,6 +86,29 @@ export const ICONS = {
   arrowDown: P('M12 5v13') + P('m6.5 12.5 5.5 5.5 5.5-5.5'),
   logout: P('M15 8V6a1.5 1.5 0 0 0-1.5-1.5h-7A1.5 1.5 0 0 0 5 6v12a1.5 1.5 0 0 0 1.5 1.5h7A1.5 1.5 0 0 0 15 18v-2')
     + P('M19 12H9.5') + P('m16 9 3 3-3 3'),
+
+  // ---- sharing an organisation ----
+  // Two sheets, the front one offset. Deliberately not a clipboard: a clipboard
+  // reads as "paste" to about half of people, and this button only ever copies.
+  copy: P('M9 9V6.5A1.5 1.5 0 0 1 10.5 5h7A1.5 1.5 0 0 1 19 6.5v7a1.5 1.5 0 0 1-1.5 1.5H15')
+    + P('M13.5 9h-7A1.5 1.5 0 0 0 5 10.5v7A1.5 1.5 0 0 0 6.5 19h7a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 13.5 9z'),
+  // Three finder squares and a scatter of modules - the shape everybody already
+  // reads as "point your camera at this", without pretending to be a real code.
+  qr: P('M4.5 4.5h5v5h-5zM14.5 4.5h5v5h-5zM4.5 14.5h5v5h-5z')
+    + P('M14.5 14.5h2v2h-2zM17.5 17.5h2v2h-2zM14.5 19.5h1M19.5 14.5h0'),
+  // A closed envelope. The flap is a separate stroke so it stays legible at 20px.
+  mail: P('M4 7.5A1.5 1.5 0 0 1 5.5 6h13A1.5 1.5 0 0 1 20 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5z')
+    + P('m4.5 8 7.5 5 7.5-5'),
+  // The OS share affordance: a node with two branches leaving it.
+  share: `<circle cx="17.5" cy="6" r="2.5" fill="none" stroke="currentColor" stroke-width="1.75"/>`
+    + `<circle cx="6.5" cy="12" r="2.5" fill="none" stroke="currentColor" stroke-width="1.75"/>`
+    + `<circle cx="17.5" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="1.75"/>`
+    + P('m8.7 10.8 6.6-3.6m0 9.6-6.6-3.6'),
+  // WhatsApp's mark, filled rather than stroked, because that is the only form
+  // people recognise at a glance - and recognition is the entire job of this one
+  // button. Everything these workers already coordinate on is in that app, so
+  // the invite has to leave through it.
+  whatsapp: '<path fill="currentColor" d="M12.04 2.5a9.4 9.4 0 0 0-8.1 14.1L2.5 21.5l4.98-1.3a9.4 9.4 0 1 0 4.56-17.7m0 1.7a7.7 7.7 0 1 1-3.9 14.34l-.28-.17-2.95.77.79-2.88-.19-.3A7.7 7.7 0 0 1 12.04 4.2m-3.3 3.6c-.16 0-.42.06-.64.3-.22.24-.85.83-.85 2.02s.87 2.34.99 2.5c.12.16 1.7 2.72 4.19 3.7 2.07.82 2.49.66 2.94.62.45-.04 1.45-.59 1.66-1.17.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.46-.28s-1.45-.72-1.67-.8c-.22-.08-.39-.12-.55.12s-.63.8-.77.96c-.14.16-.28.18-.52.06a6.7 6.7 0 0 1-1.97-1.21 7.4 7.4 0 0 1-1.36-1.7c-.14-.24-.01-.37.11-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42s-.55-1.33-.75-1.82c-.2-.48-.4-.41-.55-.42z"/>',
 };
 
 // icon('search')            -> markup, sized by CSS

@@ -22,7 +22,9 @@
   },
   "homepage": "https://github.com/UbhayAab/soop#readme",
   "devDependencies": {
+    "jsqr": "^1.4.0",
     "playwright": "^1.62.1",
+    "pngjs": "^7.0.0",
     "wrangler": "^4.125.0"
   }
 }

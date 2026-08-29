@@ -141,6 +141,16 @@ export const api = {
   // not be deleted and there was nothing that deleted the organisation itself.
   deleteOrganization: (org) => rpc('delete_organization', { p_org: org }),
   restoreOrganization: (org) => rpc('restore_organization', { p_org: org }),
+  // The org half of purgeWorkspaceNow, and for the same reason: scheduling seven
+  // days out is right until the thing you scheduled is a typo you have to look at
+  // every day until it goes. Refuses unless the deletion is already scheduled, so
+  // typeToConfirm stays the only door in.
+  purgeOrgNow: (org) => rpc('purge_org_now', { p_org: org }),
+  // Who may walk into a server. There was no way to set this at all, which is
+  // why an organisation whose only server was invite-only had a join link that
+  // led nowhere and no button anywhere that fixed it.
+  setJoinPolicy: (ws, policy) =>
+    rpc('set_workspace_join_policy', { p_workspace: ws, p_policy: policy }),
 
   // ---------- who can do what (0073) ----------
   // The permission bits stay the mechanism; these are the sentences an admin

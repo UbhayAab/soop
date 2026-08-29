@@ -24,6 +24,10 @@ const FEATURES = [
   'admin',
   // The organisation console. A page at #/admin, not a panel.
   'orgadmin',
+  // The share sheet behind every "invite people" entry point. Not admin-only and
+  // deliberately not skipped in embed: bringing a colleague in is a member's
+  // action, not an operator's.
+  'orgshare',
   'moderation',
   'integrations',
   'messageExtras',
