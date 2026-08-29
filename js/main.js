@@ -421,6 +421,12 @@ function subscribeUser(uid) {
         // every recipient.
         coalescedUnread();
         flashTitle();
+        // Raise an actual notification. This event is the only DM signal that
+        // reaches a client which does not already have that conversation open,
+        // and until now it only nudged a badge and flashed the title - so a DM
+        // arriving while you were reading a channel, in another Space, or with
+        // the phone in your pocket told you nothing at all.
+        bus.emit('dm:new', p);
         if (p?.conversation_id && p.conversation_id === store.currentDM) {
           import('./core/dms.js').then(({ reconcileDM }) => reconcileDM?.());
         }

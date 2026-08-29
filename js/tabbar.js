@@ -97,7 +97,17 @@ export function initTabBar() {
   bus.on('spaces:badges', paint);
   bus.on('channel:open', () => { active = 'home'; paint(); });
   bus.on('dm:open', () => { active = 'dms'; paint(); });
-  bus.on('panel:close', paint);
+  // Recompute which tab is lit, do not just repaint the stale one. Closing a
+  // panel puts you back on whatever is behind it, and that is a different tab
+  // from the one you opened the panel with: tap DMs, tap the sheet's X, and you
+  // land on the channel while the bar still says DMs, because `active` was last
+  // written by the tap and nothing had reason to fire channel:open for a channel
+  // that was already open. store.currentDM is the only thing that actually knows
+  // where you are, so ask it.
+  bus.on('panel:close', () => {
+    active = store.currentDM ? 'dms' : 'home';
+    paint();
+  });
   bus.on('panel:open', ({ id }) => { if (id === 'activity' || id === 'later') { active = id; paint(); } });
   paint();
 }
