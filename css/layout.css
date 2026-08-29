@@ -1212,14 +1212,35 @@ body.nav-open #messages::after {
 
   #messages::after { content: ""; }
 
-  /* The right panel becomes a sheet over everything, with its own header as
-     the way back out. Absolute against #app, not fixed against nothing:
-     #app carries container-type, which already made it the containing block
-     for fixed descendants, so this only names honestly what was true by
-     side effect - and stops leaning on it. */
+  /* The right panel becomes a sheet over EVERYTHING, with its own header as the
+     way back out.
+
+     It did not. The rule said `position:absolute; inset:0` and reasoned that
+     #app's container-type made #app the containing block. Two things were wrong
+     with that. container-type establishes a containing block for FIXED
+     descendants, not absolute ones. And `main` above is `position: relative`, so
+     main was the containing block regardless - and main BEGINS BELOW the channel
+     bar. Measured on a 390px phone: the sheet landed at y=40 with the 40px
+     channel bar still painted above it.
+
+     What that looked like was two headers disagreeing with each other. Open a
+     DM, tap Activity, and the sheet said "Activity" while the bar above it still
+     said the name of the person whose conversation you had just left - and it
+     kept saying it on Later, and on every other tab, because that bar belongs to
+     the conversation behind the sheet and nothing had told it to go away.
+
+     `position: fixed` is the fix, and it is what this rule used to say. Making
+     #chat a containing block does not help: `main` is relative and is a NEARER
+     positioned ancestor, so it wins either way. Fixed is the one form of
+     positioning that ignores both of them - and #app's container-type really
+     does capture it, which is the thing the old comment was reaching for and
+     applied to the wrong keyword.
+
+     The tab bar is lifted above the sheet rather than covered, because it is the
+     way out and a sheet that hides its own navigation is a trap. */
   aside#panel,
   body.panel-open aside#panel {
-    position: absolute;
+    position: fixed;
     inset: 0;
     z-index: var(--z-panel);
     width: 100%;
@@ -1227,12 +1248,22 @@ body.nav-open #messages::after {
     background: var(--c-bg);
     animation: sheet-in var(--m-slow) var(--m-out);
   }
+  /* --header-h is 0px inside #chat on a phone: shell.css merges the top bar away
+     and moves the height onto --channelbar-h. So this calc resolved to the safe
+     area inset alone and the sheet's header collapsed to a sliver with its title
+     clipped through the middle. It was survivable while the sheet started below
+     the channel bar and borrowed it as a header; now that the sheet covers the
+     whole screen, its header is the ONLY header on screen and has to be real. */
   aside#panel > header {
-    height: calc(var(--header-h) + var(--safe-t));
+    height: calc(48px + var(--safe-t));
     padding-top: var(--safe-t);
+    flex: none;
   }
+  /* The tab bar now floats above the sheet, so the sheet's last row would sit
+     under it without this. --tabbar-h resolves to 0px wherever the tab bar is
+     force-hidden, so nothing reserves space for a bar that is not there. */
   aside#panel > .content {
-    padding: var(--s-5) var(--s-5) calc(var(--s-9) + var(--safe-b));
+    padding: var(--s-5) var(--s-5) calc(var(--s-9) + var(--safe-b) + var(--tabbar-h, 0px));
   }
 
   @keyframes sheet-in {

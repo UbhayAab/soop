@@ -619,8 +619,14 @@ button.cb-title {
     height: var(--tabbar-h);
     padding-bottom: var(--safe-b);
     background: var(--c-nav-bg);
-    border-top: var(--bw) solid var(--c-border);
-    z-index: calc(var(--z-sticky) + 5);
+    /* --c-nav-border, not --c-border: same CHROME RULE as the label colour
+       above. A content hairline on a deep nav ground is either invisible or a
+       bright scar, depending on the look. */
+    border-top: var(--bw) solid var(--c-nav-border);
+    /* Above the panel sheet, not under it. The sheet covers the whole of #chat
+       so that it can hide the channel bar behind it; the tab bar is the way back
+       out of the sheet, so it has to stay on top of it. */
+    z-index: calc(var(--z-panel) + 5);
   }
   .tabbar .tab {
     flex: 1 1 0;
@@ -632,12 +638,18 @@ button.cb-title {
     min-height: 44px;
     background: none;
     border: none;
-    color: var(--c-text-3);
-    font-size: 10px;
+    /* The CHROME RULE from the top of layout.css: anything sitting on
+       --c-nav-bg paints with the --c-nav-* family. This said --c-text-3 and
+       --c-accent, which are CONTENT tokens measured against the white message
+       area. On a look whose nav ground is a deep aubergine that is a grey meant
+       for white paper, laid on dark purple - the labels washed out and the
+       active tab lost its highlight entirely. */
+    color: var(--c-nav-text-2);
+    font-size: var(--t-2xs);
     cursor: pointer;
     position: relative;
   }
-  .tabbar .tab.on { color: var(--c-accent); }
+  .tabbar .tab.on { color: var(--c-nav-text-active); font-weight: var(--t-semibold); }
   .tabbar .tab-dot {
     position: absolute;
     top: 7px;
@@ -666,7 +678,9 @@ button.cb-title {
   }
   /* Keyboard parity: tabs are buttons; focus must be as visible as on desktop. */
   .tabbar .tab:focus-visible {
-    outline: 2px solid var(--c-accent);
+    /* The focus ring has to be findable ON the nav ground, so it takes the
+       nav family's brightest ink rather than the content accent. */
+    outline: 2px solid var(--c-nav-text-active);
     outline-offset: -2px;
     border-radius: var(--r-md);
   }
@@ -675,5 +689,9 @@ button.cb-title {
 @media (min-width: 861px) {
   .tabbar { display: none !important; }
 }
+/* Zero the height token alongside hiding it, or every surface that reserves
+   space for the tab bar reserves it for a bar that is not on screen. */
+html.embed-minimal,
+body.no-team { --tabbar-h: 0px; }
 html.embed-minimal .tabbar,
 body.no-team .tabbar { display: none !important; }
