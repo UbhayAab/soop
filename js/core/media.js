@@ -244,14 +244,21 @@ export async function mediaUrl(key) {
     body: JSON.stringify({ object_key: key }),
   });
   const j = await res.json().catch(() => ({}));
-  if (!res.ok || !j.url) return null;
-  urlCache.set(key, j.url);
+  // The deployed function answers { url } for a single key and { urls } for a
+  // batch. Both are accepted here because the copy of that function checked into
+  // supabase/functions/mint-download/index.ts is STALE - it returns { urls } for
+  // both, and has no authorisation at all. Whoever redeploys from that file will
+  // change this contract and open the bucket at the same time; accepting either
+  // shape means at least the faces keep working when they do.
+  const url = j.url || j.urls?.[key] || null;
+  if (!res.ok || !url) return null;
+  urlCache.set(key, url);
   // Store with real expiry from the edge function if provided.
   const exp = j.exp != null ? j.exp : Date.now() + URL_TTL_MS;
-  urlIdbSet(key, j.url, exp);
+  urlIdbSet(key, url, exp);
   // Drop the cache entry well before the real expiry.
   setTimeout(() => urlCache.delete(key), URL_TTL_MS);
-  return j.url;
+  return url;
 }
 
 export async function mediaUrls(keys) {
