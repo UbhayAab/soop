@@ -119,7 +119,10 @@
   opacity: 0.75;
 }
 /* The handful of actions still labelled with an emoji rather than icon() sit in
-   the same 17px column, so the list of labels stays on one left edge. */
+   the same 17px column, so the list of labels stays on one left edge. The
+   font-size here is sizing a glyph to that column rather than entering the
+   menu into a type hierarchy, and --t-base is both what the row's own label
+   uses and the ceiling the scale allows anything inside a control. */
 .ctx-item .ctx-emoji {
   width: 17px;
   flex: none;
@@ -467,7 +470,11 @@ aside#panel:not(.hidden) {
   /* --c-text-3 measures 2.90:1 on light and 3.27 on colorful at this size, so
      it fails AA for any text at all. Nothing in this file uses it for words. */
   color: var(--c-text-2);
-  font-size: var(--t-xs);
+  /* The second line of a two-line row, which is the supporting step. It is the
+     line that tells four people called Revlw96 apart, so it is not a timestamp
+     and should not have been sized like one. One step under the name above it,
+     which keeps the pair strictly ordered. */
+  font-size: var(--t-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -507,7 +514,9 @@ aside#panel:not(.hidden) {
    ========================================================================= */
 .ux-empty { gap: var(--s-4); }
 .ux-empty .ico { width: 26px; height: 26px; opacity: 0.4; }
-.ux-empty-how { color: var(--c-text-2); font-size: var(--t-xs); line-height: var(--t-loose); }
+/* The "here is how to fill it" line of an empty state - supporting text, which
+   is the step base.css already gives .empty for exactly this sentence. */
+.ux-empty-how { color: var(--c-text-2); font-size: var(--t-sm); line-height: var(--t-loose); }
 .ux-empty button { margin-top: var(--s-2); }
 
 /* Recent searches, and a starter that does not require knowing the operators. */
@@ -526,10 +535,12 @@ aside#panel:not(.hidden) {
   cursor: pointer;
 }
 .ux-chip:hover { background: var(--c-hover); color: var(--c-text); border-color: var(--c-border-strong); }
+/* Hints under a field, so the supporting step. Its <code> samples inherit
+   base.css's 0.9em and stay a shade under the sentence carrying them. */
 .ux-tips {
   margin-top: var(--s-5);
   color: var(--c-text-2);
-  font-size: var(--t-xs);
+  font-size: var(--t-sm);
 }
 .ux-tips summary { cursor: pointer; }
 .ux-tips code {
@@ -561,7 +572,10 @@ aside#panel:not(.hidden) {
   line-height: 1.5;
   resize: vertical;
 }
-.ux-edit-hint { color: var(--c-text-2); font-size: var(--t-xs); }
+/* A hint under a field. The textarea above it stays at --t-md because it
+   literally stands in for the message body it replaces - that is the one place
+   in these three files where the reading step is the correct answer. */
+.ux-edit-hint { color: var(--c-text-2); font-size: var(--t-sm); }
 .ux-edit-hint kbd { border-bottom-width: 1px; }
 
 
@@ -573,15 +587,30 @@ aside#panel:not(.hidden) {
    asterisks" is not an answer for a non-technical volunteer.
    ========================================================================= */
 /* Bold and italic are drawn as letters rather than icons, because a "B" is the
-   one formatting control every phone user already recognises. */
-.ux-fmt-b { font-size: var(--t-md); font-weight: var(--t-black); line-height: 1; }
+   one formatting control every phone user already recognises.
+
+   These four are the glyph INSIDE a composer tool button, so the font-size is
+   drawing a mark rather than setting a reading level - but the mark is still
+   sized off the type scale, and a control does not go above the interface step.
+   The quote was the worst of them at --t-lg: a button in the composer, set at
+   the step the scale keeps for the channel title, competing with the name of
+   the room it posts into. That is the same defect as the send arrow, and it is
+   corrected the same way.
+
+   Said plainly, because it is a real cost: a right double quote drawn at
+   --t-base is a small mark, since the glyph occupies about two fifths of its
+   em. The answer to that is an SVG, the way the list tool already went - not a
+   control promoted into the heading range. */
+.ux-fmt-b { font-size: var(--t-base); font-weight: var(--t-black); line-height: 1; }
 .ux-fmt-i {
-  font-size: var(--t-md);
+  font-size: var(--t-base);
   font-style: italic;
   font-family: Georgia, "Times New Roman", serif;
   line-height: 1;
 }
-.ux-fmt-q { font-size: var(--t-lg); font-weight: var(--t-bold); line-height: 0.7; }
+.ux-fmt-q { font-size: var(--t-base); font-weight: var(--t-bold); line-height: 0.7; }
+/* Left in place but no longer reachable: the list tool became LIST_ICON, an
+   SVG, so nothing in the app renders this span any more. */
 .ux-fmt-l { font-size: var(--t-xs); letter-spacing: 0.06em; line-height: 1; }
 #composerTools button.icon:has(.ux-fmt-b),
 #composerTools button.icon:has(.ux-fmt-i),

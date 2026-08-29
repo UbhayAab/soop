@@ -89,11 +89,19 @@ body .roles-root > input {
 /* ------------------------------------------------------------------ section headings
    Small, uppercase, wide-tracked. The one piece of chrome that tells you where
    you are in a long panel, so it is text-2 rather than text-3 - text-3 on a
-   panel surface lands at 3.7:1 and fails AA at this size. */
+   panel surface lands at 3.7:1 and fails AA at this size.
+
+   --t-xs, not --t-2xs. This names where you are in the panel, and --t-2xs is
+   the BADGE step - so a section header was being drawn at exactly the size of
+   the counter pill in the row underneath it, which is how a panel ends up with
+   no hierarchy at all. --t-xs is the step the scale reserves for tracked
+   uppercase labels and section headers. The caps, the tracking and the bold
+   weight are what put this above the rows it heads, not the pixel size; a
+   mixed-case sentence at --t-sm still reads as subordinate to it. */
 h4.sec {
   margin: var(--s-8) 0 var(--s-3);
   color: var(--c-text-2);
-  font-size: var(--t-2xs);
+  font-size: var(--t-xs);
   font-weight: var(--t-bold);
   letter-spacing: 0.07em;
   line-height: var(--t-tight);
@@ -139,10 +147,16 @@ body .admin-tabbody > h4.sec:first-child {
 }
 .result .avatar { flex: none; }
 
+/* The message itself - the whole reason the row is on screen - so it takes the
+   interface step rather than the supporting one, and the byline above it sits
+   two steps down at --t-xs. It deliberately stops BELOW --t-md: a search or
+   pin preview must never read as loud as the real message list. This is the
+   same step .later-item .body already uses in features.css, which is the same
+   thing rendered on another panel. */
 .result .body {
   margin-top: var(--s-2);
   color: var(--c-text);
-  font-size: var(--t-sm);
+  font-size: var(--t-base);
   line-height: var(--t-body);
   overflow-wrap: anywhere;
 }
@@ -167,6 +181,12 @@ body .admin-tabbody > h4.sec:first-child {
    ========================================================================= */
 .search-box { margin-bottom: var(--s-6); }
 
+/* "Try from:@name in:#channel" - a hint under a field, which the scale puts at
+   the supporting step, not at --t-xs where timestamps live. The operators
+   inside it are strings that have to be typed exactly, so they follow one step
+   under the sentence instead of sitting at the badge step, where a thing you
+   are being asked to read character by character was the smallest text in the
+   panel. */
 .search-hint {
   display: flex;
   align-items: center;
@@ -174,7 +194,7 @@ body .admin-tabbody > h4.sec:first-child {
   gap: var(--s-3);
   margin-top: var(--s-4);
   color: var(--c-text-2);
-  font-size: var(--t-xs);
+  font-size: var(--t-sm);
   line-height: var(--t-snug);
 }
 .search-hint code {
@@ -184,7 +204,7 @@ body .admin-tabbody > h4.sec:first-child {
   background: var(--c-surface-2);
   color: var(--c-text-2);
   font-family: var(--t-mono);
-  font-size: var(--t-2xs);
+  font-size: var(--t-xs);
   white-space: nowrap;
 }
 
@@ -362,10 +382,14 @@ body .admin-linkrow button { flex: none; }
 /* What the link actually does, said above the options rather than inside them.
    The old dialog expressed "one person only" as an empty number box labelled
    Max uses, which is a control, not a sentence, and which nobody filled in - so
-   every invite ever handed out was reusable by anyone it was forwarded to. */
+   every invite ever handed out was reusable by anyone it was forwarded to.
+
+   It is a sentence that carries the whole meaning of the feature, so it takes
+   the supporting step with every other hint in the app rather than the
+   timestamp step it was written at. */
 .invite-note {
   margin: var(--s-3) var(--s-1) var(--s-5);
-  font-size: var(--t-xs);
+  font-size: var(--t-sm);
   line-height: var(--t-loose);
 }
 .invite-note b { color: var(--c-text); }
@@ -431,7 +455,13 @@ body .admin-linkrow button { flex: none; }
    .icon as a 32px square with no padding - so a six-letter word rendered as
    naked text spilling out of an invisible box, with a 32px tap target under it.
    Only this one instance is corrected, and it is given the same quiet outline
-   the admin console's Revoke already has, so the two lists of invites agree. */
+   the admin console's Revoke already has, so the two lists of invites agree.
+
+   Its font-size stays, and that is not an oversight. The rule that an icon-only
+   button must not set a font-size at all does not reach this one: it is the one
+   button.icon in the app that is not icon-only, because it holds a word. --t-sm
+   is what components.css gives button.sm, which is what the admin console's
+   Revoke is, so the size is the thing keeping the two lists agreeing. */
 .inv-row button.icon {
   width: auto;
   height: auto;
@@ -499,10 +529,15 @@ body .admin-linkrow button { flex: none; }
   outline-offset: 2px;
 }
 .chooser-card > div { min-width: 0; }
+/* A card title in a list - and the card is a <button>, so it is chrome, and
+   chrome does not go above the interface step. --t-md is the message-body step:
+   at that size these two cards were set larger than the heading of the dialog
+   they sit inside. The blurb below stays one step down at --t-sm and at normal
+   weight, so the pair still reads unmistakably as title and subtitle. */
 .chooser-card b {
   display: block;
   color: var(--c-text);
-  font-size: var(--t-md);
+  font-size: var(--t-base);
   font-weight: var(--t-semibold);
   line-height: var(--t-tight);
 }
@@ -594,6 +629,11 @@ body .admin-tabs {
 }
 body .admin-tabs::-webkit-scrollbar { display: none; }
 
+/* --t-base: the step for a control with a word in it, and the ceiling the scale
+   allows any control. At --t-sm the console's only navigation was drawn at
+   exactly the size of the table rows and list lines it switches between, so
+   nothing on the surface said which of the two was the way around. The bar
+   scrolls sideways rather than wrapping, so the extra width costs nothing. */
 body .admin-tabs button {
   flex: none;
   min-height: 44px;
@@ -602,7 +642,7 @@ body .admin-tabs button {
   border-radius: 0;
   background: transparent;
   color: var(--c-text-2);
-  font-size: var(--t-sm);
+  font-size: var(--t-base);
   font-weight: var(--t-semibold);
   white-space: nowrap;
   box-shadow: inset 0 -2px 0 transparent;
@@ -642,10 +682,17 @@ body .admin-stat {
   border-radius: var(--r-lg);
   background: var(--c-surface-2);
 }
+/* The figure, and the loudest thing in the console body - but --t-3xl belongs
+   to the sign-in wordmark and to nothing else, and at that size four of these
+   in a row shouted over the panel header that names the screen they are on. A
+   heading has to stay strictly larger than what sits under it, so the figure
+   comes to rest a clear step below the panel header while staying four steps
+   above its own caption. The bold weight, the tabular figures and the negative
+   tracking carry the rest of the emphasis; they always did. */
 body .admin-stat b {
   display: block;
   color: var(--c-text);
-  font-size: var(--t-3xl);
+  font-size: var(--t-lg);
   font-weight: var(--t-bold);
   letter-spacing: -0.02em;
   line-height: 1.1;
@@ -680,6 +727,17 @@ body .admin-table {
   border-collapse: collapse;
   font-size: var(--t-sm);
 }
+/* A tracked uppercase column label, so it belongs at --t-xs with every other
+   label in the app and not at --t-2xs, which is the badge step - a column
+   heading has no business being drawn at the size of a counter pill.
+
+   It stays one step under the --t-sm cells it heads, and that is deliberate
+   rather than an oversight of the rule that a heading outranks its body. This
+   is a tracked all-caps label, not a prose heading: at --t-xs its cap height
+   already stands taller than the x-height of the mixed-case rows below, and the
+   bold weight and the 0.07em tracking finish the job. Setting it larger than
+   the data would widen six columns to make a label louder than the numbers
+   people came to read. */
 body .admin-table th {
   position: sticky;
   top: 0;
@@ -687,7 +745,7 @@ body .admin-table th {
   padding: var(--s-4) var(--s-5);
   background: var(--c-surface-2);
   color: var(--c-text-2);
-  font-size: var(--t-2xs);
+  font-size: var(--t-xs);
   font-weight: var(--t-bold);
   letter-spacing: 0.07em;
   text-align: left;
@@ -854,12 +912,14 @@ body .roles-head {
   gap: var(--s-4);
   margin: var(--s-8) 0 var(--s-3);
 }
+/* Same family as h4.sec above, and moved off the badge step for the same
+   reason: this is a section header, not a counter. */
 body .roles-head h4 {
   flex: 1;
   min-width: 0;
   margin: 0;
   color: var(--c-text-2);
-  font-size: var(--t-2xs);
+  font-size: var(--t-xs);
   font-weight: var(--t-bold);
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -930,6 +990,11 @@ body .roles-grid {
   gap: var(--s-3);
   margin: var(--s-3) 0 var(--s-2);
 }
+/* A labelled control row, which is the same kind of thing as a .member row and
+   takes the same step. At --t-sm a 44px row that a person has to read and
+   decide on was set at the size the panel uses for captions and second lines.
+   Nothing here is nowrap and the grid drops to one column under 860px, so the
+   longer permission names have somewhere to go. */
 body .roles-perm {
   display: flex;
   align-items: center;
@@ -940,7 +1005,7 @@ body .roles-perm {
   border-radius: var(--r-md);
   background: var(--c-surface-2);
   color: var(--c-text);
-  font-size: var(--t-sm);
+  font-size: var(--t-base);
   cursor: pointer;
   transition: background-color var(--m-fast) var(--m-ease),
               border-color var(--m-fast) var(--m-ease);
@@ -1019,6 +1084,10 @@ body .roles-pick {
 body .mod-sec { margin-bottom: var(--s-9); }
 body .mod-sec:last-child { margin-bottom: 0; }
 
+/* Section headers, so --t-xs with h4.sec and .roles-head h4 rather than the
+   badge step. The .mod-kind pills further down the same screen stay at --t-2xs,
+   and that difference is the point: a heading must not be the same size as the
+   chips inside the rows it heads. */
 body .mod-sec .sec,
 body .onb-sec .sec {
   display: flex;
@@ -1026,7 +1095,7 @@ body .onb-sec .sec {
   gap: var(--s-4);
   margin: 0 0 var(--s-3);
   color: var(--c-text-2);
-  font-size: var(--t-2xs);
+  font-size: var(--t-xs);
   font-weight: var(--t-bold);
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -1106,12 +1175,16 @@ body .mod-kind.flag {
   color: var(--c-text);
 }
 
+/* The message under review. It is the content of the row - the thing a
+   moderator opened this screen to read - so it outranks the reporter, the
+   handler and the timestamps around it instead of matching them. Same step as
+   .result .body above, which is the same job on the search panel. */
 body .mod-quote {
   margin: var(--s-3) 0 0;
   padding: var(--s-1) var(--s-5);
   border-left: 2px solid var(--c-border-strong);
   color: var(--c-text-2);
-  font-size: var(--t-sm);
+  font-size: var(--t-base);
   line-height: var(--t-body);
   overflow-wrap: anywhere;
 }
@@ -1162,7 +1235,13 @@ body .onb-sec { margin-bottom: var(--s-9); }
 body .onb-sec:last-child { margin-bottom: 0; }
 body .onb-line .rolechip { margin-left: 0; }
 
-/* The rules a Space makes you agree to, shown in the un-dismissable gate. */
+/* The rules a Space makes you agree to, shown in the un-dismissable gate.
+
+   --t-md, the reading step. This is the one block of prose in this file that a
+   person is required to actually read before they are allowed any further, so
+   it takes the step the scale gives to message bodies rather than the one it
+   gives to menu rows and buttons. The gate's own modal header stays a clear
+   two steps above it. */
 body .onb-rules {
   max-height: 46dvh;
   padding: var(--s-6);
@@ -1170,7 +1249,7 @@ body .onb-rules {
   border-radius: var(--r-lg);
   background: var(--c-surface-2);
   color: var(--c-text);
-  font-size: var(--t-base);
+  font-size: var(--t-md);
   line-height: var(--t-loose);
   overflow: auto;
   overscroll-behavior: contain;

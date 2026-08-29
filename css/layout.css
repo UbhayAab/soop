@@ -76,7 +76,12 @@
 }
 .authbrand-inner { max-width: 400px; margin: auto 0; }
 .authbrand .brand { margin-bottom: var(--s-6); }
-.authbrand .brand h1 { color: #f2f5f9; font-size: 30px; letter-spacing: -0.02em; }
+/* The sign-in wordmark, and the one place in the app entitled to the top step.
+   The size was a literal 30px, so the poster's wordmark was the single piece of
+   type a look could not resize - it happened to match --t-3xl on the default
+   scale and drifted on every other. The colour stays a literal on purpose; the
+   panel is a fixed poster, as the block comment above explains. */
+.authbrand .brand h1 { color: #f2f5f9; font-size: var(--t-3xl); letter-spacing: -0.02em; }
 .authbrand-line {
   font-size: var(--t-xl);
   line-height: var(--t-tight);
@@ -263,7 +268,10 @@
   text-align: left;
 }
 .noteam h2 {
-  font-size: var(--t-xl);
+  /* A whole-page title: this screen replaces the entire product for somebody
+     whose account belongs to nothing, so it takes the page step rather than the
+     over-the-app step that modals and panel headers use. */
+  font-size: var(--t-2xl);
   font-weight: var(--t-bold);
   color: var(--c-text);
   line-height: var(--t-snug);
@@ -309,7 +317,12 @@
   text-align: left;
 }
 .loadfail h2 {
-  font-size: var(--t-lg);
+  /* The same screen as .noteam above - a whole-page state with a headline and a
+     paragraph - so it takes the same step. --t-lg is the conversation-title
+     step and belongs to the channel bar; a full-page failure notice reading at
+     the size of a channel name is the shape of the problem this pass exists to
+     fix. */
+  font-size: var(--t-2xl);
   font-weight: var(--t-bold);
   color: var(--c-text);
   line-height: var(--t-snug);
@@ -452,7 +465,13 @@ section.msgs {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--c-nav-brand);
-  font-size: var(--t-md);
+  /* Chrome, so it may not sit at the message body's step: --t-md put the name
+     of the Space level with every sentence in the conversation. --t-base is
+     ordinary interface text, and it is what shell.css already states for the
+     same element - this copy is the fallback if that file is ever taken out,
+     and a fallback that disagrees is how one look ends up honoured in one place
+     and ignored in another. */
+  font-size: var(--t-base);
   font-weight: var(--t-bold);
   letter-spacing: -0.01em;
 }
@@ -647,7 +666,11 @@ section.msgs {
   border-radius: var(--r-xl);
   background: var(--c-nav-hover);
   color: var(--c-nav-text-active);
-  font-size: var(--t-md);
+  /* The rail is chrome and a tile is a control, so its initials cannot sit at
+     the message body's step - which is where --t-md put them. --t-base is the
+     ceiling for a control. The tile is identified by its tint and its indicator
+     bar first and by the letters second, so the step down costs little. */
+  font-size: var(--t-base);
   font-weight: var(--t-bold);
   letter-spacing: 0.02em;
   cursor: pointer;
@@ -737,7 +760,11 @@ section.msgs {
   background: transparent;
   border: 1px dashed color-mix(in srgb, var(--c-nav-text) 38%, transparent);
   color: var(--c-nav-text);
-  font-size: var(--t-xl);
+  /* The plus is icon artwork drawn with a character rather than an SVG, so it
+     is sized like an icon and not like type: --t-lg lands it at the same 16px
+     the real icons in the sidebar are drawn at. At --t-xl it was larger than
+     any icon in the app and the loudest glyph in the rail. */
+  font-size: var(--t-lg);
   font-weight: var(--t-normal);
 }
 .sicon.add::after,
@@ -850,7 +877,12 @@ section.msgs {
   padding: var(--s-2) 10px;
   border-radius: var(--r-md);
   color: var(--c-nav-text);
-  font-size: var(--t-md);
+  /* A navigation row, so it takes the ordinary interface step. At --t-md every
+     channel in the list was set at the same size as the messages inside it, and
+     the two steps are a single pixel apart on several looks, so nothing told
+     the reader which of the two surfaces was the content. reskin.css has been
+     holding .ch-name at --t-base on top of this; now the row agrees. */
+  font-size: var(--t-base);
   line-height: var(--t-tight);
   cursor: pointer;
   user-select: none;
@@ -956,7 +988,10 @@ section.msgs {
 
 .chan-add {
   color: var(--c-nav-text);
-  font-size: var(--t-sm);
+  /* A row in the same list as .chan above, so it is sized like one. It was a
+     step below the rows it sits with, which the touch block at the foot of this
+     file was already correcting back up - one rule, stated once, instead. */
+  font-size: var(--t-base);
 }
 .chan-add:hover { color: var(--c-nav-text-active); }
 
@@ -1031,7 +1066,11 @@ aside#panel > header > strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--t-md);
+  /* The title of a thing that opens OVER the app, which is the --t-xl step -
+     the same one modal and sheet headers take. At --t-md this header named the
+     panel in the same voice as the messages behind it, and on a phone, where
+     the panel is a full-screen sheet, it is the only header on the screen. */
+  font-size: var(--t-xl);
   font-weight: var(--t-semibold);
 }
 
@@ -1312,7 +1351,8 @@ body.nav-open #messages::after {
   #sidebar .chan { padding: var(--s-3) var(--s-4); }
   /* A section header collapses its group, so it is a control, not a caption. */
   #sidebar h3 { margin-top: var(--s-5); }
-  .chan-add { font-size: var(--t-base); }
+  /* .chan-add used to be raised to --t-base here. It is --t-base at every width
+     now, so the override has nothing left to say. */
 
   #topbar button.icon,
   /* Closing a full-screen sheet is the only way back out of it on a phone, so

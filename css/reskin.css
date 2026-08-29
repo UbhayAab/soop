@@ -102,7 +102,17 @@ textarea {
 }
 
 /* ---- channel bar: quieter chrome, stronger title ------------------------ */
-#channelbar .cb-title strong { font-size: var(--t-md); font-weight: var(--t-bold); }
+/* This is the winning declaration for the channel title - one id beats the two
+   classes shell.css names it with - so it is the line that decides how large
+   the heading over the conversation is. It said --t-md, which is the message
+   body's step: the bar named the channel at exactly the size of the sentences
+   underneath it, while the send button sat a step ABOVE both. --t-lg is the
+   conversation-title step, and it now clears everything else in this bar - the
+   topic and the members count at --t-sm, Invite at --t-sm, and the icon buttons
+   which no longer take a font-size at all.
+   The narrow-box step-down lives in shell.css and is stated through two ids so
+   that it can win against this rule. */
+#channelbar .cb-title strong { font-size: var(--t-lg); font-weight: var(--t-bold); }
 #channelbar { border-bottom: var(--bw) solid var(--c-border-subtle, var(--c-border)); }
 
 /* ---- top bar: flat, borderless ------------------------------------------ */

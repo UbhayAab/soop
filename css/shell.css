@@ -147,7 +147,10 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
   max-width: 190px;
 }
 .userchip:hover { background: var(--c-nav-hover); color: var(--c-nav-text-active); }
-.userchip-av .avatar { border-radius: var(--r-sm); font-size: 10px; }
+/* The initials are a monogram sized to their circle, not type competing in the
+   hierarchy, so they take the glyph step - the same one components.css gives an
+   18px avatar. It was a literal 10px, which is the one size a look cannot move. */
+.userchip-av .avatar { border-radius: var(--r-sm); font-size: var(--t-2xs); }
 .userchip .meName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .userchip-caret .ico { width: 14px; height: 14px; opacity: 0.7; }
 
@@ -182,7 +185,12 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
 }
 .cb-title strong {
   color: var(--c-text);
-  font-size: var(--t-md);
+  /* The name of the place you are in, and therefore the heading over every
+     message beneath it. At --t-md it was the same size as the message body and
+     one step under the send button, so the bar named the channel in the same
+     voice the channel answered in. --t-lg is the conversation-title step: one
+     clear step above the body, and above every control in this bar. */
+  font-size: var(--t-lg);
   font-weight: var(--t-bold);
   letter-spacing: -0.01em;
   white-space: nowrap;
@@ -287,7 +295,10 @@ button.cb-title {
   border: 0;
   border-radius: var(--r-md);
   color: var(--c-nav-text-2);
-  font-size: var(--t-sm);
+  /* A row in the channel list, so it is sized like the channel rows it sits
+     under rather than like a small button. It was a step below them, which made
+     the one row that adds a channel the quietest thing in the list. */
+  font-size: var(--t-base);
   font-weight: var(--t-medium);
   cursor: pointer;
 }
@@ -327,7 +338,11 @@ button.cb-title {
 .sb-me-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .sb-me-name {
   color: var(--c-nav-text-active);
-  font-size: var(--t-sm);
+  /* The first line of a two-line row, so it takes the ordinary interface step
+     that every other row in this sidebar takes. Under it the status line takes
+     the supporting step, which is what keeps the pair readable as name-then-
+     detail rather than as two sizes of small print. */
+  font-size: var(--t-base);
   font-weight: var(--t-semibold);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -335,7 +350,10 @@ button.cb-title {
 }
 .sb-me-status {
   color: var(--c-nav-text-2);
-  font-size: var(--t-xs);
+  /* The second line of the row above. --t-xs is the timestamp and tracked-caps
+     step; a status sentence is supporting text and belongs at --t-sm, one clear
+     step under the name it hangs off. */
+  font-size: var(--t-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -443,7 +461,27 @@ button.cb-title {
     z-index: calc(var(--z-nav) + 1);
   }
   #channelbar { gap: var(--s-2); padding-inline: var(--s-3); }
-  .cb-title strong { font-size: var(--t-base); }
+  /* The title does NOT step down here, and that is a change from what this
+     block used to say. Two things came out when it was measured.
+
+     First, the old rule had never once applied. It said `.cb-title strong`,
+     and reskin.css states the same element through `#channelbar`; an id beats
+     two classes whatever the load order, so the title has been --t-md at this
+     width for as long as both files have existed. Restoring it as a real rule
+     is a behaviour change no matter which value it carries.
+
+     Second, the value it wanted is not available. The message body holds --t-md
+     at every width - it is the one step the type scale will not let a screen
+     size move - so one step down from the title's --t-lg lands the heading of
+     the channel exactly on the size of the sentences inside it. Measured in a
+     400px box: title 15px/700 against body 15px/400. That is the fault this
+     whole pass exists to remove, re-created on the phone, which is the primary
+     target. There is no step between --t-lg and --t-md to retreat to.
+
+     So the title keeps --t-lg down here. It costs nothing: the name already
+     truncates with an ellipsis and min-width:0, and 17px sits comfortably in a
+     40px bar. If it ever has to shrink, the honest way is to give the whole
+     narrow box a smaller scale, not to move one heading onto its own body. */
   .cb-topic { display: none; }
   /* Two ids: #channelbar .hdr-actions's display:flex (one id, one class) would
      otherwise out-rank a bare #headerActions here. */
@@ -501,9 +539,16 @@ button.cb-title {
    lets you take in a conversation at a glance. */
 .msg:not(.grouped) { margin-top: var(--s-5); }
 .msg .gutter { width: 38px; }
-.msg .avatar { width: 30px !important; height: 30px !important; font-size: 11px; }
+/* Initials again: a monogram sized to the 30px circle, on the same ladder
+   components.css uses (28px avatars take this step), and no longer a literal. */
+.msg .avatar { width: 30px !important; height: 30px !important; font-size: var(--t-xs); }
 .mhead { margin-bottom: var(--s-1); }
-.msg .body { font-size: var(--t-base); line-height: 1.5; }
+/* The message body is the thing people came to read, so it holds --t-md.
+   This file said --t-base and lost the argument anyway - reading.css and
+   reskin.css both state --t-md on the same selector and land later - which is
+   the worst of both: the size on screen came from somewhere else while this
+   line claimed to own it. Stated at the step it actually renders. */
+.msg .body { font-size: var(--t-md); line-height: 1.5; }
 .msg { padding-block: var(--s-2); }
 .msg.grouped { padding-block: 1px; }
 
@@ -668,7 +713,9 @@ button.cb-title {
     line-height: 15px;
     padding: 0 3px;
     font-style: normal;
-    font-size: 10px;
+    /* A counter read as a glyph, and now a token rather than a literal 10px -
+       the same step the sidebar and rail badges take. */
+    font-size: var(--t-2xs);
     /* The count rides a --c-danger fill, so its ink has to be the token that
        goes on a saturated fill and not a literal white - that is what the
        sidebar badge in layout.css uses for the identical component, and a
