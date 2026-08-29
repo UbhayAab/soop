@@ -478,10 +478,22 @@ button.cb-title {
      whole pass exists to remove, re-created on the phone, which is the primary
      target. There is no step between --t-lg and --t-md to retreat to.
 
-     So the title keeps --t-lg down here. It costs nothing: the name already
-     truncates with an ellipsis and min-width:0, and 17px sits comfortably in a
-     40px bar. If it ever has to shrink, the honest way is to give the whole
-     narrow box a smaller scale, not to move one heading onto its own body. */
+     So the title does not step DOWN here. It steps up.
+
+     Keeping it at --t-lg left it level with the composer, which this breakpoint
+     floors at 16px against Safari's focus-zoom - and a long placeholder in a
+     full-width box beats two short words for attention every time, which is how
+     "the message box looks bigger than the channel title" survived a whole type
+     pass that had already measured the two as 17 and 15 on a desktop.
+
+     The deeper reason is that this bar is not the same object down here. The
+     global bar is merged away below 860px - #chat sets --header-h to 0px - so
+     the channel bar is the ONLY header on screen, carrying the workspace, where
+     you are, and every action. On a phone that is the app's title bar, and a
+     title bar takes the title step. --t-xl at 20px, and the name already
+     truncates with an ellipsis and min-width:0 so a long channel cannot push
+     anything. */
+  #channelbar .cb-title strong { font-size: var(--t-xl); }
   .cb-topic { display: none; }
   /* Two ids: #channelbar .hdr-actions's display:flex (one id, one class) would
      otherwise out-rank a bare #headerActions here. */

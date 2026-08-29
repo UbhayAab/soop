@@ -113,6 +113,17 @@ textarea {
    The narrow-box step-down lives in shell.css and is stated through two ids so
    that it can win against this rule. */
 #channelbar .cb-title strong { font-size: var(--t-lg); font-weight: var(--t-bold); }
+/* On a phone the global bar is merged away - #chat sets --header-h to 0px - so
+   this is the ONLY header on screen and it is the app's title bar. It takes the
+   title step accordingly.
+
+   It has to be said HERE. shell.css owns the narrow-width block and states the
+   same rule at the same specificity, but this file loads after it, so the
+   version in shell.css never applies. That is the trap shell.css's own comment
+   describes and then walks straight into. */
+@media (max-width: 860px) {
+  #channelbar .cb-title strong { font-size: var(--t-xl); }
+}
 #channelbar { border-bottom: var(--bw) solid var(--c-border-subtle, var(--c-border)); }
 
 /* ---- top bar: flat, borderless ------------------------------------------ */
