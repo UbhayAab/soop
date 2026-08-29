@@ -199,6 +199,11 @@ export function register(app) {
   // ---------------------------------------------------------------- drafts
   let draftCount = 0;
 
+  // `.icon` on what this returns is ready-to-insert markup rather than text: the
+  // channel and DM cases are the bare # and @ sigils, the thread case is an SVG
+  // out of the house set. Every value is a literal written here - nothing off the
+  // server reaches the field - so the render below drops it in unescaped. `.name`
+  // is the part that carries user text, and that stays escaped.
   const scopeLabel = (d, threads) => {
     if (d.scope_type === 'channel') {
       const c = store.channels.find((x) => x.id === d.scope_id);
@@ -215,7 +220,7 @@ export function register(app) {
       const t = threads.get(d.scope_id);
       if (!t) return null;
       const c = store.channels.find((x) => x.id === t.channel_id);
-      return { icon: '💬', name: 'thread in #' + (c?.name || '?'),
+      return { icon: icon('thread', { size: 16 }), name: 'thread in #' + (c?.name || '?'),
         open: () => bus.emit('thread:openById', {
           threadId: t.id, channelId: t.channel_id, rootMessageId: t.root_message_id }) };
     }
@@ -257,7 +262,7 @@ export function register(app) {
         const card = el('div', 'result');
         card.innerHTML = `
           <div class="sc-draft-head muted">
-            <span class="ch-ico">${scope ? esc(scope.icon) : '📄'}</span>
+            <span class="ch-ico">${scope ? scope.icon : icon('doc', { size: 16 })}</span>
             <b>${esc(scope ? scope.name : 'another Space')}</b>
             <span class="sc-when">${esc(relTime(d.updated_at || Date.now()))}</span>
           </div>

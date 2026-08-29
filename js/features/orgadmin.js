@@ -14,6 +14,7 @@
 import { store, bus } from '../store.js';
 import { api } from '../api.js';
 import { $, el, esc, initials, hueOf, relTime } from '../util.js';
+import { icon } from '../icons.js';
 import { loadSpaces, switchWorkspace } from '../core/workspace.js';
 import { resetPersonPassword, addPeopleDialog } from './people.js';
 import { embed } from '../embed.js';
@@ -825,7 +826,11 @@ export function register(app) {
 
   app.ui.addHeaderButton({
     id: 'orgadmin',
-    label: app.ui.icon ? app.ui.icon('settings') : '⚙',
+    // Imported straight from the set rather than reached for through app.ui: the
+    // ui object exported by ui.js has never carried an icon(), so the guard this
+    // replaces always fell through to its emoji, and the one gear in the header
+    // was the only glyph up there drawn by the operating system.
+    label: icon('settings'),
     title: 'Organisation settings',
     order: 190,
     show: () => isOrgAdmin(store.ws?.org_id),

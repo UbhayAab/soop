@@ -6,6 +6,7 @@
 //   produce a button that does nothing.
 import { $, el, esc } from './util.js';
 import { modal, toast } from './ui.js';
+import { icon } from './icons.js';
 
 let deferredPrompt = null;
 
@@ -110,7 +111,14 @@ function iosSheet() {
     title: 'Add Dek to your Home Screen',
     body: `
       <ol class="ios-steps">
-        <li>Tap the <b>Share</b> button <span class="ios-ico">📤</span> at the bottom of Safari.</li>
+        <!-- The last emoji in the chrome, and the one with the best excuse: it
+             depicts a button in Safari's own interface rather than one of ours.
+             It is still an emoji, still rendered by the operating system, and
+             still the wrong shape on any device that is not an iPhone - which is
+             every device where this sentence is a lie anyway. The drawn glyph
+             matches the real control closely enough and matches the rest of the
+             product exactly. -->
+        <li>Tap the <b>Share</b> button <span class="ios-ico">${icon('shareIos')}</span> at the bottom of Safari.</li>
         <li>Scroll down and tap <b>Add to Home Screen</b>.</li>
         <li>Tap <b>Add</b>. Dek opens full screen, like an app.</li>
       </ol>

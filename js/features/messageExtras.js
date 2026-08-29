@@ -338,8 +338,15 @@ async function renderScheduled(body) {
   ui.renderHeaderButtons();
 
   if (!scheduledCount) {
-    body.innerHTML = '<div class="empty">Nothing scheduled. Type a message, then press the 🕐 button '
-      + 'beside the composer and pick a time - Hearth will post it for you then.</div>';
+    // The sentence points at a real control, so it names the control the way its
+    // tooltip and a screen reader both name it. It stays one unbroken run of
+    // text on purpose: .empty is a flex COLUMN, so any element dropped in here -
+    // an <svg> for the icon, or even a <b> around the name - becomes a row of its
+    // own and the sentence arrives in stacked fragments. Quotes carry the
+    // emphasis instead, and they cost no element.
+    body.innerHTML = '<div class="empty">Nothing scheduled. Type a message, then press '
+      + 'the "Send later" button beside the composer and pick a time - Hearth '
+      + 'will post it for you then.</div>';
     return;
   }
 
@@ -444,7 +451,12 @@ function applyPinButton(row, id) {
   const on = isPinned(id);
   row.classList.toggle('mx-pinned', on);
   if (!b) return;
-  b.textContent = on ? '📍' : '📌';
+  // One glyph for both states, written as markup because icon() returns an <svg>
+  // string and textContent would print that source instead of drawing it. Which
+  // way the button will go is carried by .on and by the title, not by swapping in
+  // a second picture - registerHoverActions already labels both states icon(pin)
+  // and this line used to paint over them.
+  b.innerHTML = icon('pin');
   b.title = on ? UNPIN_TITLE : PIN_TITLE;
   b.classList.toggle('on', on);
 }

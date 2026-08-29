@@ -42,6 +42,46 @@ export const ICONS = {
     + P('M7.5 15.6V19a1.5 1.5 0 0 0 3 0v-2.8') + P('M21 10.5v4'),
   lock: P('M6.5 10.5h11v9h-11z') + P('M9 10.5V8a3 3 0 0 1 6 0v2.5'),
   volume: P('M4 10v4a1 1 0 0 0 1 1h2.5L12 19V5L7.5 9H5a1 1 0 0 0-1 1z') + P('M16 9.5a3.5 3.5 0 0 1 0 5M18.5 7a7 7 0 0 1 0 10'),
+  // The same speaker with the slash `micOff` uses, rather than the X other sets
+  // put on it, so the two off-states in a voice room are one gesture instead of
+  // two conventions. It serves the unmute button and the undeafen button alike,
+  // because both say the same thing to the person looking at them: no sound is
+  // getting through.
+  volumeOff: P('M4 10v4a1 1 0 0 0 1 1h2.5L12 19V5L7.5 9H5a1 1 0 0 0-1 1z') + P('m4 4 16 16'),
+
+  // ---- state, callouts and places ----
+  // A tray, for the Later queue. Not `bookmark`, which is already the button
+  // that puts a message into that queue, and not `download`, which promises a
+  // file lands on your disk.
+  inbox: P('M20.5 12.5H16l-1.6 2.6H9.6L8 12.5H3.5')
+    + P('M6.3 5.6 3.5 12v5.5A1.5 1.5 0 0 0 5 19h14a1.5 1.5 0 0 0 1.5-1.5V12l-2.8-6.4a1.5 1.5 0 0 0-1.4-.9H7.7a1.5 1.5 0 0 0-1.4.9z'),
+  // Slowmode. The banner used a turtle, which is a mascot rather than an icon and
+  // shared nothing with the rest of the set. An hourglass says the same thing,
+  // that you are being held back, and `clock` was not free to say it because it
+  // already means a timestamp and a send-later everywhere else.
+  hourglass: P('M7 3.5h10M7 20.5h10')
+    + P('M8.5 3.5v3.4a2 2 0 0 0 .7 1.5L12 12l-2.8 3.6a2 2 0 0 0-.7 1.5v3.4')
+    + P('M15.5 3.5v3.4a2 2 0 0 1-.7 1.5L12 12l2.8 3.6a2 2 0 0 1 .7 1.5v3.4'),
+  alert: P('M10.6 5 3.4 17.7A1.6 1.6 0 0 0 4.8 20.1h14.4a1.6 1.6 0 0 0 1.4-2.4L13.4 5a1.6 1.6 0 0 0-2.8 0z')
+    + P('M12 10v4.2M12 17.3h.01'),
+  // A place on a map, which is what an event's location is. Kept apart from
+  // `pin` on purpose: that one is the pushpin holding a message at the top of a
+  // channel, and an address is not pinned to anything.
+  mapPin: P('M12 20.6c4-4.5 6-7.8 6-10.1a6 6 0 1 0-12 0c0 2.3 2 5.6 6 10.1z')
+    + `<circle cx="12" cy="10.3" r="2.4" fill="none" stroke="currentColor" stroke-width="1.75"/>`,
+  // An office block for an organisation, and a folder for browsing what is
+  // inside one. The Servers chooser stacks five of these cards, so each glyph
+  // has to be told from its neighbours at a glance rather than merely be right.
+  building: P('M4.5 20.5V5.5A1.5 1.5 0 0 1 6 4h7a1.5 1.5 0 0 1 1.5 1.5v15')
+    + P('M14.5 10.5H18A1.5 1.5 0 0 1 19.5 12v8.5') + P('M3 20.5h18')
+    + P('M8 7.5h3M8 11h3M8 14.5h3M17 14.5h.01M17 17.5h.01'),
+  folder: P('M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2.5h8A1.5 1.5 0 0 1 20.5 10v7.5A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z'),
+  // Presence. A filled dot for active, a barred circle for do not disturb, and
+  // away reuses `moon` further down. The dot is filled rather than stroked
+  // because at 16px a hollow ring reads as empty, which is the wrong thing to
+  // say about somebody who is sitting at their desk.
+  dot: `<circle cx="12" cy="12" r="5" fill="currentColor"/>`,
+  dnd: `<circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.75"/>` + P('M8.2 12h7.6'),
 
   // ---- message actions ----
   reply: P('M9 7 4 12l5 5') + P('M4 12h9a6 6 0 0 1 6 6v1'),
@@ -57,6 +97,15 @@ export const ICONS = {
   edit: P('M16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1 1-4z'),
   link: P('M10.5 13.5a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7l-1.6 1.6')
     + P('M13.5 10.5a4 4 0 0 0-5.7 0L5 13.3a4 4 0 0 0 5.7 5.7l1.6-1.6'),
+  // A topic is a label tied to one message, not a folder the message lives in,
+  // so it is the luggage tag rather than anything filing-shaped.
+  tag: P('M12.6 3.5H19a1.5 1.5 0 0 1 1.5 1.5v6.4a1.5 1.5 0 0 1-.44 1.06l-7.5 7.5a1.5 1.5 0 0 1-2.12 0l-6.4-6.4a1.5 1.5 0 0 1 0-2.12l7.5-7.5A1.5 1.5 0 0 1 12.6 3.5z')
+    + `<circle cx="16.3" cy="7.7" r="1.3" fill="none" stroke="currentColor" stroke-width="1.75"/>`,
+  // A rosette, for setting a reaction role. `members` already carries the roles
+  // panel, and putting that same glyph on a message action would claim the two
+  // buttons do the same thing when one opens a list and the other arms a rule.
+  badge: `<circle cx="12" cy="9.3" r="5.5" fill="none" stroke="currentColor" stroke-width="1.75"/>`
+    + P('M8.7 13.7 7.3 20.6l4.7-2.4 4.7 2.4-1.4-6.9'),
 
   // ---- composer ----
   paperclip: P('M20 11.5 12.3 19a5 5 0 0 1-7-7l8-8a3.4 3.4 0 0 1 4.8 4.8l-8 8a1.7 1.7 0 0 1-2.4-2.4l7.3-7.3'),
@@ -104,6 +153,12 @@ export const ICONS = {
     + `<circle cx="6.5" cy="12" r="2.5" fill="none" stroke="currentColor" stroke-width="1.75"/>`
     + `<circle cx="17.5" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="1.75"/>`
     + P('m8.7 10.8 6.6-3.6m0 9.6-6.6-3.6'),
+  // Safari's own share control, the box with an arrow leaving the top of it. The
+  // Add to Home Screen sheet tells somebody to go and tap a specific button on
+  // their phone, so the picture has to be the one that is actually down there:
+  // `share` above is the three-node affordance, which iOS does not draw.
+  shareIos: P('M12 3.5v11') + P('m8.3 7.2 3.7-3.7 3.7 3.7')
+    + P('M8 9.5H6A1.5 1.5 0 0 0 4.5 11v8A1.5 1.5 0 0 0 6 20.5h12a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 18 9.5h-2'),
   // WhatsApp's mark, filled rather than stroked, because that is the only form
   // people recognise at a glance - and recognition is the entire job of this one
   // button. Everything these workers already coordinate on is in that app, so

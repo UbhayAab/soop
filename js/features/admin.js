@@ -39,6 +39,10 @@ const CSS = `
 .admin-table tr:hover td{background:var(--panel2)}
 .admin-acts{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
 .admin-nowrap{white-space:nowrap}
+/* The channel mark sits inside a line of 13px table text, so the SVG has to be
+   inline-block rather than the block .ico defaults to, or the name drops onto
+   its own line. The 2px lift puts it on the text's optical centre. */
+.admin-chan .ico{display:inline-block;width:14px;height:14px;margin:0;vertical-align:-2px}
 .admin-line{display:flex;gap:8px;align-items:baseline;padding:7px 4px;border-bottom:1px solid var(--line);font-size:13px}
 .admin-line .admin-when{margin-left:auto;color:var(--faint);font-size:11.5px;white-space:nowrap}
 .admin-form{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px}
@@ -543,7 +547,7 @@ async function drawChannels(host, ctx, { ui }) {
   for (const c of rows) {
     const tr = el('tr');
     tr.innerHTML = `
-      <td><b>${esc((c.kind === 'voice' ? '🔊 ' : '# ') + c.name)}</b>
+      <td><b class="admin-chan">${c.kind === 'voice' ? icon('volume') : '#'} ${esc(c.name)}</b>
         ${c.archived_at ? '<span class="rolechip">archived</span>' : ''}
         ${c.topic ? `<div class="muted">${esc(plain(c.topic, 60))}</div>` : ''}</td>
       <td class="muted">${esc(c.kind || 'text')}</td>

@@ -427,7 +427,7 @@ export function register(app) {
 
     if (readonlyOf(ch) && !bypassesReadonly()) {
       note.className = 'mod-note mod-lock';
-      note.innerHTML = `🔒 <span>#${esc(ch.name)} is read-only. Only people who manage this
+      note.innerHTML = `${icon('lock')} <span>#${esc(ch.name)} is read-only. Only people who manage this
         channel can post here - you can still read and react.</span>`;
       c.disabled = true;
       send.disabled = true;
@@ -441,9 +441,12 @@ export function register(app) {
 
     const left = remaining();
     note.className = 'mod-note';
+    // An hourglass rather than the clock. `clock` already means a timestamp and
+    // the send-later button everywhere else in this app, and one glyph cannot
+    // say both "this is when it happens" and "you are being held back".
     note.innerHTML = left
-      ? `🐢 <span>Slowmode ${esc(humanSlow(slow))} · you can send again in <b>${left}s</b></span>`
-      : `🐢 <span>Slowmode: one message every ${esc(humanSlow(slow))}</span>`;
+      ? `${icon('hourglass')} <span>Slowmode ${esc(humanSlow(slow))} · you can send again in <b>${left}s</b></span>`
+      : `${icon('hourglass')} <span>Slowmode: one message every ${esc(humanSlow(slow))}</span>`;
     send.disabled = left > 0;
   }
 

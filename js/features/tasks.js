@@ -181,7 +181,13 @@ async function createDialog(msg) {
     // resolver handles display names with spaces ("@Asha Kumar") natively.
     const chan = msg.channel_id || store.current?.id;
     if (t && t.state !== 'proposed' && out.assignee && out.assignee !== store.me && chan) {
-      const text = `📌 Task for @${nameOf(out.assignee) || 'you'}: ${t.title || out.title.trim()}`
+      // No glyph in front of this one, and no icon() either. This string is not
+      // chrome: it is the BODY of a real message that goes through api.send, is
+      // stored, and is re-rendered by the markdown pipeline, by the activity feed
+      // and by any push preview. An SVG has nowhere to survive that trip - the
+      // sanitiser drops it and the raw markup stays in the row - so the words
+      // carry the meaning, which they already did.
+      const text = `Task for @${nameOf(out.assignee) || 'you'}: ${t.title || out.title.trim()}`
         + (t.due_at ? ` - due ${dueLabel(t.due_at)}` : '');
       api.send({
         channel: chan,

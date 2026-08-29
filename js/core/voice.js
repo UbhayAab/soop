@@ -5,6 +5,7 @@ import { sb, subscribe, unsubscribe, getSub, accessToken } from '../sb.js';
 import { api, table } from '../api.js';
 import { store, bus, nameOf } from '../store.js';
 import { $, el, esc, debounceLead } from '../util.js';
+import { icon } from '../icons.js';
 import { toast } from '../ui.js';
 import { renderChannels } from './channels.js';
 import { SUPABASE_URL } from '../config.js';
@@ -387,7 +388,15 @@ function applyMicState() {
   voice.local?.getAudioTracks().forEach((t) => { t.enabled = on; });
   const b = $('vmute');
   if (b) {
-    b.textContent = voice.ptt ? (voice.pttHeld ? '🎙 Live' : '🎙 Hold Space') : voice.muted ? '🔇 Unmute' : '🎤 Mute';
+    // Markup, not textContent, which would print the SVG source. The glyph follows
+    // `on`, which is the thing this button is really reporting: a mic while sound
+    // is leaving this machine and micOff while none is, so held-open push-to-talk
+    // reads live and "Hold Space" reads shut. The slashed MIC is deliberate rather
+    // than the slashed speaker - deafen sits immediately beside this button and
+    // owns the speaker pair, and one off-glyph on both would make neither legible.
+    const label = voice.ptt ? (voice.pttHeld ? 'Live' : 'Hold Space')
+      : voice.muted ? 'Unmute' : 'Mute';
+    b.innerHTML = icon(on ? 'mic' : 'micOff') + ' ' + label;
     b.classList.toggle('on', on);
   }
 }
@@ -477,7 +486,12 @@ export function initVoice() {
   $('vdeafen').onclick = () => {
     voice.deafened = !voice.deafened;
     document.querySelectorAll('audio[id^="a-"]').forEach((a) => { a.muted = voice.deafened; });
-    $('vdeafen').textContent = voice.deafened ? '🔇 Undeafen' : '🎧 Deafen';
+    // Headphones while you can hear, the slashed speaker when you cannot. This is
+    // the OUTPUT pair; the mute button owns the input pair, which is why that one
+    // uses micOff and this one does not.
+    $('vdeafen').innerHTML = voice.deafened
+      ? icon('volumeOff') + ' Undeafen'
+      : icon('headphones') + ' Deafen';
     $('vdeafen').classList.toggle('on', !voice.deafened);
   };
   $('vptt').onclick = () => {

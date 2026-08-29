@@ -22,10 +22,17 @@ const PRESETS = [
   { emoji: '🎯', text: 'Focusing', ms: 2 * HOUR, label: '2 hours' },
 ];
 
+// Availability is a fixed three-state control, not a status somebody picked, so
+// it is chrome and gets drawn. Three distinct SHAPES rather than three coloured
+// dots: colour on its own is the one difference a red-green colour-blind reader
+// cannot see, and the cell that is chosen already carries the accent ring the
+// segmented control draws around it - a green label inside a ringed cell would
+// say the same thing twice, and features.css says outright that accent-coloured
+// 12px text fails AA on that tinted surface.
 const PRESENCE = [
-  { value: 'online', label: '🟢 Active' },
-  { value: 'away', label: '🌙 Away' },
-  { value: 'dnd', label: '⛔ Do not disturb' },
+  { value: 'online', ico: 'dot', label: 'Active' },
+  { value: 'away', ico: 'moon', label: 'Away' },
+  { value: 'dnd', ico: 'dnd', label: 'Do not disturb' },
 ];
 
 const PAUSES = [
@@ -116,7 +123,11 @@ function decorateMembers() {
     if (p?.status_text) row.title = String(p.status_text);
     const st = store.presenceStatus?.get(uid);
     if (st !== 'dnd' && st !== 'away') continue;
-    const badge = el('span', 'hstatus-badge', st === 'dnd' ? '⛔' : '🌙');
+    // The same two glyphs the availability control uses, so the badge on a member
+    // row and the button that set it are visibly the same statement. Sized down to
+    // 14 because this one rides beside a name rather than filling a cell.
+    const badge = el('span', 'hstatus-badge',
+      icon(st === 'dnd' ? 'dnd' : 'moon', { size: 14 }));
     badge.title = st === 'dnd' ? 'Do not disturb' : 'Away';
     row.querySelector('.m-name')?.appendChild(badge);
   }
@@ -132,10 +143,15 @@ function refreshPresenceDetail() {
 }
 
 // ------------------------------------------------------------------ popover
+// `it.ico` is a name out of the house icon set and goes in as markup; the label
+// beside it is still escaped, because PAUSES and anything added here later carry
+// plain text. At 15px plus the 6px gap the pair is about as wide as the emoji and
+// space it replaces, so the three cells still fit the 300px popover.
 function seg(items, current, onPick) {
   const host = el('div', 'hstatus-seg');
   for (const it of items) {
-    const b = el('button', 'sm ghost' + (it.value === current ? ' on' : ''), esc(it.label));
+    const b = el('button', 'sm ghost' + (it.value === current ? ' on' : ''),
+      (it.ico ? icon(it.ico, { size: 15 }) : '') + esc(it.label));
     b.onclick = () => onPick(it.value, b);
     host.appendChild(b);
   }
