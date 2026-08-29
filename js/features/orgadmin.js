@@ -869,7 +869,16 @@ body.admin-page #chat main,body.admin-page #channelbar{display:none!important}
   padding:var(--s-3) var(--s-4);border-radius:var(--r-md);color:var(--c-text-2);font-size:var(--t-sm)}
 .ap-nav button:hover{background:var(--c-surface-2,var(--c-surface));color:var(--c-text)}
 .ap-nav button.on{background:var(--c-accent-quiet);color:var(--c-accent);font-weight:var(--t-semibold)}
-.ap-main{min-width:0}
+.ap-main{min-width:0;
+  /* display:block, and it MUST be stated. This element is a <main>, and
+     css/layout.css:366 styles the bare tag main, display flex, for the app
+     shell's three-column frame - which this page is not part of, but the
+     selector does not know that. So every section of the organisation console
+     laid itself out as a FLEX ROW: on a 390px phone the content measured 988px
+     wide inside a 358px box, giving vertical strips of one-word-per-line text
+     running off the right edge, with a stranded Save button in the middle of
+     them. It was equally wrong on a desktop, just wide enough to hide it. */
+  display:block}
 .ap-h2{font-size:var(--t-lg);font-weight:var(--t-bold);margin:var(--s-6) 0 var(--s-3)}
 .ap-h2:first-child{margin-top:0}
 .ap-h3{font-size:var(--t-base);font-weight:var(--t-semibold);margin:var(--s-6) 0 var(--s-3)}

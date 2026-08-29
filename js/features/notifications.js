@@ -154,6 +154,51 @@ function raise(m) {
   }
 }
 
+// A direct message. Separate from raise() because every gate in that function is
+// a CHANNEL question and none of them mean anything here: a DM has no
+// notify_level to consult, and asking whether it mentions you is absurd when the
+// whole message is addressed to you. Both of those gates are why routing DMs
+// through raise() would have silently dropped every one of them.
+//
+// This is why nothing arrived. raise() was bound to 'message:new', which only
+// channel messages emit; the DM path is separate all the way down, and
+// onIncomingDM in core/dms.js opens with `if (store.currentDM !== conversationId)
+// return` - so a DM from somebody whose conversation you did not already have on
+// screen never reached the client at all. The user-topic 'dm' event in main.js
+// DOES arrive for every DM regardless of what you are looking at; it just
+// refreshed a badge and flashed the title, and told you nothing.
+//
+// The payload is {conversation_id, author_id, seq, created_at} - deliberately no
+// body text, so the sender's name is all this can say. That is the right amount
+// for something that appears on a lock screen anyway.
+export function raiseDM(p) {
+  if (!p || p.author_id === store.me) return;
+  if (document.visibilityState !== 'hidden') return;
+  if (permission() !== 'granted') return;
+  if (paused() || inQuietHours()) return;
+
+  const title = nameOf(p.author_id) || 'New message';
+  const opts = {
+    body: 'Sent you a direct message',
+    icon: './icons/icon-192.png',
+    badge: './icons/icon-192.png',
+    tag: 'dak-dm-' + (p.conversation_id || 'dm'),
+    data: { conversationId: p.conversation_id },
+  };
+  try {
+    const n = new Notification(title, opts);
+    n.onclick = () => {
+      window.focus();
+      n.close();
+      if (p.conversation_id) bus.emit('dm:jump', { conversationId: p.conversation_id });
+    };
+  } catch {
+    navigator.serviceWorker?.getRegistration()
+      .then((reg) => reg?.showNotification(title, opts))
+      .catch(() => {});
+  }
+}
+
 // ------------------------------------------------------------------ panel
 function seg(current, onPick) {
   const host = el('div', 'hnotif-seg');
@@ -412,6 +457,10 @@ export function register({ ui, api }) {
 
   // A failure here must never break the message render path.
   bus.on('message:new', ({ msg }) => { try { raise(msg); } catch { /* ignore */ } });
+  // The DM half, which had no listener at all. main.js emits this from the
+  // user-topic 'dm' event, which is the one place every DM arrives whether or
+  // not its conversation is open.
+  bus.on('dm:new', (p) => { try { raiseDM(p); } catch { /* ignore */ } });
 
   // Keep the quiet-hours and pause mirror warm without a panel ever being opened.
   const sync = async () => {
