@@ -142,7 +142,12 @@
 }
 
 .who {
-  font-size: var(--t-base);
+  /* The author shares the body's step on purpose and is separated from it by
+     weight, which is the pairing the type spec asks for: who said it and what
+     they said are one unit, read at one size. This file said --t-base, a step
+     BELOW the words underneath it, and reading.css has been quietly correcting
+     it to --t-md ever since. Stated here at the step it renders. */
+  font-size: var(--t-md);
   font-weight: var(--t-bold);
   line-height: var(--t-snug);
   color: var(--c-text);
@@ -221,9 +226,23 @@
   margin: var(--s-4) 0 var(--s-2);
   line-height: var(--t-snug);
 }
-.body h1 { font-size: var(--t-lg); }
-.body h2 { font-size: var(--t-md); }
-.body h3 { font-size: var(--t-base); }
+/* Markdown headings inside a message. h1 is the conversation-title step, which
+   is as large as anything is allowed to get inside a message row. Below it
+   there is nowhere left to go: the body is already --t-md and the next step
+   down, --t-base, would make h3 SMALLER than the paragraph under it, which is
+   what it used to be. So h2 and h3 both sit at the body's step and are
+   separated from it, and from each other, by weight - base.css gives every
+   heading --t-semibold, so h2 is lifted to --t-bold and h3 keeps semibold
+   against body copy at --t-normal. This is the one place in this pass where
+   weight rather than size carries the level, and it is deliberate. */
+/* h1 takes --t-bold too, or the ladder inverts: lifting h2 to bold while h1 kept
+   base.css's semibold left the SECOND-level heading heavier than the first. Size
+   still carried the level so it read correctly, but a heading ladder that gets
+   bolder as it goes down is the kind of thing that is wrong every time somebody
+   looks closely and never quite gets reported. */
+.body h1 { font-size: var(--t-lg); font-weight: var(--t-bold); }
+.body h2 { font-size: var(--t-md); font-weight: var(--t-bold); }
+.body h3 { font-size: var(--t-md); }
 .body > :first-child { margin-top: 0; }
 
 .body a {
@@ -480,15 +499,22 @@
   transform: none;
 }
 
+/* No font-size. Every button in this bar except the quick reactions carries an
+   SVG - the core actions, the reaction picker and everything a feature module
+   registers all hand in icon() - and an SVG is sized by its own width and
+   height. The declaration drew nothing, and what it did do was enter a piece of
+   chrome into the text hierarchy at the same step as the message it acts on. */
 .actions button {
   min-width: 32px;
   height: 32px;
   padding: 0 var(--s-2);
   border-radius: var(--r-sm);
-  font-size: var(--t-base);
   line-height: 1;
 }
-.actions .quick { font-size: var(--t-md); }
+/* The quick reactions are the exception and keep a size, because their content
+   really is a character: the emoji IS the button. --t-base is the ceiling for a
+   control, and this sat at --t-md, level with the message it reacts to. */
+.actions .quick { font-size: var(--t-base); }
 
 /* The topmost row has nothing above it to overlap and the list clips its own
    overflow, so tuck the bar inside instead of hanging it over the edge. */
@@ -535,7 +561,9 @@
 
 .rxn b {
   font-family: var(--t-font);
-  font-size: var(--t-xs);
+  /* A tally read as a number, not as a word, so it takes the counter step the
+     badges elsewhere take rather than the timestamp step. */
+  font-size: var(--t-2xs);
   font-weight: var(--t-bold);
   font-variant-numeric: tabular-nums;
   color: var(--c-text-2);
@@ -691,6 +719,9 @@
   background: transparent;
   color: var(--c-text);
   font: inherit;
+  /* Same as the main composer: a reply is a message, so it is written at the
+     step it will be read at. */
+  font-size: var(--t-md);
   line-height: var(--t-snug);
   resize: none;
   outline: none;
@@ -918,9 +949,12 @@
   white-space: nowrap;
   font-weight: var(--t-medium);
 }
+/* No font-size, for the same reason the action bar has none: media.js puts an
+   icon('doc') SVG in here and an SVG is sized by its own width and height. At
+   --t-lg this span was nominally the largest thing in a file card, and it was
+   sizing nothing at all. */
 .att-ico {
   flex: none;
-  font-size: var(--t-lg);
   line-height: 1;
 }
 
@@ -990,7 +1024,15 @@
   border-radius: var(--r-full);
   background: var(--c-overlay);
   color: var(--c-text);
-  font-size: var(--t-2xl);
+  /* The chevron is icon artwork drawn with a character rather than an SVG, so
+     it is sized on the icon ladder and not as type - the same call .sicon.add
+     in layout.css makes for its plus. At --t-2xl this was the largest control
+     in the whole app: it out-sized the panel header, it out-sized the channel
+     title by six pixels, and it tied with the no-team screen's page title,
+     which is the exact inversion this pass exists to remove. The button reads
+     as a button because of its 48px circle, its border and its fill; the glyph
+     inside does not have to shout to be found. */
+  font-size: var(--t-lg);
   line-height: 1;
   box-shadow: var(--e-2);
   transition: background-color var(--m-fast) var(--m-ease), transform var(--m-fast) var(--m-ease);
@@ -1086,6 +1128,13 @@
   background: transparent;
   color: var(--c-text);
   font: inherit;
+  /* `font: inherit` picks up the body element's --t-base, which dressed the
+     composer as ordinary interface text - one step under the message it is
+     about to become, and close enough to the channel title to argue with it.
+     What you type is the thing people came to read, so it is set at the body's
+     own step and the two match the moment you press Enter. Stated after `font:`
+     because that shorthand resets font-size. */
+  font-size: var(--t-md);
   line-height: var(--t-snug);
   resize: none;
   outline: none;
@@ -1325,7 +1374,12 @@
   .msg { padding-inline: var(--s-5); }
   .daydiv { margin-inline: var(--s-5); }
 
-  .body { font-size: var(--t-base); }
+  /* The body does NOT step down here. It used to say --t-base, which was both
+     wrong and inert: the message body holds one step at every width, and a bare
+     `.body` loses to the `.msg .body` that reading.css and reskin.css each
+     state later anyway. Shrinking the most-read text on the smallest screen
+     also lands it on the same step as the menu and sidebar rows around it,
+     which is the collision the type scale exists to prevent. */
 
   /* Media is capped by the column, never by a desktop pixel width. */
   .att-img, .att-vid { max-width: 100%; }
@@ -1343,7 +1397,11 @@
     max-height: 42dvh;
   }
 
-  .lb-nav { width: 44px; height: 44px; font-size: var(--t-xl); }
+  /* The circle shrinks to the 44px thumb floor but the chevron does NOT step
+     back up: --t-xl here was larger than the panel header and larger than the
+     channel title on the one screen where the title is the only heading there
+     is. The glyph holds --t-lg at every width, and only the box changes. */
+  .lb-nav { width: 44px; height: 44px; }
   .lightbox img { max-width: 100vw; max-height: 78dvh; }
 
   .thread-msgs .msg { padding-inline: var(--s-3); }
@@ -1453,7 +1511,9 @@
     min-width: 40px;
     height: var(--s-9);
     padding: 0;
-    font-size: var(--t-md);
+    /* No font-size: both of these carry an SVG - the reaction picker and the
+       overflow menu - so the declaration sized nothing and only put two pieces
+       of chrome level with the message body. */
   }
   /* 40x32 is what fits beside a name and a timestamp. The tap target reaches a
      full 44x44 through a transparent extension instead, so ergonomics cost
@@ -1582,7 +1642,9 @@
   .msg > .gutter .avatar {
     width: 24px !important;
     height: 24px !important;
-    font-size: 10px;
+    /* The monogram follows the circle down a step, as a token rather than the
+       literal 10px it was - a look that resizes its scale now resizes this. */
+    font-size: var(--t-2xs);
   }
 
   /* The timestamp rides at the END of the name line instead of trailing the
@@ -1619,12 +1681,19 @@
   border-radius: var(--r-lg);
   background: var(--c-accent-quiet, color-mix(in srgb, var(--c-accent) 12%, transparent));
   color: var(--c-accent);
-  font-size: 28px;
+  /* The channel mark is a glyph filling a 56px tile, the same job .brand-mark
+     does on the sign-in card and now at the same step - and a token instead of
+     a literal 28px. */
+  font-size: var(--t-2xl);
   font-weight: var(--t-bold, 700);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: var(--s-2);
 }
-.channel-born-title { font-size: var(--t-lg); color: var(--c-text); }
+/* The headline of a full-height empty state, so it is a section heading inside
+   the page rather than a second conversation title: at --t-lg it tied with the
+   channel bar above it, and while this screen is up it is the only thing on the
+   surface. The sub line under it stays a step down at --t-sm. */
+.channel-born-title { font-size: var(--t-xl); color: var(--c-text); }
 .channel-born-sub { color: var(--c-text-2); font-size: var(--t-sm); }

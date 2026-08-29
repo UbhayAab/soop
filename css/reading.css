@@ -179,9 +179,16 @@ button.icon:has(.ico) { justify-content: center; }
 
 /* The message hover bar: quick-react emoji are CONTENT and stay emoji; the
    action icons beside them are chrome and are drawn. */
+/* The emoji buttons are the one place in the bar where a font-size still draws
+   something, so unlike their SVG neighbours they must declare a step. --t-base,
+   because a react button is chrome acting on the message and chrome does not go
+   above --t-base. The literal 16px it replaces was larger than the message body
+   it hovers over, and in the default look it was larger than the channel title
+   too. An emoji fills its whole em box where text only fills its x-height, so at
+   --t-base the glyph still reads bigger than the words beside it. */
 .actions button.icon .ico { width: 17px; height: 17px; }
 .actions button.icon { width: 30px; height: 30px; padding: 0; }
-.actions .quick { font-size: 16px; line-height: 1; }
+.actions .quick { font-size: var(--t-base); line-height: 1; }
 
 /* Composer tools */
 #composerBar button.icon { width: 34px; height: 34px; padding: 0; }
@@ -198,11 +205,15 @@ button.send .ico { width: 20px; height: 20px; }
   background: none;
 }
 .logo-mark { border-radius: var(--r-lg); display: block; }
+/* A tracked uppercase label under the wordmark, which is the --t-xs role.
+   --t-2xs is for badges and counters. Nothing renders .byline today - it is kept
+   as the sign-in card's vocabulary - but a step that is wrong in a file is wrong
+   the day somebody uses it. */
 .byline {
   display: block;
   margin-top: var(--s-3);
   color: var(--c-text-3);
-  font-size: var(--t-2xs);
+  font-size: var(--t-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }

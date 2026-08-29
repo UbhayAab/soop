@@ -473,6 +473,11 @@
 
 :root .cv-doc { padding-bottom: var(--s-2); }
 
+/* The name of the whole document, in a modal that opens over the app - which
+   is exactly what --t-xl is for. It was --t-lg while a heading block INSIDE the
+   document was --t-xl, so the canvas was titled in smaller type than any
+   heading a person typed into it. The two have swapped back: the document title
+   now outranks its own headings, and its headings outrank its paragraphs. */
 :root .cv-title {
   width: 100%;
   padding: var(--s-3) var(--s-4);
@@ -481,7 +486,7 @@
   background: transparent;
   color: var(--c-text);
   font-family: inherit;
-  font-size: var(--t-lg);
+  font-size: var(--t-xl);
   font-weight: var(--t-semibold);
   transition: background var(--m-fast) var(--m-ease),
               border-color var(--m-fast) var(--m-ease);
@@ -542,9 +547,12 @@
   overflow: hidden;
 }
 
+/* A heading a person typed into the document, which is the same thing as an h1
+   inside message content and takes the same step. It sits one clear step below
+   .cv-title above and two above the --t-base paragraphs it heads. */
 :root .cv-heading .cv-view,
 :root .cv-heading .cv-edit {
-  font-size: var(--t-xl);
+  font-size: var(--t-lg);
   font-weight: var(--t-semibold);
   line-height: var(--t-snug);
 }
@@ -773,10 +781,15 @@
 }
 :root .forum-card:active { transform: translateY(0); box-shadow: var(--e-1); }
 
+/* A card title in a list, so the interface step. --t-md is the message-body
+   step, and a board of thirty post titles set at it read as thirty messages
+   rather than as a list you scan. .fp-title further down keeps --t-lg, because
+   once you open a post its title IS the conversation title of that screen; the
+   board and the post it leads to now differ by two clear steps. */
 :root .fc-title {
   margin-bottom: var(--s-2);
   color: var(--c-text);
-  font-size: var(--t-md);
+  font-size: var(--t-base);
   font-weight: var(--t-semibold);
   line-height: var(--t-snug);
   overflow-wrap: break-word;
@@ -1018,9 +1031,11 @@
   font-size: var(--t-xs);
   text-align: right;
 }
+/* A hint under the fields above it, which is --t-sm - the same step
+   .hnotif-hint already uses for the same job on the notifications panel. */
 :root .hstatus-note {
   color: var(--c-text-2);
-  font-size: var(--t-xs);
+  font-size: var(--t-sm);
   line-height: var(--t-snug);
 }
 
@@ -1122,6 +1137,11 @@
   font-size: var(--t-sm);
   line-height: var(--t-body);
 }
+/* The sign is a mark, not a reading level, so it is sized to be seen rather
+   than read: it is absolutely positioned in the corner, it heads nothing and it
+   competes with nothing, and at the --t-sm of the sentence beside it a warning
+   about a secret would not register as a warning at all. The end state here is
+   an SVG, like every other icon in the app. */
 :root .intg-warn::before {
   content: "⚠";
   position: absolute;
@@ -1142,7 +1162,11 @@
   background: var(--c-code-bg);
   color: var(--c-text);
   font-family: var(--t-mono);
-  font-size: var(--t-xs);
+  /* --t-sm, with every other code block in this file. This is the only time
+     anybody ever sees the token, and at --t-xs it was the smallest text on a
+     surface that exists for the sole purpose of reading it. The block scrolls
+     sideways rather than wrapping, so a larger step costs it nothing. */
+  font-size: var(--t-sm);
   line-height: var(--t-body);
   white-space: pre;
   overflow-x: auto;
@@ -1151,10 +1175,11 @@
   cursor: text;
 }
 
+/* A tracked uppercase label, so --t-xs and not the badge step. */
 :root .intg-caplabel {
   margin-top: var(--s-5);
   color: var(--c-text-2);
-  font-size: var(--t-2xs);
+  font-size: var(--t-xs);
   font-weight: var(--t-semibold);
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -1329,9 +1354,13 @@
   font-size: var(--t-base);
   font-weight: var(--t-semibold);
 }
+/* The second line of a two-line row, which is the supporting step. It is also
+   the only thing on the card that says where the link actually goes, and at
+   --t-xs it was set as quietly as a timestamp. One step under the host above
+   it, which keeps the pair strictly ordered. */
 :root .mx-link-url {
   color: var(--c-text-2);
-  font-size: var(--t-xs);
+  font-size: var(--t-sm);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1365,18 +1394,24 @@
   height: 1px;
   background: var(--fx-danger-edge);
 }
+/* A tracked uppercase label - the same device as every section header in the
+   panels - so it moves off --t-2xs, which is where badges and counters live. */
 :root .mx-newdiv-label {
   flex: none;
   color: var(--c-danger);
-  font-size: var(--t-2xs);
+  font-size: var(--t-xs);
   font-weight: var(--t-bold);
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }
+/* "Jump to newest" is rendered as button.sm, which components.css sizes at
+   --t-sm; this rule exists only to beat the injected 11.5px, and it was
+   undercutting that size rather than restating it. A control with a word in it
+   does not belong at the timestamp step. */
 :root .mx-newdiv button {
   flex: none;
   padding: var(--s-2) var(--s-4);
-  font-size: var(--t-xs);
+  font-size: var(--t-sm);
 }
 
 /* ============================================================================
@@ -1434,7 +1469,11 @@
   font-family: var(--t-mono);
   text-align: left;
 }
-:root .sc-cmd { font-size: var(--t-sm); }
+/* A command row is a peer of the key rows above it in the same grid, so it
+   takes the same step. At --t-sm one half of a two-column sheet was set smaller
+   than the other for no reason a reader could name. The rule stays explicit
+   because shortcuts.js injects 12.5px for this class. */
+:root .sc-cmd { font-size: var(--t-base); }
 
 /* Floats over the message list, so it needs real elevation to read as floating. */
 :root .sc-jump {
@@ -1553,11 +1592,14 @@
    So the note wraps, and the strip is allowed to wrap only when it contains
    one. A strip of pure pills keeps the sideways scroll it was designed for. */
 :root .bmk-bar:has(.bmk-note) { flex-wrap: wrap; }
+/* A hint sentence, so the supporting step rather than the timestamp step: it is
+   the whole explanation of what the strip is for, and it is the only text in
+   the bar that is not a pill. */
 :root .bmk-note {
   flex: 1 1 12ch;
   min-width: 0;
   color: var(--c-text-2);
-  font-size: var(--t-xs);
+  font-size: var(--t-sm);
   line-height: var(--t-loose);
   white-space: normal;
   overflow-wrap: anywhere;
@@ -1754,12 +1796,14 @@
    servers, and a "…" tile at the end of the run that opens the directory of the
    ones this person has not joined.
    ========================================================================= */
+/* The rail's section header - it is what turns five icons into "these three
+   are Jarurat Care" - so it takes the label step and not the badge step. */
 :root .sorg-label {
   flex: none;
   width: 44px;
   margin: var(--s-4) auto var(--s-1);
   color: var(--c-nav-text-2);
-  font-size: var(--t-2xs);
+  font-size: var(--t-xs);
   font-weight: var(--t-bold);
   letter-spacing: 0.08em;
   text-align: center;
@@ -1772,12 +1816,22 @@
   margin: var(--s-4) auto 0;
   background: var(--c-nav-border);
 }
-/* Quieter than a real server: it is a door, not a place. */
+/* Quieter than a real server: it is a door, not a place.
+
+   The font-size here is drawing a glyph, not setting a reading level - the tile
+   holds a literal "…" the way its neighbours hold initials. So it is sized to
+   .sicon in layout.css, which is --t-base, and the run of tiles reads as one
+   size. It was --t-lg, the step the scale keeps for the channel title, and a
+   door in the rail does not outrank the conversation; --t-md would only move
+   the same problem one step down, because it would still leave this one tile
+   larger than every tile beside it and above the ceiling a control gets.
+   The honest end state is an SVG here like every other icon in the app; until
+   then this is sized to its neighbours. */
 :root .sicon.sorg-more {
   background: transparent;
   border: 1px dashed var(--c-nav-border);
   color: var(--c-nav-text-2);
-  font-size: var(--t-lg);
+  font-size: var(--t-base);
   line-height: 1;
 }
 :root .sicon.sorg-more:hover { border-color: var(--c-nav-text-2); color: var(--c-nav-text); }
@@ -1814,10 +1868,12 @@
   font-weight: var(--t-bold);
 }
 :root .orgdir-main { flex: 1 1 auto; min-width: 0; }
-:root .orgdir-sub { font-size: var(--t-xs); }
-/* The "invite only" lock sits mid-sentence in an 11.5px line, so it is sized to
-   that line and made inline-block - the block display .ico carries by default
-   would push the rest of the sentence onto a second row. */
+/* The second line of a two-line row - "invite only - made by X - 12 members" -
+   so the supporting step, one under the server name above it. */
+:root .orgdir-sub { font-size: var(--t-sm); }
+/* The "invite only" lock sits mid-sentence in the .orgdir-sub line above, so it
+   is sized to that line and made inline-block - the block display .ico carries
+   by default would push the rest of the sentence onto a second row. */
 :root .orgdir-sub .ico {
   display: inline-block;
   width: 12px;
@@ -1825,7 +1881,9 @@
   margin: 0;
   vertical-align: -1px;
 }
-:root .orgdir-locked { flex: none; font-size: var(--t-xs); }
+/* "Ask to be added" stands in the slot where the Open and Join buttons go, so
+   it is sized to the button.sm it replaces rather than to a timestamp. */
+:root .orgdir-locked { flex: none; font-size: var(--t-sm); }
 :root .orgdir-foot {
   display: flex;
   flex-wrap: wrap;
@@ -1862,8 +1920,19 @@
    and keeps it under every theme and both schemes - this is one of the few
    places where not following the theme switch is the correct behaviour. */
 :root .oshare { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+/* Every size in this sheet was a literal. They have been mapped onto the scale
+   by role, not by nearest pixel: the sheet is a list of actions with a piece of
+   supporting prose under each, so its buttons and row titles sit at --t-base,
+   its sentences at --t-sm, and its captions and tracked labels at --t-xs.
+
+   The whole body of the sheet while there is nothing else to show. */
 :root .oshare-load,
-:root .oshare-err { padding: 28px 8px; text-align: center; color: var(--c-text-2); font-size: 13px; }
+:root .oshare-err {
+  padding: 28px 8px;
+  text-align: center;
+  color: var(--c-text-2);
+  font-size: var(--t-base);
+}
 :root .oshare-err { color: var(--c-danger); }
 
 :root .oshare-qrwrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
@@ -1875,9 +1944,10 @@
   line-height: 0;
 }
 :root .oshare-qr svg { display: block; width: min(232px, 58vw); height: auto; }
+/* A tracked uppercase caption under the code. */
 :root .oshare-scan {
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
+  font-size: var(--t-xs); letter-spacing: 0.04em; text-transform: uppercase;
   color: var(--c-text-3);
 }
 :root .oshare-scan .ico { width: 15px; height: 15px; }
@@ -1885,9 +1955,12 @@
 /* The link row. The field is the wide half because the URL is what people check
    before they send it; the button never wraps under it. */
 :root .oshare-linkrow { display: flex; gap: 8px; align-items: stretch; min-width: 0; }
+/* Not a field anybody types into - a copy target holding one long URL that has
+   to fit whole. Same step as .invite-row input in panels.css, which is the same
+   string on the other invite surface. */
 :root .oshare-url {
   flex: 1 1 auto; min-width: 0;
-  font-size: 12px;
+  font-size: var(--t-sm);
   font-family: var(--t-mono);
   padding: 0 10px; height: 38px;
   border-radius: var(--r-md, 8px);
@@ -1903,7 +1976,8 @@
   border-radius: var(--r-md, 8px);
   border: var(--bw) solid transparent;
   background: var(--c-accent); color: var(--c-accent-text);
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  /* A button with a word in it. */
+  font-size: var(--t-base); font-weight: 600; cursor: pointer;
 }
 :root .oshare-copy:hover { background: var(--c-accent-hover); }
 :root .oshare-copy.is-done { background: var(--c-success); }
@@ -1920,7 +1994,9 @@
   border: var(--bw) solid var(--c-border);
   background: var(--c-surface);
   color: var(--c-text-2);
-  font-size: 12px; font-weight: 550; cursor: pointer;
+  /* Buttons with words in them, and the primary way the link gets sent, so they
+     take the same step as Copy above rather than sitting a step under it. */
+  font-size: var(--t-base); font-weight: 550; cursor: pointer;
   transition: border-color 0.12s ease, color 0.12s ease;
 }
 :root .oshare-chip:hover { border-color: var(--c-border-strong); color: var(--c-text); }
@@ -1928,15 +2004,16 @@
 :root .oshare-wa { color: #25d366; }
 :root .oshare-wa:hover { border-color: #25d366; color: #25d366; }
 
-:root .oshare-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--c-text-2); }
-:root .oshare-small { font-size: 11px; }
+:root .oshare-note { margin: 0; font-size: var(--t-sm); line-height: 1.5; color: var(--c-text-2); }
+:root .oshare-small { font-size: var(--t-xs); }
 
 /* Folds. Closed by default: the whole point of the sheet is that the common
    path needs no decisions. */
 :root .oshare-fold { border-top: var(--bw) solid var(--c-border-subtle); padding-top: 12px; }
+/* This heads the fold, so it has to stay above the labels inside it. */
 :root .oshare-fold > summary {
   display: flex; align-items: center; gap: 8px;
-  font-size: 12px; font-weight: 600; color: var(--c-text-2);
+  font-size: var(--t-base); font-weight: 600; color: var(--c-text-2);
   cursor: pointer; list-style: none; user-select: none;
   min-height: 28px;
 }
@@ -1946,9 +2023,11 @@
 :root .oshare-fold[open] > summary { margin-bottom: 10px; }
 
 :root .oshare-form { display: flex; flex-direction: column; gap: 10px; }
+/* A field label, at the step components.css gives .field-label - and now a step
+   under the summary that heads them rather than level with it. */
 :root .oshare-form label {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  font-size: 13px; color: var(--c-text-2);
+  font-size: var(--t-sm); color: var(--c-text-2);
 }
 :root .oshare-form select,
 :root .oshare-form input {
@@ -1956,7 +2035,8 @@
   border-radius: var(--r-md, 8px);
   border: var(--bw) solid var(--c-border);
   background: var(--c-surface-2); color: var(--c-text);
-  font-size: 13px;
+  /* Form fields. */
+  font-size: var(--t-base);
 }
 :root .oshare-form > button { align-self: flex-start; }
 :root .oshare-form p { margin: 0; }
@@ -1968,7 +2048,9 @@
 }
 :root .oshare-row:hover { background: var(--c-hover); }
 :root .oshare-rowmain { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
-:root .oshare-rowmain b { font-size: 13px; font-weight: 600; }
+/* The title of a row in the list of live links; the muted line under it is
+   .oshare-small, two steps down. */
+:root .oshare-rowmain b { font-size: var(--t-base); font-weight: 600; }
 /* A revoked or spent link is history, not an option. */
 :root .oshare-row.is-dead { opacity: 0.5; }
 :root .oshare-row.is-dead b { text-decoration: line-through; }
@@ -1991,7 +2073,8 @@
   border-radius: var(--r-lg, 12px);
   border: var(--bw) solid var(--c-warn);
   background: var(--c-warn-quiet);
-  font-size: 12px; line-height: 1.5; color: var(--c-text-2);
+  font-size: var(--t-sm); line-height: 1.5; color: var(--c-text-2);
 }
-:root .oshare-warn b { font-size: 13px; color: var(--c-text); }
+/* The warning's own headline, one step above the sentence beneath it. */
+:root .oshare-warn b { font-size: var(--t-base); color: var(--c-text); }
 :root .oshare-warn button { margin-top: 4px; }

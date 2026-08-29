@@ -38,6 +38,12 @@ img, svg, video, canvas { display: block; max-width: 100%; }
 a { color: var(--c-accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
+/* The one relative font-size in the app, and deliberately not a step. Code sits
+   inside whatever is around it - a message body, a form hint, a menu row - and a
+   monospace face draws visibly larger than the text face at the same nominal
+   size, so what this needs is a ratio against its context rather than a rung
+   chosen once. A token would pick one size and be wrong in every other place
+   code appears. */
 code, pre, kbd, samp { font-family: var(--t-mono); font-size: 0.9em; }
 
 kbd {
@@ -155,7 +161,15 @@ kbd {
   line-height: var(--t-loose);
   text-align: center;
 }
-.empty-icon { font-size: 30px; line-height: 1; opacity: 0.75; }
+/* The glyph that heads an empty state is a picture standing in for one, not a
+   sentence, so it takes the largest step the scale allows anything that is not
+   the sign-in wordmark. The literal 30px it used to carry was the one font-size
+   in this file that did not come from a token: it happened to land exactly on
+   --t-3xl in the default look and a pixel above it in the others, so it was
+   off-scale wherever the type was retuned, and --t-3xl is reserved. Nothing
+   renders .empty-icon today, but a step that is wrong in a file is wrong the
+   day somebody uses it. */
+.empty-icon { font-size: var(--t-2xl); line-height: 1; opacity: 0.75; }
 .empty-title { color: var(--c-text); font-weight: var(--t-semibold); font-size: var(--t-base); }
 
 /* Loading placeholder that shimmers instead of flashing empty. */

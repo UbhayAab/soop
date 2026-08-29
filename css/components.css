@@ -119,7 +119,18 @@ button.wide {
 
 /* ------------------------------------------------------------------ icon
    A quiet square used in the header, the composer and the message hover bar.
-   Small and calm at rest; it only paints a surface once you are on it. */
+   Small and calm at rest; it only paints a surface once you are on it.
+
+   It sets NO font-size, deliberately. What this button contains is an SVG, and
+   an SVG is sized by its own width and height, so a font-size here draws nothing
+   at all - it is a leftover from when these buttons held an emoji character.
+   What it DID do was enter a piece of chrome into the text hierarchy: at --t-md
+   an icon button tied with the message body it acts on. A control is never
+   larger than the content it acts on, and the cleanest way to say that is to
+   keep the button out of the scale entirely rather than to pick a smaller step
+   for it. The few icon buttons that still carry a text glyph instead of an SVG -
+   the modal close and the reply-cancel crosses - now inherit --t-base from the
+   page, which is where ordinary interface chrome belongs. */
 button.icon {
   width: 32px;
   height: 32px;
@@ -129,7 +140,6 @@ button.icon {
   border-radius: var(--r-sm);
   background: transparent;
   color: var(--c-text-2);
-  font-size: var(--t-md);
   font-weight: var(--t-normal);
   box-shadow: none;
 }
@@ -146,10 +156,14 @@ button.icon.on {
   color: var(--c-accent);
 }
 
-/* The send arrow carries the accent so the composer always shows its verb. */
+/* The send arrow carries the accent so the composer always shows its verb. Colour
+   is the whole of that signal. The arrow is an SVG pinned to 20px in reading.css,
+   so the --t-lg that used to sit here drew nothing - while making this button the
+   largest declared type on the main screen, a control outranking both the channel
+   title and every message it posts to. Deleted rather than lowered, for the
+   reason given on button.icon above. */
 button.icon.send {
   color: var(--c-accent);
-  font-size: var(--t-lg);
 }
 button.icon.send:hover {
   background: var(--c-accent-quiet);
@@ -338,13 +352,19 @@ input[type="radio"] {
   cursor: pointer;
 }
 
-/* iOS zooms the whole page when a focused field is under 16px. */
+/* A field is --t-base like the rest of the interface, but iOS Safari zooms the
+   whole page when it focuses a field drawn under 16px, so on a phone the step
+   has to be floored. max() keeps --t-base as the declared role and treats 16 as
+   what it actually is - a browser threshold, not a rung on the scale. It used to
+   read --t-lg, which is the channel-title step and claimed a place in the
+   hierarchy this control has no business holding; --t-lg is also only 15px in two
+   of the looks, so it missed the very floor it was there to clear. */
 @media (max-width: 860px) {
   input,
   textarea,
   select {
     min-height: 44px;
-    font-size: var(--t-lg);
+    font-size: max(16px, var(--t-base));
   }
   input[type="checkbox"],
   input[type="radio"] {
@@ -359,19 +379,26 @@ input[type="radio"] {
   display: block;
   margin-bottom: var(--s-6);
 }
+/* The label names the control under it, so it sits at --t-base WITH that control
+   and is told apart by weight - the same arrangement the message author and the
+   message body use. At --t-sm it was quieter than the field it introduced and
+   level with the hint that follows it. */
 .field-label {
   display: block;
   margin-bottom: var(--s-3);
   color: var(--c-text);
-  font-size: var(--t-sm);
+  font-size: var(--t-base);
   font-weight: var(--t-semibold);
   line-height: var(--t-snug);
 }
+/* A hint under a field is supporting text, which is --t-sm. --t-xs is the
+   timestamp and tracked-caps step, and a sentence set at it reads as fine print
+   nobody is expected to finish. */
 .field-hint {
   display: block;
   margin-top: var(--s-3);
   color: var(--c-text-2);
-  font-size: var(--t-xs);
+  font-size: var(--t-sm);
   line-height: var(--t-snug);
 }
 
@@ -407,7 +434,14 @@ input[type="radio"] {
 .form > .muted { font-size: var(--t-sm); line-height: var(--t-body); }
 
 /* ------------------------------------------------------------------ codeinput
-   The one-time-code box. Monospaced so the digits sit on a grid. */
+   The one-time-code box. Monospaced so the digits sit on a grid.
+
+   --t-2xl breaks the rule that a control never rises above --t-base, and it is
+   allowed to for one reason: this field is not chrome around some content, it IS
+   the content of the screen it appears on. The sign-in step asks for exactly one
+   thing, and the digits somebody is copying across from another device have to
+   be checkable at a glance without being read twice. Nothing else is on the card
+   for it to outrank. */
 .codeinput {
   min-height: 56px;
   padding: var(--s-5) var(--s-4);
@@ -464,10 +498,13 @@ input[type="radio"] {
   padding: var(--s-5) var(--s-5) var(--s-5) var(--s-7);
   border-bottom: var(--bw) solid var(--c-border);
 }
+/* A modal opens OVER the app, and a title at that level is --t-xl. It was at
+   --t-lg, the channel-title step, so a dialog announced itself no more loudly
+   than the screen it had just covered up. */
 .modal-head strong {
   flex: 1;
   min-width: 0;
-  font-size: var(--t-lg);
+  font-size: var(--t-xl);
   font-weight: var(--t-semibold);
   line-height: var(--t-snug);
 }
@@ -751,7 +788,10 @@ input[type="radio"] {
   border-radius: var(--r-full);
   background: transparent;
   color: var(--c-text-2);
-  font-size: var(--t-xs);
+  /* Each tab holds a category WORD - Smileys, Objects, Flags - so it is ordinary
+     interface text at --t-base, not the --t-xs kept for timestamps and tracked
+     caps. The strip scrolls horizontally, so wider pills cost nothing. */
+  font-size: var(--t-base);
   font-weight: var(--t-semibold);
   box-shadow: none;
 }
@@ -775,6 +815,11 @@ input[type="radio"] {
   overscroll-behavior: contain;
 }
 
+/* --t-xl is above --t-base, which chrome may not normally reach. A cell is not
+   chrome: the button is only a hit area, and the emoji inside it is the thing
+   being chosen. Sizing it is sizing the content, the same way an image in a
+   grid is sized, and a grid of pickable glyphs is useless if you cannot tell
+   them apart. The cell owns no words, so it enters no text hierarchy. */
 .emoji-cell {
   display: flex;
   align-items: center;
@@ -805,10 +850,12 @@ input[type="radio"] {
     grid-template-columns: repeat(7, 1fr);
     max-height: 42dvh;
   }
+  /* Only the pill needs to grow for a thumb. The label is already --t-base and
+     must not be shrunk to --t-sm on the device with the worst reading conditions;
+     it used to be raised here because the desktop step was smaller still. */
   .emoji-tab {
     min-height: 34px;
     padding: var(--s-2) var(--s-5);
-    font-size: var(--t-sm);
   }
 }
 
@@ -838,9 +885,11 @@ input[type="radio"] {
   gap: var(--s-3);
 }
 
+/* Look and Brightness are tracked uppercase section headers, which is precisely
+   the --t-xs role. --t-2xs is for badges and counters, things read as a glyph. */
 .tp-head {
   color: var(--c-text-3);
-  font-size: var(--t-2xs);
+  font-size: var(--t-xs);
   font-weight: var(--t-semibold);
   letter-spacing: var(--t-track-caps);
   text-transform: uppercase;
@@ -924,15 +973,18 @@ input[type="radio"] {
 }
 .lm-main b.lm-short { width: 55%; }
 
+/* Every look is a card in a list: the name is the card title at --t-base and the
+   line under it is the subtitle at --t-sm. They were --t-sm over --t-2xs, which
+   set a whole sentence of description at the badge step. */
 .look-name {
   color: var(--c-text);
-  font-size: var(--t-sm);
+  font-size: var(--t-base);
   font-weight: var(--t-semibold);
   line-height: var(--t-tight);
 }
 .look-hint {
   color: var(--c-text-2);
-  font-size: var(--t-2xs);
+  font-size: var(--t-sm);
   font-weight: var(--t-normal);
   line-height: var(--t-snug);
 }
@@ -976,7 +1028,9 @@ input[type="radio"] {
   border-radius: calc(var(--r-md) - 2px);
   background: transparent;
   color: var(--c-text-2);
-  font-size: var(--t-xs);
+  /* A segment holds a word - Light, Dark, System - so it is a button with words
+     at --t-base, not a tracked-caps label at --t-xs. */
+  font-size: var(--t-base);
   font-weight: var(--t-medium);
   box-shadow: none;
 }
@@ -1047,6 +1101,13 @@ input[type="radio"] {
 }
 .modal-body:has(> .switcher) { padding: 0; }
 
+/* --t-xl on a field is the second place in this file where a control sits above
+   --t-base, and like the code box it is allowed because it is standing in for
+   the content rather than wrapping it. main.js opens the switcher with an empty
+   modal title, so the sheet has no header of its own and this field is what
+   announces it. --t-xl is the step a sheet header takes, which is exactly the
+   job this line is doing. Lowering it to the ordinary field step would leave the
+   sheet with nothing at the top at all. */
 .switcher input {
   min-height: 60px;
   padding: var(--s-5) var(--s-12) var(--s-5) var(--s-7);
@@ -1081,7 +1142,11 @@ input[type="radio"] {
   padding: var(--s-3) var(--s-5);
   border-radius: var(--r-md);
   color: var(--c-text);
-  font-size: var(--t-md);
+  /* A switcher row is a menu row: ordinary interface text at --t-base. --t-md is
+     the message-body step, and a list of places to jump to is not the thing you
+     came to read. The two also sit one pixel apart in most looks, so carrying
+     both roles at once was never going to read as two levels. */
+  font-size: var(--t-base);
   cursor: pointer;
   transition: background var(--m-fast) var(--m-ease);
 }
@@ -1090,11 +1155,14 @@ input[type="radio"] {
   background: var(--c-selected);
   box-shadow: inset 2px 0 0 var(--c-accent);
 }
+/* Usually an SVG, which a font-size does not touch, but a channel row passes a
+   bare hash and a person row a bare at-sign. Those are glyphs standing in for an
+   icon, so they take the row's own step instead of sitting a level above it. */
 .qs-ico {
   flex: none;
   width: 20px;
   color: var(--c-text-2);
-  font-size: var(--t-md);
+  font-size: var(--t-base);
   text-align: center;
 }
 .qs-row > span:nth-child(2) {
@@ -1120,9 +1188,10 @@ input[type="radio"] {
     min-height: 56px;
     padding: var(--s-5) calc(var(--s-11) + var(--s-4)) var(--s-5) var(--s-5);
     /* 20px is a desktop-hero size; on a 390px phone it clipped the prompt
-       mid-word. --t-lg matches every other field on the phone and is still
-       above the 16px floor that makes iOS zoom the page on focus. */
-    font-size: var(--t-lg);
+       mid-word. This is now the same expression every other field on the phone
+       uses: the --t-base role, floored at the 16px below which iOS zooms the page
+       on focus. */
+    font-size: max(16px, var(--t-base));
   }
   /* The switcher zeroes .modal-body's padding, so the sheet's own safe-area
      inset has to be reinstated here or the last row sits under the home bar. */
@@ -1164,6 +1233,10 @@ input[type="radio"] {
 .avatar[style*="width:20px"],
 .avatar[style*="width:26px"],
 .avatar[style*="width:28px"] { font-size: var(--t-xs); }
+/* The largest circle passes --t-base, which nothing that is chrome may do. An
+   avatar is not chrome and holds no words: the initials are a drawing of a
+   person, so they scale with the circle the way a photograph would, and this one
+   is the profile-card size. */
 .avatar[style*="width:56px"] { font-size: var(--t-xl); }
 
 /* ------------------------------------------------------------------ badge */
@@ -1229,10 +1302,13 @@ input[type="radio"] {
   background: var(--c-danger-quiet);
   color: var(--c-danger);
 }
+/* The channel topic is supporting text, so this one pill leaves the --t-2xs badge
+   step for --t-sm: it is a phrase somebody reads, not a glyph, which is the same
+   reason it drops the uppercase tracking below. */
 .pill-topic {
   padding: 1px var(--s-4);
   border-radius: var(--r-full);
-  font-size: var(--t-xs);
+  font-size: var(--t-sm);
   font-weight: var(--t-semibold);
   letter-spacing: normal;
   text-transform: none;
@@ -1377,7 +1453,10 @@ button.chip.on {
   border-radius: var(--r-sm);
   background: transparent;
   color: var(--c-text-2);
-  font-size: var(--t-sm);
+  /* A tab label is a word inside a control, so --t-base, the step .mode-btn and
+     .emoji-tab now take as well. This is the vocabulary the panels are meant to
+     converge on, so it is the one that has to be right. */
+  font-size: var(--t-base);
   font-weight: var(--t-semibold);
   box-shadow: none;
 }
@@ -1414,7 +1493,8 @@ img.cemoji {
 }
 
 /* Multi-select people picker (group DMs) and the add-to-channel rows. */
-.picker-hint { padding: var(--s-1) var(--s-2); font-size: var(--t-xs); }
+/* A whole sentence telling you how to use the picker - a hint, so --t-sm. */
+.picker-hint { padding: var(--s-1) var(--s-2); font-size: var(--t-sm); }
 .picker-row.picked { background: var(--c-selected); }
 .picker-check { margin-left: auto; opacity: 0; transition: opacity 120ms; color: var(--c-accent); font-weight: var(--t-semibold); }
 .picker-row.picked .picker-check { opacity: 1; }
