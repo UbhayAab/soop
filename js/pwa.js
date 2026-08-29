@@ -28,6 +28,30 @@ export function initPWA() {
             if (sw.state === 'installed' && navigator.serviceWorker.controller) showUpdateToast(reg);
           });
         });
+
+        // ASK. updatefound only fires if something actually re-fetches sw.js,
+        // and nothing here ever did - the browser's own check happens on a hard
+        // navigation and then roughly daily. So an installed app that somebody
+        // leaves open, which is every phone on a shift, could sit on a bundle
+        // for a day with no way to know a newer one existed and no reload
+        // offered. Reported exactly that way: "it's still stuck on the old UI
+        // and there's no option to refresh".
+        //
+        // Two triggers, both cheap: coming back to the tab, and a slow timer for
+        // a screen that is simply left on. Throttled together so a person
+        // flicking between apps does not fire a request per flick; sw.js is a
+        // conditional GET, so a check with nothing new costs a 304.
+        const CHECK_EVERY = 15 * 60 * 1000;
+        let lastCheck = Date.now();
+        const check = () => {
+          if (Date.now() - lastCheck < CHECK_EVERY) return;
+          lastCheck = Date.now();
+          reg.update().catch(() => { /* offline, or the check simply failed */ });
+        };
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') check();
+        });
+        setInterval(check, CHECK_EVERY);
       })
       .catch((e) => console.warn('sw register failed', e));
   }
