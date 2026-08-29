@@ -179,7 +179,7 @@ body .admin-tabbody > h4.sec:first-child {
 }
 .search-hint code {
   padding: 1px var(--s-3);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-xs);
   background: var(--c-surface-2);
   color: var(--c-text-2);
@@ -269,7 +269,7 @@ body .admin-tabbody > h4.sec:first-child {
   /* A hairline as well as a fill: inside a modal, --c-surface-2 and
      --c-overlay are the same colour in the dark theme, so the fill alone
      would leave this strip invisible there. */
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-md);
   background: var(--c-surface-2);
   color: var(--c-text-2);
@@ -348,7 +348,7 @@ body .admin-linkrow button { flex: none; }
   flex-wrap: wrap;
   gap: var(--s-5);
   padding: var(--s-6);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-lg);
   background: var(--c-surface-2);
 }
@@ -418,7 +418,7 @@ body .admin-linkrow button { flex: none; }
   flex-wrap: wrap;
   gap: var(--s-4);
   padding: var(--s-4) var(--s-1);
-  border-top: 1px solid var(--c-border-subtle);
+  border-top: var(--bw) solid var(--c-border-subtle);
   color: var(--c-text);
   font-size: var(--t-sm);
 }
@@ -438,7 +438,7 @@ body .admin-linkrow button { flex: none; }
   min-height: 28px;
   flex: none;
   padding: var(--s-3) var(--s-5);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-md);
   background: var(--c-surface-2);
   color: var(--c-text);
@@ -474,7 +474,7 @@ body .admin-linkrow button { flex: none; }
   min-width: 0;
   white-space: normal;
   padding: var(--s-7);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-xl);
   background: var(--c-surface-2);
   color: var(--c-text);
@@ -559,7 +559,7 @@ body .admin-tabs {
   z-index: var(--z-sticky);
   margin: 0 0 var(--s-3);
   padding: 0;
-  border-bottom: 1px solid var(--c-border);
+  border-bottom: var(--bw) solid var(--c-border);
   background: var(--panel-bg, var(--c-surface));
   box-shadow: 0 calc(-1 * var(--s-9)) 0 var(--s-9) var(--panel-bg, var(--c-surface));
   overflow-x: auto;
@@ -612,7 +612,7 @@ body .admin-stats {
 }
 body .admin-stat {
   padding: var(--s-6);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-lg);
   background: var(--c-surface-2);
 }
@@ -643,7 +643,7 @@ body .admin-scroll {
   max-width: 100%;
   max-height: min(58dvh, 520px);
   overflow: auto;
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-lg);
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -674,7 +674,7 @@ body .admin-table th {
 }
 body .admin-table td {
   padding: var(--s-4) var(--s-5);
-  border-bottom: 1px solid var(--c-border-subtle);
+  border-bottom: var(--bw) solid var(--c-border-subtle);
   color: var(--c-text);
   vertical-align: middle;
 }
@@ -728,7 +728,7 @@ body .mod-actions button.danger,
 body .admin-line button.danger,
 body .mod-line button.danger {
   margin-left: var(--s-4);
-  border: 1px solid color-mix(in srgb, var(--c-danger) 45%, transparent);
+  border: var(--bw) solid color-mix(in srgb, var(--c-danger) 45%, transparent);
   background: var(--c-bg);
   color: var(--c-danger);
   transition: background-color var(--m-fast) var(--m-ease),
@@ -767,7 +767,7 @@ body .admin-line {
   gap: var(--s-4);
   row-gap: var(--s-2);
   padding: var(--s-4) var(--s-3);
-  border-bottom: 1px solid var(--c-border-subtle);
+  border-bottom: var(--bw) solid var(--c-border-subtle);
   color: var(--c-text);
   font-size: var(--t-sm);
   line-height: var(--t-snug);
@@ -787,7 +787,7 @@ body .admin-line .admin-when {
 body .admin-form {
   margin-bottom: var(--s-6);
   padding: var(--s-6);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-lg);
   background: var(--c-surface-2);
   color: var(--c-text);
@@ -846,7 +846,7 @@ body .roles-row {
   gap: var(--s-4);
   min-height: 44px;
   padding: var(--s-4) var(--s-3);
-  border-bottom: 1px solid var(--c-border-subtle);
+  border-bottom: var(--bw) solid var(--c-border-subtle);
   color: var(--c-text);
   transition: background-color var(--m-fast) var(--m-ease);
 }
@@ -910,7 +910,7 @@ body .roles-perm {
   gap: var(--s-4);
   min-height: 44px;
   padding: var(--s-3) var(--s-5);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-md);
   background: var(--c-surface-2);
   color: var(--c-text);
@@ -1025,7 +1025,7 @@ body .onb-line {
   row-gap: var(--s-2);
   min-height: 44px;
   padding: var(--s-3) var(--s-2);
-  border-bottom: 1px solid var(--c-border-subtle);
+  border-bottom: var(--bw) solid var(--c-border-subtle);
   color: var(--c-text);
   font-size: var(--t-sm);
 }
@@ -1044,7 +1044,7 @@ body .onb-line .muted {
 body .mod-pat {
   max-width: 55%;
   padding: var(--s-1) var(--s-3);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-xs);
   background: var(--c-code-bg);
   color: var(--c-text);
@@ -1076,7 +1076,7 @@ body .mod-kind.block {
 }
 body .mod-kind.flag {
   background: var(--c-warn-quiet);
-  border: 1px solid color-mix(in srgb, var(--c-warn) 50%, transparent);
+  border: var(--bw) solid color-mix(in srgb, var(--c-warn) 50%, transparent);
   color: var(--c-text);
 }
 
@@ -1115,7 +1115,7 @@ body .mod-note {
   gap: var(--s-4);
   margin-bottom: var(--s-4);
   padding: var(--s-3) var(--s-5);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-md);
   background: var(--c-surface-2);
   color: var(--c-text-2);
@@ -1140,7 +1140,7 @@ body .onb-line .rolechip { margin-left: 0; }
 body .onb-rules {
   max-height: 46dvh;
   padding: var(--s-6);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-lg);
   background: var(--c-surface-2);
   color: var(--c-text);
@@ -1159,7 +1159,7 @@ body .onb-rr {
   gap: var(--s-3);
   margin-top: var(--s-3);
   padding: var(--s-1) var(--s-5);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-full);
   background: var(--c-surface-2);
   color: var(--c-text-2);
@@ -1357,7 +1357,7 @@ body .onb-rr b {
    never been enough to tell "archive" from "destroy".
    The button is pushed right so no two actions sit under the same thumb. */
 body .admin-danger {
-  border: 1px solid color-mix(in srgb, var(--c-danger) 32%, var(--c-border));
+  border: var(--bw) solid color-mix(in srgb, var(--c-danger) 32%, var(--c-border));
   border-radius: var(--r-md);
   overflow: hidden;
 }

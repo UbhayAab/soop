@@ -58,7 +58,7 @@
 :root .mx-link,
 :root .forum-card {
   background: var(--c-surface-2);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-lg);
   box-shadow: var(--e-1);
 }
@@ -89,7 +89,7 @@
   min-height: 34px;
   margin-left: -1px;           /* collapse the hairline shared by two cells */
   padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: 0;
   background: var(--c-surface-2);
   color: var(--c-text-2);
@@ -198,7 +198,7 @@
   flex: none;
   margin-top: 1px;             /* optical: sit the cap height on the question */
   padding: var(--s-1) var(--s-3);
-  border: 1px solid var(--c-accent);
+  border: var(--bw) solid var(--c-accent);
   border-radius: var(--r-xs);
   background: var(--c-accent-quiet);
   color: var(--c-text);
@@ -231,7 +231,7 @@
   min-height: 38px;
   padding: var(--s-4) var(--s-5);
   overflow: hidden;
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-md);
   background: var(--c-bg);
   color: var(--c-text);
@@ -327,7 +327,7 @@
   letter-spacing: 0.06em;
 }
 :root .poll-pill.open {
-  border: 1px solid var(--fx-success-edge);
+  border: var(--bw) solid var(--fx-success-edge);
   background: var(--c-success-quiet);
   color: var(--c-text);
 }
@@ -359,7 +359,7 @@
   flex: none;
   width: 114px;
   padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-md);
   background: var(--c-bg);
   text-align: center;
@@ -445,7 +445,7 @@
   margin-left: auto;
   min-height: 34px;
   padding: var(--s-3) var(--s-5);
-  border: 1px solid transparent;
+  border: var(--bw) solid transparent;
   border-radius: var(--r-md);
   background: transparent;
   color: var(--c-text-2);
@@ -476,7 +476,7 @@
 :root .cv-title {
   width: 100%;
   padding: var(--s-3) var(--s-4);
-  border: 1px solid transparent;
+  border: var(--bw) solid transparent;
   border-radius: var(--r-sm);
   background: transparent;
   color: var(--c-text);
@@ -504,7 +504,7 @@
   align-items: flex-start;
   gap: var(--s-3);
   padding: var(--s-1) var(--s-2) var(--s-1) var(--s-3);
-  border: 1px solid transparent;
+  border: var(--bw) solid transparent;
   border-radius: var(--r-md);
   transition: background var(--m-fast) var(--m-ease),
               border-color var(--m-fast) var(--m-ease);
@@ -531,7 +531,7 @@
   width: 100%;
   min-height: 36px;
   padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--c-accent);
+  border: var(--bw) solid var(--c-accent);
   border-radius: var(--r-sm);
   background: var(--c-bg);
   color: var(--c-text);
@@ -557,7 +557,7 @@
 :root .cv-pre {
   margin: 0;
   padding: var(--s-5) var(--s-6);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-md);
   background: var(--c-code-bg);
   color: var(--c-text);
@@ -612,7 +612,7 @@
   width: auto;
   margin: var(--s-5) var(--s-4);
   border: none;
-  border-top: 1px solid var(--c-border);
+  border-top: var(--bw) solid var(--c-border);
 }
 
 :root .cv-tools {
@@ -634,7 +634,7 @@
   flex-wrap: wrap;
   margin-top: var(--s-6);
   padding-top: var(--s-5);
-  border-top: 1px solid var(--c-border);
+  border-top: var(--bw) solid var(--c-border);
 }
 :root .cv-add .muted { font-size: var(--t-sm); }
 :root .cv-type { width: auto; }
@@ -676,7 +676,7 @@
   flex-wrap: wrap;
   padding: var(--s-1) var(--s-2) var(--s-5);
   margin-bottom: var(--s-4);
-  border-bottom: 1px solid var(--c-border);
+  border-bottom: var(--bw) solid var(--c-border);
   font-size: var(--t-sm);
 }
 :root .topics-head .topics-tools { margin-left: auto; }
@@ -709,7 +709,7 @@
   flex-wrap: wrap;
   padding-bottom: var(--s-5);
   margin-bottom: var(--s-6);
-  border-bottom: 1px solid var(--c-border);
+  border-bottom: var(--bw) solid var(--c-border);
 }
 :root .forum-tags {
   display: flex;
@@ -725,7 +725,7 @@
   align-items: center;
   min-height: 30px;
   padding: var(--s-2) var(--s-5);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-full);
   background: var(--c-surface-2);
   color: var(--c-text-2);
@@ -807,7 +807,7 @@
 :root .forum-posthead {
   padding: var(--s-1) var(--s-2) var(--s-5);
   margin-bottom: var(--s-4);
-  border-bottom: 1px solid var(--c-border);
+  border-bottom: var(--bw) solid var(--c-border);
 }
 :root .fp-title {
   margin-bottom: var(--s-1);
@@ -850,7 +850,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-:root .later-item { border-bottom: 1px solid var(--c-border-subtle); }
+:root .later-item { border-bottom: var(--bw) solid var(--c-border-subtle); }
 :root .later-item .body {
   max-height: 96px;
   overflow: hidden;
@@ -931,7 +931,7 @@
      is aubergine in the colorful theme. A --c-surface-2 pill there reads as a
      piece of the message list that fell into the chrome. The fill is a tint of
      the nav text so it works on any of the three nav backgrounds. */
-  border: 1px solid var(--c-nav-border);
+  border: var(--bw) solid var(--c-nav-border);
   border-radius: var(--r-full);
   background: color-mix(in srgb, var(--c-nav-text) 12%, transparent);
   color: var(--c-nav-text);
@@ -990,7 +990,7 @@
   width: 100%;
   min-height: 36px;
   padding: var(--s-3) var(--s-4);
-  border: 1px solid transparent;
+  border: var(--bw) solid transparent;
   border-radius: var(--r-md);
   background: transparent;
   color: var(--c-text);
@@ -1073,7 +1073,7 @@
   gap: var(--s-3) var(--s-5);
   padding: var(--s-4);
   border-radius: var(--r-md);
-  border-bottom: 1px solid var(--c-border-subtle);
+  border-bottom: var(--bw) solid var(--c-border-subtle);
   transition: background var(--m-fast) var(--m-ease);
 }
 :root .hnotif-row:hover { background: var(--c-hover); }
@@ -1114,7 +1114,7 @@
   position: relative;
   margin: 0 0 var(--s-5);
   padding: var(--s-5) var(--s-6) var(--s-5) var(--s-10);
-  border: 1px solid var(--fx-warn-edge);
+  border: var(--bw) solid var(--fx-warn-edge);
   border-left: 3px solid var(--c-warn);
   border-radius: var(--r-md);
   background: var(--c-warn-quiet);
@@ -1137,7 +1137,7 @@
 :root .intg-code {
   margin: var(--s-3) 0 var(--s-1);
   padding: var(--s-4) var(--s-5);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-md);
   background: var(--c-code-bg);
   color: var(--c-text);
@@ -1197,7 +1197,7 @@
 :root .intg-emoji-cell {
   width: 84px;
   padding: var(--s-3) var(--s-2);
-  border: 1px solid transparent;
+  border: var(--bw) solid transparent;
   border-radius: var(--r-md);
   color: var(--c-text-2);
   font-size: var(--t-xs);
@@ -1239,7 +1239,7 @@
   max-width: 520px;
   margin: var(--s-4) 0 var(--s-1);
   padding: var(--s-4) var(--s-5);
-  border: 1px solid var(--fx-warn-edge);
+  border: var(--bw) solid var(--fx-warn-edge);
   border-left: 3px solid var(--c-warn);
   border-radius: var(--r-md);
   background: var(--c-warn-quiet);
@@ -1414,7 +1414,7 @@
   display: inline-block;
   min-width: 1.6em;
   padding: 1px 5px;
-  border: 1px solid var(--c-border-strong);
+  border: var(--bw) solid var(--c-border-strong);
   border-bottom-width: 2px;
   border-radius: var(--r-xs);
   background: var(--c-surface-2);
@@ -1487,7 +1487,7 @@
   margin: 0 auto var(--s-5);
   padding: var(--s-3) var(--s-5);
   background: var(--c-bg);
-  border-bottom: 1px solid var(--c-border);
+  border-bottom: var(--bw) solid var(--c-border);
   scrollbar-width: none;
 }
 :root .bmk-bar::-webkit-scrollbar { height: 0; }
@@ -1500,7 +1500,7 @@
   max-width: 230px;
   min-height: 28px;
   padding: var(--s-2) var(--s-5);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-full);
   background: var(--c-surface-2);
   color: var(--c-text);
@@ -1600,7 +1600,7 @@
   max-height: 150px;
   overflow: auto;
   overscroll-behavior: contain;
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-md);
   background: var(--c-code-bg);
   color: var(--c-text);
@@ -1796,7 +1796,7 @@
   align-items: center;
   gap: var(--s-4);
   padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-md);
   background: var(--c-surface);
 }
@@ -1822,7 +1822,7 @@
   gap: var(--s-3);
   margin-top: var(--s-6);
   padding-top: var(--s-5);
-  border-top: 1px solid var(--c-border);
+  border-top: var(--bw) solid var(--c-border);
 }
 
 /* ---------------------------------------------------------------- people */
@@ -1831,7 +1831,7 @@
   align-items: center;
   gap: var(--s-4);
   padding: var(--s-3) 0;
-  border-bottom: 1px solid var(--c-border-subtle, var(--c-border));
+  border-bottom: var(--bw) solid var(--c-border-subtle, var(--c-border));
 }
 :root .orgppl-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :root .orgppl-row select { flex: none; }
@@ -1880,7 +1880,7 @@
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   padding: 0 10px; height: 38px;
   border-radius: var(--r-md, 8px);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   background: var(--c-surface-2);
   color: var(--c-text-2);
   text-overflow: ellipsis;
@@ -1890,7 +1890,7 @@
   display: inline-flex; align-items: center; gap: 6px;
   height: 38px; padding: 0 14px;
   border-radius: var(--r-md, 8px);
-  border: 1px solid transparent;
+  border: var(--bw) solid transparent;
   background: var(--c-accent); color: var(--c-accent-text);
   font-size: 13px; font-weight: 600; cursor: pointer;
 }
@@ -1906,7 +1906,7 @@
   display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   padding: 12px 6px;
   border-radius: var(--r-md, 8px);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   background: var(--c-surface);
   color: var(--c-text-2);
   font-size: 12px; font-weight: 550; cursor: pointer;
@@ -1922,7 +1922,7 @@
 
 /* Folds. Closed by default: the whole point of the sheet is that the common
    path needs no decisions. */
-:root .oshare-fold { border-top: 1px solid var(--c-border-subtle); padding-top: 12px; }
+:root .oshare-fold { border-top: var(--bw) solid var(--c-border-subtle); padding-top: 12px; }
 :root .oshare-fold > summary {
   display: flex; align-items: center; gap: 8px;
   font-size: 12px; font-weight: 600; color: var(--c-text-2);
@@ -1943,7 +1943,7 @@
 :root .oshare-form input {
   width: 148px; height: 34px; padding: 0 8px;
   border-radius: var(--r-md, 8px);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   background: var(--c-surface-2); color: var(--c-text);
   font-size: 13px;
 }
@@ -1978,7 +1978,7 @@
   display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
   padding: 12px 14px;
   border-radius: var(--r-lg, 12px);
-  border: 1px solid var(--c-warn);
+  border: var(--bw) solid var(--c-warn);
   background: var(--c-warn-quiet);
   font-size: 12px; line-height: 1.5; color: var(--c-text-2);
 }

@@ -34,7 +34,7 @@
   margin: var(--s-9) auto;
   max-width: 360px;
   padding: var(--s-7);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-lg);
   background: var(--c-surface);
   text-align: center;
@@ -292,7 +292,7 @@ section.msgs:has(> .ux-unread-top) > :first-child { margin-top: calc(var(--s-11)
   gap: var(--s-3);
   height: 30px;
   padding: 0 var(--s-5);
-  border: 1px solid var(--c-accent);
+  border: var(--bw) solid var(--c-accent);
   border-radius: var(--r-full);
   background: var(--c-accent);
   color: var(--c-accent-text);
@@ -518,7 +518,7 @@ aside#panel:not(.hidden) {
   gap: var(--s-2);
   min-height: 30px;
   padding: 0 var(--s-5);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-full);
   background: var(--c-surface-2);
   color: var(--c-text-2);
@@ -552,7 +552,7 @@ aside#panel:not(.hidden) {
   width: 100%;
   min-height: 62px;
   padding: var(--s-4);
-  border: 1px solid var(--c-accent);
+  border: var(--bw) solid var(--c-accent);
   border-radius: var(--r-md);
   background: var(--c-bg);
   color: var(--c-text);
