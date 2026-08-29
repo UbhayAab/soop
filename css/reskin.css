@@ -114,7 +114,7 @@ textarea {
 aside#panel { box-shadow: var(--e-2); }
 
 /* ---- tab bar ------------------------------------------------------------ */
-.tabbar { border-top: var(--bw) solid var(--c-border-subtle, var(--c-border)); }
+.tabbar { border-top: var(--bw) solid var(--c-nav-border); }
 .tabbar .tab span:last-child { font-weight: var(--t-medium); }
 
 /* ---- buttons ------------------------------------------------------------ */
