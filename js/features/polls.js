@@ -319,6 +319,10 @@ function injectStyles() {
   font-variant-numeric:tabular-nums}
 .poll-foot{display:flex;align-items:center;gap:8px;font-size:var(--t-sm)}
 .poll-err{color:var(--c-danger);font-size:var(--t-sm)}
+/* The empty state points at the composer button by drawing it mid-sentence, so
+   this copy of the icon has to sit in the text like a glyph. The base .ico rule
+   is display:block, which would break the sentence in half around it. */
+.poll-ico-inline{display:inline-block;width:15px;height:15px;margin:0;vertical-align:-3px}
 .poll-row-meta{display:flex;align-items:center;gap:6px;font-size:var(--t-sm);margin-top:4px}
 .poll-pill{font-size:var(--t-2xs);font-weight:var(--t-black);letter-spacing:var(--t-track-caps);
   padding:1px 6px;border-radius:var(--r-xs);background:var(--c-surface-3);color:var(--c-text-2)}
@@ -376,9 +380,14 @@ export function register({ ui }) {
         return;
       }
       if (!rows.length) {
-        body.innerHTML = `<div class="empty">No polls in this Space yet.<br>
-          Post one with <code>/poll</code> or the 📊 button next to the composer and it will appear
-          here while it is open.</div>`;
+        // One span around the whole sentence. .empty is a column flex container, so
+        // every child ELEMENT of it becomes its own flex item on its own row - the
+        // <code> was already being torn onto a line of its own here, and an <svg>
+        // added a third. Inside a single span the run is ordinary inline text again
+        // and the icon sits in the sentence where it is pointing.
+        body.innerHTML = `<div class="empty"><span>No polls in this Space yet.<br>
+          Post one with <code>/poll</code> or the ${icon('chart', { cls: 'poll-ico-inline' })} button next to the composer and it will appear
+          here while it is open.</span></div>`;
         return;
       }
 

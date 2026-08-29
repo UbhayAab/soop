@@ -6,6 +6,7 @@ import { sb, subscribe } from '../sb.js';
 import { store, bus, hasPerm } from '../store.js';
 import { PERM } from '../config.js';
 import { $, el, esc, initials, hueOf, debounceLead } from '../util.js';
+import { icon } from '../icons.js';
 import { toast, formModal, modal, confirmModal, typeToConfirm, contextMenu, renderHeaderButtons } from '../ui.js';
 import { renderChannels, openChannel, refreshUnread, lastChannelId } from './channels.js';
 import { embed, pinnedSpaceOf } from '../embed.js';
@@ -32,6 +33,9 @@ export function renderSpaceRail() {
     byOrg.get(k).push(s);
   }
 
+  // This shadows the imported icon() for the length of renderSpaceRail, which is
+  // deliberate: in here "icon" has only ever meant a Space's rail tile. Anything
+  // that wants a glyph from the SVG set has to be built outside this function.
   const icon = (s) => {
     const b = store.spaceBadges.get(s.id);
     const active = store.ws?.id === s.id;
@@ -458,7 +462,7 @@ export async function orgDirectory(orgId) {
           <div class="orgdir-main">
             <b>${esc(s.name)}</b>
             <div class="muted orgdir-sub">
-              ${s.join_policy === 'open' ? '' : '🔒 invite only · '}made by ${esc(s.created_by_name || 'someone')}
+              ${s.join_policy === 'open' ? '' : icon('lock') + ' invite only · '}made by ${esc(s.created_by_name || 'someone')}
               · ${s.member_count} member${s.member_count === 1 ? '' : 's'}
             </div>
           </div>
@@ -902,27 +906,27 @@ export async function spaceChooser() {
   box.innerHTML = `
     ${orgs.map((o) => `
     <button class="chooser-card" data-org="${o.org_id}">
-      <div class="cc-ico">🏢</div><div><b>New server in ${esc(o.name)}</b>
+      <div class="cc-ico">${icon('plus')}</div><div><b>New server in ${esc(o.name)}</b>
       <div class="muted">One team - HR, tech, design. Its own channels, its own
         members, and nobody outside it can read them.</div></div>
     </button>`).join('')}
     ${orgs.map((o) => `
     <button class="chooser-card" data-dir="${o.org_id}">
-      <div class="cc-ico">🗂️</div><div><b>Browse ${esc(o.name)}</b>
+      <div class="cc-ico">${icon('folder')}</div><div><b>Browse ${esc(o.name)}</b>
       <div class="muted">${o.spaces} server${o.spaces === 1 ? '' : 's'} - see what exists and join.</div></div>
     </button>`).join('')}
     ${orgs.filter((o) => !o.scheduled_delete_at).map((o) => `
     <button class="chooser-card" data-inv="${o.org_id}">
-      <div class="cc-ico">✉️</div><div><b>Invite people to ${esc(o.name)}</b>
+      <div class="cc-ico">${icon('mail')}</div><div><b>Invite people to ${esc(o.name)}</b>
       <div class="muted">A link that joins the organisation itself, so they land in every
         open server at once instead of being added one at a time.</div></div>
     </button>`).join('')}
     <button class="chooser-card" data-a="create">
-      <div class="cc-ico">🏗️</div><div><b>Start a new organisation</b>
+      <div class="cc-ico">${icon('building')}</div><div><b>Start a new organisation</b>
       <div class="muted">A separate organisation of your own, unrelated to the ones above.</div></div>
     </button>
     <button class="chooser-card" data-a="join">
-      <div class="cc-ico">🔗</div><div><b>Join with a link</b>
+      <div class="cc-ico">${icon('link')}</div><div><b>Join with a link</b>
       <div class="muted">Someone sent you an invite link or code? Paste it here.</div></div>
     </button>`;
   const m = modal({ title: 'Servers', body: box });

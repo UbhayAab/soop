@@ -9,6 +9,7 @@ import { PERM } from '../config.js';
 import { el, esc, relTime } from '../util.js';
 import { table } from '../api.js';
 import { buildMessage } from '../core/messages.js';
+import { icon } from '../icons.js';
 
 let ui, api, store, bus, sb;
 
@@ -35,7 +36,9 @@ export function register(app) {
   });
 
   ui.addMessageAction({
-    id: 'set-topic', label: '🏷', title: 'Set topic', order: 40,
+    // The luggage tag: a topic is a label tied to one message, not a container
+    // the message is filed into.
+    id: 'set-topic', label: icon('tag'), title: 'Set topic', order: 40,
     contexts: ['channel', 'thread'],
     // The server refuses a topic on someone else's message unless you can manage
     // messages, so do not offer a button that is only going to error.

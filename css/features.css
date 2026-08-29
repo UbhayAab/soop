@@ -1815,6 +1815,16 @@
 }
 :root .orgdir-main { flex: 1 1 auto; min-width: 0; }
 :root .orgdir-sub { font-size: var(--t-xs); }
+/* The "invite only" lock sits mid-sentence in an 11.5px line, so it is sized to
+   that line and made inline-block - the block display .ico carries by default
+   would push the rest of the sentence onto a second row. */
+:root .orgdir-sub .ico {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  vertical-align: -1px;
+}
 :root .orgdir-locked { flex: none; font-size: var(--t-xs); }
 :root .orgdir-foot {
   display: flex;

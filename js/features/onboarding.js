@@ -384,7 +384,7 @@ export function register(app) {
   }
 
   ui.addMessageAction({
-    id: 'reaction-role', label: '🎭', title: 'Set reaction role', order: 320,
+    id: 'reaction-role', label: icon('badge'), title: 'Set reaction role', order: 320,
     contexts: ['channel', 'thread'],
     show: () => canManageRoles(),
     onClick: (m) => reactionRoleDialog(m),

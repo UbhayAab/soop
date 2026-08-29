@@ -397,7 +397,7 @@ function renderPanel(ui, api) {
     for (const c of channels) {
       const row = el('div', 'hnotif-row');
       row.appendChild(el('div', 'hnotif-name',
-        `<span class="ch-ico">${c.is_private ? '🔒' : '#'}</span> ${esc(c.name)}`));
+        `<span class="ch-ico">${c.is_private ? icon('lock') : '#'}</span> ${esc(c.name)}`));
       row.appendChild(seg(levels.get(c.id) || 'inherit', async (value, btn, host) => {
         const prev = levels.get(c.id) || 'inherit';
         host.querySelectorAll('button').forEach((n) => n.classList.remove('on'));
@@ -486,6 +486,12 @@ function injectStyle() {
     .hnotif-seg button{padding:4px 8px;font-size:12px}
     .hnotif-row{display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--line)}
     .hnotif-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px}
+    /* .hnotif-name is a nowrap line of text, not a flex row, so the lock has to
+       stay in the inline flow - a block SVG inside this span would break the
+       line. inline-flex keeps the 16px .ch-ico column the "#" rows already use,
+       so private and public channels line up on one left edge. */
+    .hnotif-name .ch-ico{display:inline-flex;align-items:center;justify-content:center;vertical-align:-2px}
+    .hnotif-name .ch-ico .ico{width:14px;height:14px;margin:0}
     @media (max-width:860px){ .hnotif-row{flex-direction:column;align-items:stretch} }`;
   document.head.appendChild(s);
 }

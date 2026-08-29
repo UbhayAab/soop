@@ -89,8 +89,12 @@ function snippetBlock(s) {
   return `${fence}${lang}\n${shown}\n${fence}`;
 }
 
+// No glyph on the title, and no icon() either. What this builds is the BODY of a
+// real message that gets sent, stored and re-rendered through the markdown
+// pipeline, where an SVG has nowhere to survive: the sanitiser drops it and the
+// raw markup stays in the row. The word "snippet" is already the label.
 function snippetMessage(s) {
-  return `📎 **${s.title}** · snippet\n\n${snippetBlock(s)}\n\n[Open snippet](#/snippet/${s.id})`;
+  return `**${s.title}** · snippet\n\n${snippetBlock(s)}\n\n[Open snippet](#/snippet/${s.id})`;
 }
 
 // ------------------------------------------------------------------ create
@@ -249,8 +253,11 @@ export function register({ ui, api }) {
       const s = (q || '').toLowerCase();
       if (s && !'snippet'.startsWith(s) && !'code'.startsWith(s)) return [];
       return [
-        { label: 'New snippet', hint: 'Save and share code', icon: '📎', run: () => snippetDialog() },
-        { label: 'My snippets', hint: 'Everything you have saved', icon: '📎', run: () => ui.openPanel(PANEL, {}) },
+        // The same glyph the composer button above wears, so one action is one
+        // picture. Deliberately not `paperclip`: index.html already gives that to
+        // Attach a file, and a snippet is code somebody wrote, not a file upload.
+        { label: 'New snippet', hint: 'Save and share code', icon: icon('code'), run: () => snippetDialog() },
+        { label: 'My snippets', hint: 'Everything you have saved', icon: icon('code'), run: () => ui.openPanel(PANEL, {}) },
       ];
     },
   });

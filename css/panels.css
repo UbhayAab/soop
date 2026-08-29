@@ -519,11 +519,37 @@ body .admin-linkrow button { flex: none; }
   font-weight: var(--t-normal);
   line-height: var(--t-body);
 }
+/* Was an emoji sized by font-size. It is an SVG now, and .ico's default 18px is
+   too quiet to lead a card this wide, so the box is stated outright: a 20px glyph
+   in a 20px box, which the card grid's `auto` first column then matches across
+   all five cards. It lands on the title's first line without a nudge because the
+   card is align-items:start and that line is 18.75px, within a pixel of the box. */
 .cc-ico {
-  font-size: var(--t-2xl);
-  line-height: 1;
-  font-family: var(--t-emoji);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: var(--c-text-2);
 }
+/* The margin is reset because .ico lifts itself 1px to sit on a text baseline,
+   and here flex is already doing the centring. */
+.cc-ico .ico { width: 20px; height: 20px; margin: 0; }
+/* reading.css turns ANY button holding an .ico into an inline-flex row, and it is
+   right to, because that rule was written for icon buttons. This card is a button
+   as well, so the moment its emoji became an SVG that rule outranked the grid
+   above (button:has(.ico) is 0-1-1, a bare .chooser-card only 0-1-0) and the
+   glyph, the title and the blurb collapsed onto one centred line. Restated at a
+   higher specificity so the card keeps the layout it had with the emoji. */
+.chooser-card:has(.ico) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s-6);
+}
+/* The emoji carried its own colour. These take the card's, so they lift with the
+   hover tint instead of staying dead grey while the border and ground move. */
+.chooser-card:hover .cc-ico { color: var(--c-accent); }
 
 /* ============================================================================
    8. ADMIN CONSOLE

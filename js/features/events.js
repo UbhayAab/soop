@@ -58,7 +58,7 @@ function paintCard(host, ev) {
       </div>
       <div class="ev-main">
         <div class="ev-title">${esc(ev.title)}</div>
-        ${ev.location ? `<div class="muted ev-loc">📍 ${esc(ev.location)}</div>` : ''}
+        ${ev.location ? `<div class="muted ev-loc">${icon('mapPin')} ${esc(ev.location)}</div>` : ''}
         ${ch ? `<div class="muted ev-loc">#${esc(ch.name)}</div>` : ''}
       </div>
       ${ev.canceled ? '<span class="ev-tag">CANCELLED</span>' : ''}
@@ -314,6 +314,10 @@ function injectStyles() {
 .ev-main{flex:1;min-width:0}
 .ev-title{font-weight:var(--t-bold);word-break:break-word}
 .ev-loc{font-size:var(--t-sm);word-break:break-word}
+/* A place on a map, sitting inside the line of text rather than alone in a
+   button, so it needs to lay out as a glyph does. The base .ico rule is
+   display:block, which would put the address on its own line beneath it. */
+.ev-loc .ico{display:inline-block;width:14px;height:14px;margin:0;vertical-align:-2px}
 .ev-tag{flex:none;font-size:var(--t-2xs);font-weight:var(--t-black);
   letter-spacing:var(--t-track-caps);padding:2px 6px;border-radius:var(--r-xs);
   background:var(--c-danger-quiet);color:var(--c-danger)}

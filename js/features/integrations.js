@@ -471,7 +471,9 @@ async function renderEmoji(host) {
   for (const e of rows) {
     const cell = el('div', 'intg-emoji-cell');
     cell.title = `Click to copy :${e.name}:`;
-    cell.innerHTML = `<div class="intg-emoji-ph">🖼</div><div>:${esc(e.name)}:</div>`;
+    // Sized here because the tile is a 40px box with no rule of its own for .ico,
+    // and the default 18px reads as a speck inside it.
+    cell.innerHTML = `<div class="intg-emoji-ph">${icon('image', { size: 20 })}</div><div>:${esc(e.name)}:</div>`;
     cell.onclick = () => copy(`:${e.name}:`, `:${e.name}: copied`);
     grid.appendChild(cell);
     // Signed URLs are minted one at a time; do it after the grid is on screen so

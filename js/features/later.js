@@ -39,6 +39,11 @@ function style() {
     .later-bar button{font-size:12px}
     .later-when{color:var(--amber)}
     .later-over{color:var(--red)}
+    /* The clock sits inside a run of text rather than alone in a button, so it
+       has to lay out as a glyph does. The base .ico rule is display:block, which
+       would drop the time onto its own line under the icon. */
+    .later-when .ico,.later-over .ico{display:inline-block;width:13px;height:13px;
+      margin:0;vertical-align:-2px}
     .later-badge{margin-left:3px;vertical-align:top}
     .later-done .body{opacity:.55;text-decoration:line-through}`;
   document.head.appendChild(s);
@@ -53,9 +58,12 @@ let queueCount = 0;
 function paintBadge() {
   const btn = document.getElementById('hb-' + BTN);
   if (!btn) return;
+  // This rewrites the whole button, so it has to redraw the SAME icon the
+  // registration hands ui.js. It used to paint an emoji tray over the SVG, which
+  // meant the button quietly changed shape the first time a count landed.
   const want = queueCount > 0
-    ? `📥<span class="badge later-badge">${queueCount > 99 ? '99+' : queueCount}</span>`
-    : '📥';
+    ? `${icon('inbox')}<span class="badge later-badge">${queueCount > 99 ? '99+' : queueCount}</span>`
+    : icon('inbox');
   if (btn.innerHTML !== want) btn.innerHTML = want;
 }
 
@@ -204,8 +212,11 @@ export function register({ ui, api }) {
     },
   });
 
+  // The tray, not `bookmark`. Core's own "Saved and Later" header button is
+  // already a bookmark (js/core/actions.js), and two buttons sitting a few pixels
+  // apart in the same row cannot wear the same picture and still mean two things.
   ui.addHeaderButton({
-    id: BTN, label: icon('bookmark'), title: 'Later queue', order: 90,
+    id: BTN, label: icon('inbox'), title: 'Later queue', order: 90,
     onClick: () => ui.openPanel(PANEL, {}),
   });
 
@@ -247,7 +258,7 @@ function itemCard(r, stateKey, redraw, ui, api) {
     <div class="muted later-meta">
       <b>${esc(who)}</b><span>in #${esc(r.channel_name || 'unknown')}</span>
       <span>· ${esc(relTime(r.created_at))}</span>
-      ${r.remind_at ? `<span class="later-when">⏰ ${esc(whenText(r.remind_at))}</span>` : ''}
+      ${r.remind_at ? `<span class="later-when">${icon('clock')} ${esc(whenText(r.remind_at))}</span>` : ''}
     </div>
     <div class="body">${fmt(plain(r.body_text, 240))}</div>`;
 
@@ -359,7 +370,7 @@ async function remindersSection(body, redraw, ui, api) {
     const card = el('div', 'result later-item');
     card.innerHTML = `
       <div class="muted later-meta">
-        <span class="${overdue ? 'later-over' : 'later-when'}">⏰ ${esc(whenText(r.remind_at))}
+        <span class="${overdue ? 'later-over' : 'later-when'}">${icon('clock')} ${esc(whenText(r.remind_at))}
           · ${esc(untilLabel(r.remind_at))}</span>
         ${ch ? `<span>in #${esc(ch.name)}</span>` : ''}
       </div>
