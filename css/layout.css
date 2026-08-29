@@ -56,8 +56,17 @@
   flex-direction: column;
   flex: 0 0 44%;
   max-width: 560px;
-  /* A fixed dark stage in BOTH themes - the brand panel is a poster, not a
-     themed surface. Light-theme tokens would wash it to invisible. */
+  /* A fixed dark stage in EVERY theme - the brand panel is a poster, not a
+     themed surface. Light-theme tokens would wash it to invisible.
+
+     That deliberately includes the blue in the corner wash, which stays a
+     literal rather than becoming var(--c-accent). Every other colour in this
+     panel is fixed, so a themed accent would be the one hue drifting against a
+     ground that never moves; and it drifts badly in both directions. An accent
+     tuned to be read on white is dark and saturated, and at 32% over near-black
+     the wash simply disappears; an accent tuned for a dark ground is pale, and
+     it blows the top-left corner out from under a #f2f5f9 headline. A poster is
+     either themed throughout or fixed throughout. This one is fixed. */
   background:
     radial-gradient(120% 90% at 0% 0%,
       rgba(64, 111, 224, 0.32), transparent 62%),
@@ -862,13 +871,22 @@ section.msgs {
   color: var(--c-text-inverse);
   font-weight: var(--t-bold);
 }
-/* The dark theme's accent is a light blue - correct as text on a dark surface,
+/* On a dark ground the accent is a light blue - correct as text on that ground,
    far too loud as a full-width fill behind one. --c-nav-active is the same idea
-   one step down, and it is the only place a theme needs its own answer. */
-:root[data-theme="dark"] .chan.active,
-:root[data-theme="dark"] .chan.active:hover,
-:root:not([data-theme]) .chan.active,
-:root:not([data-theme]) .chan.active:hover {
+   one step down, and it is the only place the resolved scheme needs its own
+   answer.
+
+   Keyed on [data-scheme], never on a theme id. This was written as
+   [data-theme="dark"] plus a :root:not([data-theme]) clause for the
+   then-default, which is a hardcoded list of the dark looks that existed the
+   day it was written - so every dark theme added afterwards fell through to the
+   base rule and painted the open channel in a full-width pale blue fill. The
+   question this rule is actually asking is "is the sidebar dark", and
+   [data-scheme] answers exactly that for every look, present and future. It is
+   always resolved to a concrete value, so the no-attribute clause is gone with
+   the enumeration. */
+:root[data-scheme="dark"] .chan.active,
+:root[data-scheme="dark"] .chan.active:hover {
   background: var(--c-nav-active);
   color: var(--c-nav-text-active);
 }

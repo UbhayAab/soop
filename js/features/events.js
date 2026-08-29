@@ -285,31 +285,47 @@ function scheduleBind() {
 }
 
 // ------------------------------------------------------------------ styles
+// The CANCELLED chip, the cancel button and the error line were dark-only
+// literals: #31191a is a near-black maroon that swallows a light card, and
+// #ff9a8f is the salmon that only reads on a dark ground. They now come from
+// the danger tokens, which every scheme restates, so an event card follows
+// whatever <html data-scheme> resolves to. No selector here names a theme id -
+// there are more of them than this file will ever know about.
+//
+// The legacy names this block used to reference (--line, --panel2, --dim,
+// --accent) are not tokens. panels.css re-points them for #panelContent and a
+// few sibling roots, which covers the Events panel but not the announcement
+// card mounted in a message row - there those declarations resolved to nothing
+// and the card lost its border, its background and its muted text colour
+// entirely. Reading the tokens directly fixes the card in both places.
 function injectStyles() {
   if (document.getElementById('ev-styles')) return;
   const s = el('style');
   s.id = 'ev-styles';
   s.textContent = `
-.ev-card{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:2px 0;
-  background:var(--panel2);max-width:520px}
+.ev-card{border:var(--bw) solid var(--c-border);border-radius:var(--r-lg);padding:10px 12px;
+  margin:2px 0;background:var(--c-surface-2);max-width:520px}
 .ev-in-panel{max-width:none;margin-bottom:8px}
 .ev-head{display:flex;align-items:flex-start;gap:10px}
 .ev-when{flex:none;min-width:74px}
-.ev-day{font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--accent)}
-.ev-time{font-size:12.5px;color:var(--dim);font-variant-numeric:tabular-nums}
+.ev-day{font-size:var(--t-xs);font-weight:var(--t-black);letter-spacing:var(--t-track-caps);
+  text-transform:uppercase;color:var(--c-accent)}
+.ev-time{font-size:var(--t-sm);color:var(--c-text-2);font-variant-numeric:tabular-nums}
 .ev-main{flex:1;min-width:0}
-.ev-title{font-weight:700;word-break:break-word}
-.ev-loc{font-size:12.5px;word-break:break-word}
-.ev-tag{flex:none;font-size:9.5px;font-weight:800;letter-spacing:.5px;padding:2px 6px;
-  border-radius:4px;background:#31191a;color:#ff9a8f}
+.ev-title{font-weight:var(--t-bold);word-break:break-word}
+.ev-loc{font-size:var(--t-sm);word-break:break-word}
+.ev-tag{flex:none;font-size:var(--t-2xs);font-weight:var(--t-black);
+  letter-spacing:var(--t-track-caps);padding:2px 6px;border-radius:var(--r-xs);
+  background:var(--c-danger-quiet);color:var(--c-danger)}
 .ev-canceled .ev-title{text-decoration:line-through}
 .ev-canceled{opacity:.75}
-.ev-desc{margin:7px 0 0;font-size:13.5px;white-space:pre-wrap;word-break:break-word;color:var(--dim)}
-.ev-counts{font-size:12px;margin:7px 0 6px}
+.ev-desc{margin:7px 0 0;font-size:var(--t-base);white-space:pre-wrap;word-break:break-word;
+  color:var(--c-text-2)}
+.ev-counts{font-size:var(--t-sm);margin:7px 0 6px}
 .ev-rsvp{flex-wrap:wrap}
-.ev-cancel{margin-left:auto;color:#ff9a8f}
+.ev-cancel{margin-left:auto;color:var(--c-danger)}
 .ev-toggle{margin-bottom:8px}
-.ev-err{color:#ff9a8f;font-size:12.5px}`;
+.ev-err{color:var(--c-danger);font-size:var(--t-sm)}`;
   document.head.appendChild(s);
 }
 

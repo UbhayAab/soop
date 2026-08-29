@@ -615,49 +615,65 @@ aside#panel:not(.hidden) {
 
 
 /* ============================================================================
-   16. STATUS TEXT ON THE LIGHT THEMES
+   16. STATUS TEXT ON A LIGHT GROUND
 
    The semantic tokens are tuned for a dark background. On white, at the 11.5px
    the delivery strip and the feature tags use them at, they land between 3.0
    and 4.2 - measured by scripts/shot-themes.mjs across every scene. Darkening
-   the token for text only, and only on the two light themes, is the smallest
+   the token for text only, and only where the ground is light, is the smallest
    correction that clears AA without changing what the colour means or touching
    the borders and fills that are already fine at the 3:1 non-text threshold.
 
-   These belong in tokens.css as a --c-success-text pair. Until that exists they
-   are corrected here, where they are at least all in one place.
+   Every rule below used to be keyed on [data-theme="light"],
+   [data-theme="colorful"] and :root:not([data-theme]) - a hardcoded list of the
+   light looks that happened to exist the day it was written, which is a list
+   that goes stale the first time somebody ships a sixth theme. It already had:
+   there are eight ids now, and the ones whose names are not on that list were
+   painting 3.0:1 delivery text on white with nothing to catch it, because a
+   selector that stops matching fails silently. Nothing here cares which LOOK is
+   on, only whether the ground under the text is light, and that is precisely
+   what [data-scheme] answers. It is always resolved to a concrete light or
+   dark, so the bare-:root clause that used to carry the default is gone too.
+
+   The obvious next step is a --c-success-text pair in tokens.css, and this
+   whole block should be deleted the day it lands. Those tokens are deliberately
+   NOT minted here: this file is injected last, so a definition in it would
+   silently outrank tokens.css, and --c-accent-text over there already means
+   "ink that goes ON the accent fill". A --c-success-text defined here to mean
+   the opposite - "success, darkened far enough to be read AS text" - would
+   collide with the settled sense of that name and turn some future
+   white-on-green label into dark green on green. The name has to be agreed in
+   tokens.css, not squatted from the end of the cascade.
    ========================================================================= */
-:root[data-theme="light"] .ob-sent,
-:root[data-theme="colorful"] .ob-sent,
-:root:not([data-theme]) .ob-sent { color: color-mix(in srgb, var(--c-success) 72%, black); }
+:root[data-scheme="light"] .ob-sent { color: color-mix(in srgb, var(--c-success) 72%, black); }
 
-:root[data-theme="light"] .ob-waiting,
-:root[data-theme="colorful"] .ob-waiting,
-:root:not([data-theme]) .ob-waiting { color: color-mix(in srgb, var(--c-warn) 72%, black); }
+:root[data-scheme="light"] .ob-waiting { color: color-mix(in srgb, var(--c-warn) 72%, black); }
 
-:root[data-theme="light"] .ob-broke,
-:root[data-theme="colorful"] .ob-broke,
-:root:not([data-theme]) .ob-broke { color: color-mix(in srgb, var(--c-danger) 72%, black); }
+:root[data-scheme="light"] .ob-broke { color: color-mix(in srgb, var(--c-danger) 72%, black); }
 
 /* Same story for the coordination cards: a small uppercase tag and a one-line
    summary, both on an accent or a quiet grey that does not survive 11px.
    .ori-tag is the "ABOUT THIS CHANNEL" / "WELCOME" chip on the channel guide -
    measured 4.09:1 on light, needs 4.5 - and it is the first thing a new
    volunteer sees on their first open of a channel. */
-:root[data-theme="light"] .ackl-tag,
-:root[data-theme="colorful"] .ackl-tag,
-:root[data-theme="light"] .frm-tag,
-:root[data-theme="colorful"] .frm-tag,
-:root[data-theme="light"] .ori-tag,
-:root[data-theme="colorful"] .ori-tag { color: color-mix(in srgb, currentcolor 74%, black); }
+:root[data-scheme="light"] .ackl-tag,
+:root[data-scheme="light"] .frm-tag,
+:root[data-scheme="light"] .ori-tag { color: color-mix(in srgb, currentcolor 74%, black); }
 
 /* --c-text-3 is 2.90:1 on light for any text at all, and these two are words. */
 .ori-sec,
 .ori-empty { color: var(--c-text-2); }
 
 .frm-qs { color: var(--c-text-2); }
-:root[data-theme="light"] .frm-fill,
-:root[data-theme="colorful"] .frm-fill { color: color-mix(in srgb, var(--c-accent) 88%, black); }
+
+/* .frm-fill is deliberately NOT in the list above, and must not be added back
+   by pattern-matching its siblings. It reads like one of these tags, but it is
+   the filled accent BUTTON that submits a form, so darkening the accent for it
+   paints dark blue on blue: measured 1.23:1, which made the primary action on
+   every form invisible on a light ground. features/forms.js already gives it
+   var(--c-text-inverse), which is the right answer on a saturated fill in every
+   scheme, and it had grown a defensive counter-override in its own injected
+   stylesheet purely to survive the rule that used to sit here. Both are gone. */
 
 
 /* ============================================================================

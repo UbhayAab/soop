@@ -270,36 +270,59 @@ function scheduleBind() {
 }
 
 // ------------------------------------------------------------------ styles
+// Written when dark was the only theme, so the bar fill, the error line and the
+// open pill were dark-only literals: #5b8cff22 and #13251d are invisible mud on
+// a light card, and #ff9a8f is a dark-ground salmon that drops under AA on
+// paper. Everything below now reads a token, and the tokens are restated per
+// resolved scheme, so a poll follows whatever <html data-scheme> settles on
+// rather than assuming the ground is dark. Nothing here names a theme id - a
+// poll card must not have to be taught about each new one.
+//
+// The legacy names this block used to reference (--line, --panel2, --panel3,
+// --panel, --text, --dim, --accent, --green) are not tokens either. panels.css
+// re-points them at real ones as a compatibility shim, but only under
+// #panelContent and a handful of other roots - and a poll card mounts inside a
+// message row, which is none of them. Every one of those declarations was
+// computing to `unset` in the message list: no border, no background, inherited
+// text colour. Reading the tokens directly settles both problems at once.
 function injectStyles() {
   if (document.getElementById('poll-styles')) return;
   const s = el('style');
   s.id = 'poll-styles';
   s.textContent = `
-.poll-card{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:2px 0;
-  background:var(--panel2);max-width:520px}
+.poll-card{border:var(--bw) solid var(--c-border);border-radius:var(--r-lg);padding:10px 12px;
+  margin:2px 0;background:var(--c-surface-2);max-width:520px}
 .poll-card.poll-closed{opacity:.9}
 .poll-head{display:flex;align-items:flex-start;gap:8px}
-.poll-q{flex:1;font-weight:700;word-break:break-word}
-.poll-tag{flex:none;font-size:9.5px;font-weight:800;letter-spacing:.5px;padding:2px 6px;
-  border-radius:4px;background:var(--panel3);color:var(--dim)}
+.poll-q{flex:1;font-weight:var(--t-bold);word-break:break-word}
+.poll-tag{flex:none;font-size:var(--t-2xs);font-weight:var(--t-black);
+  letter-spacing:var(--t-track-caps);padding:2px 6px;border-radius:var(--r-xs);
+  background:var(--c-surface-3);color:var(--c-text-2)}
 .poll-opts{display:flex;flex-direction:column;gap:5px;margin:9px 0 7px}
+/* An option is a well sunk into the card, so it takes --c-bg and not
+   --c-surface: surface against surface-2 is almost the same value in the light
+   schemes, which would flatten the bars back into the card they sit on. */
 .poll-opt{position:relative;display:flex;align-items:center;gap:7px;width:100%;overflow:hidden;
-  text-align:left;background:var(--panel);border:1px solid var(--line);color:var(--text);
-  border-radius:8px;padding:7px 10px;font-weight:500;font-size:13.5px}
-.poll-opt:hover:not(:disabled){border-color:var(--accent)}
+  text-align:left;background:var(--c-bg);border:var(--bw) solid var(--c-border);color:var(--c-text);
+  border-radius:var(--r-md);padding:7px 10px;font-weight:var(--t-medium);font-size:var(--t-base)}
+.poll-opt:hover:not(:disabled){border-color:var(--c-accent)}
 .poll-opt:disabled{opacity:1;cursor:default}
-.poll-opt.mine{border-color:var(--accent)}
-.poll-fill{position:absolute;left:0;top:0;bottom:0;background:#5b8cff22;transition:width .3s ease}
-.poll-opt.mine .poll-fill{background:#5b8cff40}
-.poll-tick{position:relative;width:12px;flex:none;color:var(--accent);font-size:12px}
+.poll-opt.mine{border-color:var(--c-accent)}
+/* Mixed from the live accent at paint time rather than frozen as one blue, so a
+   theme that ships its own accent gets a bar that matches it. */
+.poll-fill{position:absolute;left:0;top:0;bottom:0;
+  background:color-mix(in srgb, var(--c-accent) 13%, transparent);transition:width .3s ease}
+.poll-opt.mine .poll-fill{background:color-mix(in srgb, var(--c-accent) 25%, transparent)}
+.poll-tick{position:relative;width:12px;flex:none;color:var(--c-accent);font-size:var(--t-sm)}
 .poll-txt{position:relative;flex:1;word-break:break-word}
-.poll-num{position:relative;flex:none;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
-.poll-foot{display:flex;align-items:center;gap:8px;font-size:12px}
-.poll-err{color:#ff9a8f;font-size:12.5px}
-.poll-row-meta{display:flex;align-items:center;gap:6px;font-size:12px;margin-top:4px}
-.poll-pill{font-size:10px;font-weight:800;letter-spacing:.4px;padding:1px 6px;border-radius:4px;
-  background:var(--panel3);color:var(--dim)}
-.poll-pill.open{background:#13251d;color:var(--green)}`;
+.poll-num{position:relative;flex:none;font-size:var(--t-sm);color:var(--c-text-2);
+  font-variant-numeric:tabular-nums}
+.poll-foot{display:flex;align-items:center;gap:8px;font-size:var(--t-sm)}
+.poll-err{color:var(--c-danger);font-size:var(--t-sm)}
+.poll-row-meta{display:flex;align-items:center;gap:6px;font-size:var(--t-sm);margin-top:4px}
+.poll-pill{font-size:var(--t-2xs);font-weight:var(--t-black);letter-spacing:var(--t-track-caps);
+  padding:1px 6px;border-radius:var(--r-xs);background:var(--c-surface-3);color:var(--c-text-2)}
+.poll-pill.open{background:var(--c-success-quiet);color:var(--c-success)}`;
   document.head.appendChild(s);
 }
 

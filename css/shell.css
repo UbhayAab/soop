@@ -559,7 +559,7 @@ button.cb-title {
   align-items: center;
   gap: var(--s-3);
   padding: 4px var(--s-3) 4px var(--s-4);
-  border-radius: var(--r-pill, 999px);
+  border-radius: var(--r-full);
   background: color-mix(in srgb, var(--c-warn, #b7791f) 16%, var(--c-nav-bg));
   border: var(--bw) solid color-mix(in srgb, var(--c-warn, #b7791f) 42%, transparent);
   color: var(--c-nav-text);
@@ -657,7 +657,11 @@ button.cb-title {
     padding: 0 3px;
     font-style: normal;
     font-size: 10px;
-    color: #fff;
+    /* The count rides a --c-danger fill, so its ink has to be the token that
+       goes on a saturated fill and not a literal white - that is what the
+       sidebar badge in layout.css uses for the identical component, and a
+       hardcoded #fff is one more thing that does not move when the theme does. */
+    color: var(--c-text-inverse);
     text-align: center;
   }
   /* Keyboard parity: tabs are buttons; focus must be as visible as on desktop. */
