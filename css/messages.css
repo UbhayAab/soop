@@ -1421,11 +1421,19 @@
     order: -1;
     flex: 1 0 100%;
     padding-inline: var(--s-3);
-    /* iOS Safari zooms the whole page whenever a focused field's font is under
-       16px. components.css already raises generic inputs to 17px under this
-       breakpoint, but `font: inherit` up in section 10 resets THIS field back to
-       body size - the one box everyone types into, zooming on every focus. */
-    font-size: 17px;
+    /* iOS Safari zooms the whole page whenever a focused field's font is UNDER
+       16px, so 16 is the floor and 17 was a pixel of pure cost. That pixel put
+       the composer level with the channel title, which is also 17px down here -
+       and since the composer is a long placeholder in a wide box while the title
+       is two short words, the box won the eye. Reported twice as the message box
+       looking bigger than the title of the channel. panels.css:416 already
+       guards its own fields at 16 for exactly this reason; this was the outlier.
+
+       It stays a literal rather than a token: it is a threshold in Safari, not a
+       step in our scale, and tokenising it would silently reintroduce the zoom
+       the day somebody retunes a look. `font: inherit` in section 10 resets this
+       field to body size, which is why the rule has to exist at all. */
+    font-size: 16px;
   }
   .crow .send { margin-left: auto; }
   /* Feature modules can register any number of composer tools, and the fixed

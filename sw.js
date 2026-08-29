@@ -16,7 +16,7 @@
 // (below), but the precached copy is still what wins the 3.5s race on a slow
 // phone, so without this bump the 41 installed clients would keep serving the old
 // bundle whenever the network was slow - which is the shape of 03f8074.
-const VERSION = 'dek-v28';
+const VERSION = 'dek-v29';
 const SHELL = VERSION + '-shell';
 const VENDOR = VERSION + '-vendor';
 
