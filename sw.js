@@ -16,7 +16,7 @@
 // (below), but the precached copy is still what wins the 3.5s race on a slow
 // phone, so without this bump the 41 installed clients would keep serving the old
 // bundle whenever the network was slow - which is the shape of 03f8074.
-const VERSION = 'dek-v24';
+const VERSION = 'dek-v25';
 const SHELL = VERSION + '-shell';
 const VENDOR = VERSION + '-vendor';
 
@@ -210,7 +210,21 @@ self.addEventListener('fetch', (e) => {
         try {
           const res = await fetch(req);
           if (res.ok) await lruPut(cache, key, res.clone());
-          return res.ok ? res : null;
+          // An OPAQUE response is a success for an <img>. The browser will
+          // happily paint bytes it refuses to let script read, and an <img src>
+          // to another origin is a no-cors request, so a signed storage URL
+          // always comes back opaque: status 0, ok false, type 'opaque'.
+          // `res.ok ? res : null` therefore threw every one of them away and
+          // returned Response.error(), which is why a profile photo rendered as
+          // the browser's grey broken-image glyph on every message - but only
+          // once the service worker was controlling the page. Measured: with the
+          // worker blocked, 4 of 4 avatars loaded at their natural size; with it
+          // in control, 0 of 4.
+          //
+          // It is still not CACHED - lruPut is skipped above because an opaque
+          // body has no readable length and would poison the LRU accounting.
+          // Served, not stored.
+          return res.ok || res.type === 'opaque' ? res : null;
         } catch { return null; }
       })();
       e.waitUntil(net);   // keeps the background refresh alive past the cached reply

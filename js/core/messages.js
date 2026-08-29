@@ -40,6 +40,24 @@ export async function hydrateAvatars(root) {
       img.replaceWith(el2);
       continue;
     }
+    // The same fall back to initials, for the OTHER way a face can fail. Until
+    // now it only ran when the signed-URL mint failed; if the mint succeeded and
+    // the image then would not load - an expired URL, a blocked request, a
+    // storage object that is gone - nothing caught it and the row rendered the
+    // browser's grey broken-image glyph forever. A face is the one thing in the
+    // app that has a perfectly good fallback, so it should never be able to show
+    // as broken.
+    img.addEventListener('error', () => {
+      if (!img.isConnected) return;
+      const p2 = profileOf(img.dataset.user);
+      const nm = p2?.display_name || p2?.username || '?';
+      const fb = el('div', 'avatar', esc(initials(nm)));
+      fb.style.cssText = img.style.cssText;
+      fb.style.background = `hsl(${hueOf(img.dataset.user || nm)} 45% 32%)`;
+      fb.title = nm;
+      if (img.dataset.user) fb.dataset.user = img.dataset.user;
+      img.replaceWith(fb);
+    }, { once: true });
     img.src = url;
   }
 }
