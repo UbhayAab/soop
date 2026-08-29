@@ -58,6 +58,24 @@
   --r-2xl: 22px;
   --r-full: 999px;
 
+  /* ------------------------------------------------------------ border weight
+     There was no token for this and 98 declarations wrote the width out as a
+     literal, which meant a theme could restate every colour in the app and
+     still not change the one thing that decides whether a surface reads as a
+     ruled page or a stack of filled cards. The values below are the old literal,
+     so introducing them changes nothing until a theme says otherwise. */
+  --bw: 1px;
+  --bw-strong: 1px;
+
+  /* ---------------------------------------------------------------- tracking
+     Also absent, while 36 sites set letter-spacing by hand - and tracking is
+     most of what separates a didone masthead from a tight machined UI. Named by
+     ROLE, not by value, so a theme can retune them together. */
+  --t-track-tight: -0.01em;   /* large headings, where the default is too loose */
+  --t-track-normal: 0;        /* body and UI text */
+  --t-track-caps: 0.07em;     /* the small tracked uppercase labels */
+  --t-track-display: 0;       /* names and titles set in --t-display */
+
   /* ---------------------------------------------------------------- type
      Slack's readability comes from a compact scale with generous line height
      on body copy and tight line height on UI chrome. */
@@ -65,6 +83,10 @@
     Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   --t-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
     Consolas, "Liberation Mono", monospace;
+  /* The face for people's names, channel titles and headings. It defaults to the
+     interface face, which is what every theme did implicitly until now; a theme
+     that wants a didone for names and a grotesque for chrome sets them apart. */
+  --t-display: var(--t-font);
   --t-emoji: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
 
   --t-2xs: 10.5px;

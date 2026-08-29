@@ -188,7 +188,7 @@
 .daydiv span {
   flex: none;
   padding: var(--s-2) var(--s-5);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-full);
   background: var(--c-bg);
   color: var(--c-text-2);
@@ -256,7 +256,7 @@
 
 .body code {
   padding: 1px var(--s-2);
-  border: 1px solid var(--c-border-subtle);
+  border: var(--bw) solid var(--c-border-subtle);
   border-radius: var(--r-xs);
   background: var(--c-code-bg);
   color: var(--c-text);
@@ -266,7 +266,7 @@
 .body pre {
   margin: var(--s-3) 0;
   padding: var(--s-5) var(--s-6);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-md);
   background: var(--c-code-bg);
   /* The block scrolls inside itself. Nothing here may widen the page. */
@@ -294,7 +294,7 @@
   font-size: var(--t-sm);
 }
 .body th, .body td {
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   padding: var(--s-2) var(--s-5);
   text-align: left;
 }
@@ -307,7 +307,7 @@
 .body hr {
   margin: var(--s-5) 0;
   border: none;
-  border-top: 1px solid var(--c-border);
+  border-top: var(--bw) solid var(--c-border);
 }
 
 .body img {
@@ -461,7 +461,7 @@
   align-items: center;
   gap: var(--s-1);
   padding: var(--s-1);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-md);
   background: var(--c-overlay);
   box-shadow: var(--e-2);
@@ -514,7 +514,7 @@
   gap: var(--s-2);
   min-height: 26px;
   padding: 0 var(--s-4);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-full);
   background: var(--c-surface-2);
   color: var(--c-text);
@@ -577,7 +577,7 @@
   min-height: 30px;
   margin-top: var(--s-3);
   padding: 0 var(--s-4) 0 var(--s-3);
-  border: 1px solid transparent;
+  border: var(--bw) solid transparent;
   border-radius: var(--r-full);
   color: var(--msg-accent-text);
   font-size: var(--t-sm);
@@ -622,7 +622,7 @@
   gap: var(--s-4);
   padding-bottom: var(--s-4);
   margin-bottom: var(--s-4);
-  border-bottom: 1px solid var(--c-border);
+  border-bottom: var(--bw) solid var(--c-border);
 }
 .thread-chan {
   min-width: 0;
@@ -650,7 +650,7 @@
    context, not another reply, and that has to be unmistakable. */
 .thread-root {
   padding: var(--s-4);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-lg);
   background: var(--c-surface-2);
 }
@@ -673,7 +673,7 @@
   flex-direction: column;
   gap: var(--s-3);
   padding: var(--s-2) var(--s-2) var(--s-3);
-  border: 1px solid var(--c-border-strong);
+  border: var(--bw) solid var(--c-border-strong);
   border-radius: var(--r-lg);
   background: var(--c-bg);
   transition: border-color var(--m-fast) var(--m-ease), box-shadow var(--m-fast) var(--m-ease);
@@ -716,7 +716,7 @@
   min-height: 36px;
   min-width: 0;
   padding: var(--s-2) var(--s-4);
-  border: 1px solid transparent;
+  border: var(--bw) solid transparent;
   border-radius: var(--r-md);
   color: var(--c-text-2);
   font-size: var(--t-sm);
@@ -760,7 +760,7 @@
 .thread-card {
   padding: var(--s-5);
   margin-bottom: var(--s-4);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-lg);
   background: var(--c-bg);
   cursor: pointer;
@@ -834,7 +834,7 @@
   position: relative;
   max-width: 100%;
   overflow: hidden;
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-lg);
   background: var(--c-surface-2);
   cursor: pointer;
@@ -873,7 +873,7 @@
   max-width: 100%;
   min-width: 0;
   padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-lg);
   background: var(--c-surface);
 }
@@ -898,7 +898,7 @@
   max-width: 100%;
   min-width: 0;
   padding: var(--s-3) var(--s-5);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-lg);
   background: var(--c-surface);
   color: var(--c-text);
@@ -986,7 +986,7 @@
   width: 48px;
   height: 48px;
   padding: 0;
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-full);
   background: var(--c-overlay);
   color: var(--c-text);
@@ -1058,7 +1058,7 @@
   align-items: flex-end;
   gap: var(--s-2);
   padding: var(--s-2);
-  border: 1px solid var(--c-border-strong);
+  border: var(--bw) solid var(--c-border-strong);
   border-radius: var(--r-lg);
   background: var(--c-bg);
   transition: border-color var(--m-fast) var(--m-ease), box-shadow var(--m-fast) var(--m-ease);
@@ -1249,7 +1249,7 @@
   padding: var(--s-2);
   overflow-y: auto;
   overscroll-behavior: contain;
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-lg);
   background: var(--c-overlay);
   box-shadow: var(--e-3);

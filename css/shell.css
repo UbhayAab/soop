@@ -51,7 +51,7 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
   height: calc(var(--header-h) + var(--safe-t));
   padding: var(--safe-t) var(--s-5) 0;
   background: var(--c-nav-bg-2);
-  border-bottom: 1px solid var(--c-nav-border);
+  border-bottom: var(--bw) solid var(--c-nav-border);
   flex: none;
   z-index: var(--z-nav);
 }
@@ -102,7 +102,7 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
   height: 28px;
   padding: 0 var(--s-3) 0 var(--s-4);
   background: color-mix(in srgb, var(--c-nav-hover) 70%, transparent);
-  border: 1px solid transparent;
+  border: var(--bw) solid transparent;
   border-radius: var(--r-md);
   color: var(--c-nav-text);
   font-size: var(--t-sm);
@@ -170,7 +170,7 @@ body { font-feature-settings: "cv05" 1, "cv08" 1, "ss03" 1, "calt" 1; }
   height: var(--channelbar-h);
   padding: 0 var(--s-6);
   background: var(--c-bg);
-  border-bottom: 1px solid var(--c-border);
+  border-bottom: var(--bw) solid var(--c-border);
   flex: none;
   z-index: calc(var(--z-nav) - 1);
 }
@@ -218,7 +218,7 @@ button.cb-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  border-left: 1px solid var(--c-border);
+  border-left: var(--bw) solid var(--c-border);
   padding-left: var(--s-4);
 }
 .cb-topic:empty { display: none; }
@@ -230,7 +230,7 @@ button.cb-title {
   height: 28px;
   padding: 0 var(--s-4);
   background: transparent;
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-md);
   color: var(--c-text-2);
   font-size: var(--t-sm);
@@ -303,7 +303,7 @@ button.cb-title {
   padding: var(--s-4) var(--s-5) calc(var(--s-4) + var(--safe-b));
   background: transparent;
   border: 0;
-  border-top: 1px solid var(--c-nav-border);
+  border-top: var(--bw) solid var(--c-nav-border);
   color: var(--c-nav-text);
   cursor: pointer;
   text-align: left;
@@ -488,7 +488,7 @@ button.cb-title {
    button and wrong for a quiet list affordance sitting inside the sidebar.
    Stated after it so the sidebar reads as a list rather than a stack of boxes. */
 .sb-add {
-  border: 1px solid transparent !important;
+  border: var(--bw) solid transparent !important;
   background: transparent;
 }
 .sb-add:hover {
@@ -535,7 +535,7 @@ button.cb-title {
   margin: var(--s-4) var(--s-6) 0;
   padding: var(--s-5);
   background: var(--c-surface);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-left: 3px solid var(--c-accent);
   border-radius: var(--r-md);
   max-width: var(--reading-max);
@@ -561,7 +561,7 @@ button.cb-title {
   padding: 4px var(--s-3) 4px var(--s-4);
   border-radius: var(--r-pill, 999px);
   background: color-mix(in srgb, var(--c-warn, #b7791f) 16%, var(--c-nav-bg));
-  border: 1px solid color-mix(in srgb, var(--c-warn, #b7791f) 42%, transparent);
+  border: var(--bw) solid color-mix(in srgb, var(--c-warn, #b7791f) 42%, transparent);
   color: var(--c-nav-text);
   font-size: var(--t-xs);
   line-height: 1.3;
@@ -588,7 +588,7 @@ button.cb-title {
   min-height: 0;
   border-radius: var(--r-sm);
   background: transparent;
-  border: 1px solid color-mix(in srgb, var(--c-nav-text) 32%, transparent);
+  border: var(--bw) solid color-mix(in srgb, var(--c-nav-text) 32%, transparent);
   color: var(--c-nav-text);
   font-size: var(--t-xs);
   font-weight: var(--t-medium);
@@ -619,7 +619,7 @@ button.cb-title {
     height: var(--tabbar-h);
     padding-bottom: var(--safe-b);
     background: var(--c-nav-bg);
-    border-top: 1px solid var(--c-border);
+    border-top: var(--bw) solid var(--c-border);
     z-index: calc(var(--z-sticky) + 5);
   }
   .tabbar .tab {

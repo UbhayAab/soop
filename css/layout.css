@@ -111,7 +111,7 @@
   gap: var(--s-5);
   padding: var(--s-9) var(--s-8) var(--s-8);
   background: var(--c-surface);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-xl);
   box-shadow: var(--e-3);
 }
@@ -209,7 +209,7 @@
    the copy stays at full text contrast. */
 .autherr {
   padding: var(--s-4) var(--s-5);
-  border: 1px solid color-mix(in srgb, var(--c-danger) 40%, transparent);
+  border: var(--bw) solid color-mix(in srgb, var(--c-danger) 40%, transparent);
   border-left: 3px solid var(--c-danger);
   border-radius: var(--r-md);
   background: var(--c-danger-quiet);
@@ -431,7 +431,7 @@ section.msgs {
   padding: 0 var(--s-5);
   padding-top: var(--safe-t);
   background: var(--c-nav-bg);
-  border-bottom: 1px solid var(--c-nav-border);
+  border-bottom: var(--bw) solid var(--c-nav-border);
   color: var(--c-nav-text);
   z-index: var(--z-nav);
 }
@@ -549,7 +549,7 @@ section.msgs {
   gap: var(--s-3);
   padding: var(--s-4) var(--s-6);
   background: var(--c-success-quiet);
-  border-bottom: 1px solid color-mix(in srgb, var(--c-success) 32%, transparent);
+  border-bottom: var(--bw) solid color-mix(in srgb, var(--c-success) 32%, transparent);
   color: var(--c-text);
 }
 
@@ -577,7 +577,7 @@ section.msgs {
   padding: var(--s-1) var(--s-5);
   border-radius: var(--r-full);
   background: var(--c-surface-2);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   color: var(--c-text);
   font-size: var(--t-sm);
   white-space: nowrap;
@@ -615,7 +615,7 @@ section.msgs {
   gap: var(--s-4);
   padding: var(--s-4) 0 calc(var(--s-4) + var(--safe-b));
   background: var(--c-nav-bg-2);
-  border-right: 1px solid var(--c-nav-border);
+  border-right: var(--bw) solid var(--c-nav-border);
   /* The indicator bar sits just outside each tile, so the cross axis must not
      scroll; the rail itself scrolls when an admin is in a dozen Spaces. */
   overflow-y: auto;
@@ -782,7 +782,7 @@ section.msgs {
   /* The bottom inset matters on a landscape iPad too, not only in the drawer. */
   padding: var(--s-4) var(--s-3) calc(var(--s-9) + var(--safe-b));
   background: var(--c-nav-bg);
-  border-right: 1px solid var(--c-nav-border);
+  border-right: var(--bw) solid var(--c-nav-border);
   color: var(--c-nav-text);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -992,7 +992,7 @@ aside#panel {
   flex-direction: column;
   min-height: 0;
   background: var(--c-surface);
-  border-left: 1px solid var(--c-border);
+  border-left: var(--bw) solid var(--c-border);
 }
 
 aside#panel > header {
@@ -1005,7 +1005,7 @@ aside#panel > header {
      thing in the panel share one edge. The right side is tighter because an
      icon button is optically inset by its own padding already. */
   padding: 0 var(--s-3) 0 var(--s-5);
-  border-bottom: 1px solid var(--c-border);
+  border-bottom: var(--bw) solid var(--c-border);
   background: var(--c-surface);
 }
 aside#panel > header > strong {
@@ -1028,7 +1028,7 @@ aside#panel > .content {
 aside#panel > footer {
   flex: none;
   padding: var(--s-4) var(--s-5) calc(var(--s-4) + var(--safe-b));
-  border-top: 1px solid var(--c-border);
+  border-top: var(--bw) solid var(--c-border);
   background: var(--c-surface);
 }
 

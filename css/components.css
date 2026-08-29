@@ -34,7 +34,7 @@ button {
   gap: var(--s-3);
   min-height: 34px;
   padding: var(--s-4) var(--s-6);
-  border: 1px solid transparent;
+  border: var(--bw) solid transparent;
   border-radius: var(--r-md);
   background: var(--c-accent);
   color: var(--c-text-inverse);
@@ -269,7 +269,7 @@ select {
   width: 100%;
   min-height: 38px;
   padding: var(--s-4) var(--s-5);
-  border: 1px solid var(--c-border-strong);
+  border: var(--bw) solid var(--c-border-strong);
   border-radius: var(--r-md);
   /* --c-bg rather than a surface: the field should read as a well cut into
      whatever card it sits on, in every theme. */
@@ -448,7 +448,7 @@ input[type="radio"] {
   max-width: 460px;
   max-height: min(86dvh, 720px);
   overflow: hidden;
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-xl);
   background: var(--c-overlay);
   box-shadow: var(--e-4);
@@ -462,7 +462,7 @@ input[type="radio"] {
   gap: var(--s-4);
   flex: none;
   padding: var(--s-5) var(--s-5) var(--s-5) var(--s-7);
-  border-bottom: 1px solid var(--c-border);
+  border-bottom: var(--bw) solid var(--c-border);
 }
 .modal-head strong {
   flex: 1;
@@ -513,7 +513,7 @@ input[type="radio"] {
   gap: var(--s-4);
   flex: none;
   padding: var(--s-5) var(--s-7);
-  border-top: 1px solid var(--c-border);
+  border-top: var(--bw) solid var(--c-border);
   /* A touch of tint separates the actions from the body without a hard line. */
   background: var(--c-surface);
 }
@@ -596,7 +596,7 @@ input[type="radio"] {
   gap: var(--s-4);
   max-width: 100%;
   padding: var(--s-5) var(--s-6);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   /* The kind is carried by a coloured edge, so the message itself always sits
      on a neutral surface and always reads. */
   border-left: 3px solid var(--c-border-strong);
@@ -653,7 +653,7 @@ input[type="radio"] {
   z-index: var(--z-popover);
   max-width: calc(100vw - var(--s-8));
   padding: var(--s-2);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-lg);
   background: var(--c-overlay);
   box-shadow: var(--e-3);
@@ -870,7 +870,7 @@ input[type="radio"] {
   width: 46px;
   height: 32px;
   overflow: hidden;
-  border: 1px solid var(--c-border-strong);
+  border: var(--bw) solid var(--c-border-strong);
   border-radius: var(--r-sm);
   background: var(--c-border-strong);
 }
@@ -984,7 +984,7 @@ input[type="radio"] {
   min-height: 60px;
   padding: var(--s-5) var(--s-12) var(--s-5) var(--s-7);
   border: none;
-  border-bottom: 1px solid var(--c-border);
+  border-bottom: var(--bw) solid var(--c-border);
   border-radius: 0;
   background: transparent;
   font-size: var(--t-xl);
@@ -1185,7 +1185,7 @@ input[type="radio"] {
   align-items: center;
   margin-left: var(--s-2);
   padding: 1px var(--s-4);
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-full);
   background: var(--c-surface-2);
   color: var(--c-text-2);
@@ -1206,7 +1206,7 @@ input[type="radio"] {
   min-height: 32px;
   padding: var(--s-3) var(--s-4);
   overflow: hidden;
-  border: 1px solid var(--c-border);
+  border: var(--bw) solid var(--c-border);
   border-radius: var(--r-md);
   background: var(--c-surface-2);
   color: var(--c-text);
