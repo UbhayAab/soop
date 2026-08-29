@@ -16,7 +16,7 @@ import { $, el, esc, hueOf, initials } from './util.js';
 import { store, bus, nameOf } from './store.js';
 import { icon } from './icons.js';
 import ui, { openPanel, contextMenu, toast, closePopovers, closePanel } from './ui.js';
-import { openThemePicker, effectiveTheme, THEMES, setTheme } from './theme.js';
+import { openThemePicker, effectiveTheme, THEMES, MODES, storedMode } from './theme.js';
 import { api, tryRpc } from './api.js';
 import { sb, markIntentionalSignOut } from './sb.js';
 import { embed } from './embed.js';
@@ -72,7 +72,12 @@ export function paintIdentity() {
 
 // ------------------------------------------------------------------ user menu
 function userMenu(ev) {
-  const themeName = THEMES.find((t) => t.id === effectiveTheme())?.name || 'Theme';
+  // Both axes, because there are two now and "Appearance: Saffron" would leave
+  // somebody hunting for where they set dark. The mode reads as the person chose
+  // it, so "Match device" stays "Match device" rather than resolving to Dark.
+  const lookName = THEMES.find((t) => t.id === effectiveTheme())?.name || 'Theme';
+  const modeName = MODES.find((m) => m.id === storedMode())?.name || '';
+  const themeName = modeName ? `${lookName}, ${modeName}` : lookName;
   contextMenu(ev, [
     // First, because a wrong name is the thing people notice about themselves
     // and could do nothing about until now.

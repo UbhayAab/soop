@@ -30,41 +30,46 @@ const LEGACY_KEYS = ['dak.theme', 'hearth.theme'];
 // picker draws - people choose a theme by looking at it, not by reading its name.
 // `fonts` is a Google Fonts query, loaded lazily by applyLook: a warehouse phone
 // on a bad connection should not download five typefaces to use one.
+// The names are the designed ones. The hints are NOT: each look arrived with a
+// line like "three bone papers, a single vermilion numeral", which is how a
+// designer describes a thing and not how a dispatch supervisor at a namkeen
+// factory decides which one to tap. The names carry the character; the hint
+// underneath has one job, which is to tell somebody what they are about to get.
 export const LOOKS = [
   {
     id: 'saffron',
     name: 'Saffron',
-    hint: 'Deep aubergine chrome, clean white workspace',
-    swatch: ['#2E1338', '#FFFFFF', '#E8A33D'],
-    fonts: '',
+    hint: 'Purple sidebar, white chat. Closest to before.',
+    swatch: ['#341237', '#FFFFFF', '#E8A02A'],
+    fonts: 'family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;700',
   },
   {
     id: 'enterprise',
-    name: 'Dispatch',
-    hint: 'Ruled like paper, built for a long shift',
-    swatch: ['#12294A', '#FFFFFF', '#1B5FCC'],
-    fonts: '',
+    name: 'Dispatch Ledger',
+    hint: 'Navy and white, dense, made for long shifts',
+    swatch: ['#0C2340', '#FFFFFF', '#14539E'],
+    fonts: 'family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600;700',
   },
   {
     id: 'precision',
-    name: 'Caliper',
-    hint: 'Dark, dense and machined',
-    swatch: ['#0B0C0E', '#141619', '#E5484D'],
-    fonts: '',
+    name: 'Graphite Caliper',
+    hint: 'Very dark and compact. Easiest at night.',
+    swatch: ['#08090B', '#111317', '#E0301F'],
+    fonts: 'family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700',
   },
   {
     id: 'editorial',
-    name: 'Bone',
-    hint: 'Quiet paper, hairline rules, almost no colour',
-    swatch: ['#EAE7DE', '#FBFAF6', '#A6320F'],
-    fonts: '',
+    name: 'Bone and Rule',
+    hint: 'Warm paper, thin lines, almost no colour',
+    swatch: ['#F5F3EC', '#FBFAF6', '#14120E'],
+    fonts: 'family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..700&family=Instrument+Sans:wdth,wght@75..100,400..700',
   },
   {
     id: 'swiss',
-    name: 'Grid',
-    hint: 'Monochrome on a strict grid, one orange',
-    swatch: ['#111111', '#FFFFFF', '#FF4B00'],
-    fonts: '',
+    name: 'Signal Grid',
+    hint: 'Black and white with one orange. Very plain.',
+    swatch: ['#F3F2EE', '#FFFFFF', '#EB3B00'],
+    fonts: 'family=Archivo:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;600',
   },
 ];
 
