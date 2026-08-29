@@ -116,7 +116,14 @@ export function renderSpaceRail() {
   });
   r.querySelectorAll('[data-org]').forEach((n) => {
     const orgOf = () => (store.orgs || []).find((o) => o.org_id === n.dataset.org);
-    n.onclick = () => orgDirectory(n.dataset.org);
+    // A plain click opens the MENU, not the directory. Leaving and deleting an
+    // organisation lived only behind the right-click and long-press below, which
+    // is a gesture a laptop user does not think to try on a small tile and a
+    // phone user has never been told about. Reported as "I wanted to delete it,
+    // it's still there on my left bar" and "I want to leave one of these
+    // organisations and I don't have the option". Nothing is lost: the menu's
+    // second row is the directory this used to open.
+    n.onclick = (e) => { e.preventDefault(); orgMenu(e, orgOf()); };
     // The org tile had a left-click and nothing else, so leaving or deleting an
     // organisation lived only at #/admin and the rail offered no way out of one
     // at all. Same gesture pair the Space tiles use, for the same reason.

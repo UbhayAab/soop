@@ -27,7 +27,17 @@ export async function hydrateAvatars(root) {
     if (!url || !img.isConnected) {
       const p = profileOf(img.dataset.user);
       const name = p?.display_name || p?.username || '?';
-      img.replaceWith(el('div', 'avatar', esc(initials(name))));
+      // Carry the SIZE and the colour across. The replacement used to be a bare
+      // `avatar` div with neither, so a face that failed to load did not fall
+      // back to initials - it fell back to a zero-sized transparent box, and the
+      // row it sat in collapsed. avatarHtml sets both inline on the img; the
+      // fallback has to restate them because it is a different element.
+      const el2 = el('div', 'avatar', esc(initials(name)));
+      el2.style.cssText = img.style.cssText;
+      el2.style.background = `hsl(${hueOf(img.dataset.user || name)} 45% 32%)`;
+      el2.title = name;
+      if (img.dataset.user) el2.dataset.user = img.dataset.user;
+      img.replaceWith(el2);
       continue;
     }
     img.src = url;

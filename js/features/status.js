@@ -291,14 +291,24 @@ function openStatusPopover(anchor, ui, api) {
 export function register({ ui, api }) {
   injectStyle();
 
-  // #meName is static shell markup, so the listener can be attached immediately;
-  // main.js only ever writes its textContent.
-  // Both #meName and the chip sit INSIDE <button id="userMenu">, and shell.js
-  // binds the user menu to that button. Without stopPropagation a click opened
-  // this sheet and then opened the context menu on top of it, whose own first
-  // mousedown dismissed the sheet again - so clicking your name looked like the
-  // status feature did not exist. The avatar and the caret still open the
-  // identity menu, which is where Sign out lives.
+  // #meName sits INSIDE <button id="userMenu">, and shell.js binds the identity
+  // menu to that button. This used to claim the name's clicks for the status
+  // sheet with stopPropagation, so that the name opened status while the avatar
+  // and the caret opened the menu.
+  //
+  // The name is most of the button. Measured on a 1440px window the chip is 96px
+  // wide and #meName covers the middle of it, so the overwhelming majority of
+  // clicks on the only identity control in the top bar were swallowed here and
+  // the identity menu never opened at all. Everything that menu is the only
+  // route to went with it - Your profile, Change your password, Keyboard
+  // shortcuts, Sign out, and Appearance, which is where the five looks are
+  // chosen. Reported as "where do I change the theme from? I don't know."
+  //
+  // One button, one action. Status is still one tap further in, as "Set a
+  // status" in that same menu, which is the affordance people actually find -
+  // the comment that used to be here says so itself. The status CHIP keeps its
+  // own click, because a chip that is showing your current status is a
+  // status-specific control and reads as one.
   const openFrom = (anchor) => (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -310,9 +320,6 @@ export function register({ ui, api }) {
   chip.id = 'hstatusChip';
   if (nameEl && nameEl.parentElement) {
     nameEl.parentElement.insertBefore(chip, nameEl.nextSibling);
-    nameEl.style.cursor = 'pointer';
-    nameEl.title = 'Set a status';
-    nameEl.addEventListener('click', openFrom(nameEl));
   }
   chip.addEventListener('click', openFrom(chip));
 
