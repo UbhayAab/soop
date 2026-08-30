@@ -30,6 +30,7 @@
 // Usage: node scripts/probe-projections.mjs [--root <dir>]
 // Exit 0 PROBE CLEAN, 1 PROBE FAILED, 2 setup failure.
 import { chromium } from "playwright";
+import { readFileSync } from "node:fs";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
@@ -73,11 +74,20 @@ const problems = [];
 const ok = (cond, label) => { if (!cond) problems.push(label); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Keep in sync with HEAL_COLUMNS in js/core/channels.js (module-private const).
-const HEAL_COLUMNS = ["id", "seq", "channel_id", "conversation_id", "author_id",
-  "body_text", "created_at", "edited_at", "deleted_at", "attachments",
-  "mention_user_ids", "mention_scope", "priority", "topic", "reply_to_id",
-  "thread_id", "also_send_to_channel", "ack_required", "bot_id", "webhook_id"];
+// Read out of the source rather than copied into it. This constant used to be a
+// hand-maintained duplicate with a "keep in sync" comment on top, and it did not
+// stay in sync: the list in channels.js named three columns that public.messages
+// does not have (bot_id, webhook_id, conversation_id), so the projected read
+// failed on every single heal and the '*' retry became the only path that ever
+// ran - while this probe went on asserting that the projection was healthy.
+// A duplicated constant with a comment asking a human to maintain it is not a
+// contract, so parse the real one.
+const CHANNELS_SRC = readFileSync(new URL("../js/core/channels.js", import.meta.url), "utf8");
+const HEAL_COLUMNS = (() => {
+  const m = /const HEAL_COLUMNS = \[([\s\S]*?)\];/.exec(CHANNELS_SRC);
+  if (!m) throw new Error("probe-projections: HEAL_COLUMNS not found in js/core/channels.js");
+  return [...m[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]);
+})();
 const HEAL_SELECT = HEAL_COLUMNS.join(",");
 
 // Keep in sync with TABLE_COLUMNS in js/api.js (module-private const).

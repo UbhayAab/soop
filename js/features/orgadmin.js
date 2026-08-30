@@ -18,6 +18,7 @@ import { icon } from '../icons.js';
 import { loadSpaces, switchWorkspace } from '../core/workspace.js';
 import { resetPersonPassword, addPeopleDialog } from './people.js';
 import { embed } from '../embed.js';
+import { drawApps, APPS_CSS } from './apps.js';
 
 let UI = null;
 let current = null;        // { org, overview, section }
@@ -42,6 +43,7 @@ const SECTIONS = [
   ['people', 'People'],
   ['servers', 'Servers'],
   ['permissions', 'Permissions'],
+  ['apps', 'Apps'],
   ['rules', 'Rules'],
 ];
 
@@ -119,7 +121,7 @@ async function draw() {
   const main = page.querySelector('#apMain');
   try {
     const painter = { overview: drawOverview, people: drawPeople, servers: drawServers,
-      permissions: drawPermissions, rules: drawRules }[section];
+      permissions: drawPermissions, rules: drawRules, apps: drawApps }[section];
     await painter(main, org);
   } catch (e) {
     main.innerHTML = `<div class="loadfail">
@@ -885,6 +887,7 @@ body.admin-page #chat main,body.admin-page #channelbar{display:none!important}
      them. It was equally wrong on a desktop, just wide enough to hide it. */
   display:block}
 .ap-h2{font-size:var(--t-lg);font-weight:var(--t-bold);margin:var(--s-6) 0 var(--s-3)}
+${APPS_CSS}
 .ap-h2:first-child{margin-top:0}
 .ap-h3{font-size:var(--t-base);font-weight:var(--t-semibold);margin:var(--s-6) 0 var(--s-3)}
 .ap-lede{color:var(--c-text-2);font-size:var(--t-sm);line-height:var(--t-loose);margin-bottom:var(--s-5);max-width:62ch}

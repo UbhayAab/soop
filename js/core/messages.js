@@ -158,7 +158,10 @@ export function buildMessage(m, opts = {}) {
 
   const th = m.id ? store.rootThreads.get(m.id) : null;
   const who = nameOf(m.author_id);
-  const isBot = !!m.bot_id || !!m.webhook_id;
+  // An app is a profile with is_app, not a column on the message. The old test
+  // read m.bot_id and m.webhook_id, neither of which is a column on messages,
+  // so it was permanently false and the APP pill had never once been painted.
+  const isBot = !!profileOf(m.author_id)?.is_app;
 
   row.innerHTML = `
     ${opts.grouped ? `<div class="gutter"><span class="ghost-time">${timeOf(m.created_at)}</span></div>`

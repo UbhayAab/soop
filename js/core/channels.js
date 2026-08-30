@@ -991,10 +991,16 @@ export async function reconcile() {
 // ever refuses the list, or serves rows missing one of these keys (PostgREST
 // echoes selected columns as keys even when null), the read retries once with
 // '*' so healing degrades to the old behaviour instead of painting blanks.
-const HEAL_COLUMNS = ['id', 'seq', 'channel_id', 'conversation_id', 'author_id',
+// Verified against information_schema, not against memory. Three of the names
+// that used to be here are not columns on public.messages at all - bot_id and
+// webhook_id never existed, and conversation_id belongs to dm_messages, which is
+// a different table. So the projected read failed EVERY time and the '*' retry
+// below ran on every heal, quietly, fetching search_tsv and the whole body jsonb
+// with it. The retry was written as a safety net and had become the only path.
+const HEAL_COLUMNS = ['id', 'seq', 'channel_id', 'author_id',
   'body_text', 'created_at', 'edited_at', 'deleted_at', 'attachments',
   'mention_user_ids', 'mention_scope', 'priority', 'topic', 'reply_to_id',
-  'thread_id', 'also_send_to_channel', 'ack_required', 'bot_id', 'webhook_id'];
+  'thread_id', 'also_send_to_channel', 'ack_required'];
 
 // Apply one page of the log. Anything healed here has to look EXACTLY like a
 // live delivery to the rest of the app: same 'message:new' event, same read

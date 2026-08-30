@@ -27,13 +27,19 @@ const form = new FormData();
 form.append('metadata', new Blob([JSON.stringify({
   entrypoint_path: 'index.ts',
   name,
-  verify_jwt: name !== 'soop-handoff',
+  // dek-app is deliberately open: a cron job on a factory PC has no Supabase JWT,
+  // and the function is its own security boundary via private.app_ctx.
+  verify_jwt: !['soop-handoff', 'dek-app'].includes(name),
 })], { type: 'application/json' }), 'metadata.json');
 for (const p of files) {
   form.append('file', new Blob([readFileSync(p)]), p.replaceAll('\\', '/').split(`functions/${name}/`)[1]);
 }
 
-const r = await fetch(`https://api.supabase.com/v1/projects/${REF}/functions/deploy`, {
+// The slug MUST be in the query string. Without it the API mints a UUID slug and
+// still answers 200, so the deploy "succeeds" and the function is unreachable at
+// the name you deployed it under. That had already happened to an earlier deploy
+// here, which is why a function with a UUID for a name is sitting in the project.
+const r = await fetch(`https://api.supabase.com/v1/projects/${REF}/functions/deploy?slug=${encodeURIComponent(name)}`, {
   method: 'POST',
   headers: { Authorization: `Bearer ${TOKEN}` },
   body: form,
