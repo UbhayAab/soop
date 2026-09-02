@@ -202,6 +202,23 @@ Deno.serve(async (req) => {
       }
     } else {
       isNew = true;
+      // Latch the account so the app asks for a password on the way in.
+      //
+      // WHY: createUser without a password does NOT leave the account
+      // passwordless - Supabase writes a random hash - so nothing downstream can
+      // tell an OTP account from a real one, and the person is quietly left able
+      // to sign in ONE way forever: request another code, every single time.
+      // That is the whole "why do I keep needing a code" complaint. The latch is
+      // the flag the set-password screen already reads on boot; it just was
+      // never set for anybody who arrived this way. 53 existing accounts were
+      // backfilled in migration 0115.
+      const latched = await admin.from('profiles')
+        .update({ must_set_password: true })
+        .eq('id', created.data.user.id);
+      // A failure here must not block the sign-in that just succeeded. The
+      // person gets in; they are asked for a password on their next visit
+      // instead, because the boot check reads the same column.
+      if (latched.error) console.warn('otp: could not latch password setup', latched.error.message);
     }
 
     // Mint a real session: magic link generation + server-side verification is

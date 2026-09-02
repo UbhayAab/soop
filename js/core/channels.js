@@ -11,7 +11,7 @@ import { icon } from '../icons.js';
 import { appendMessage, claimMessage, loadReactions, applyEdit, applyDelete, applyReaction,
   refreshThreadIndicator, jumpTo, buildMessage, scrollDown, renderedIn, atBottom,
   renderBatch, prependBatch, capWindow, capWindowTop, resetWindow, windowState,
-  restoreAbove, restoreBelow, deferBelow, jumpLatest } from './messages.js';
+  restoreAbove, restoreBelow, deferBelow, jumpLatest, repaintAuthors } from './messages.js';
 import * as pagecache from '../lib/pagecache.js';
 
 export { scrollDown };
@@ -1357,6 +1357,10 @@ export function wireScroll() {
     }
   }, 120));
 }
+
+// Profiles arrived after the rows did. Repaint the author names that are now
+// knowable; see repaintAuthors in core/messages.js for why nothing else does.
+bus.on('profiles', () => repaintAuthors());
 
 bus.on('channel:request', ({ channelId }) => {
   const c = store.channels.find((x) => x.id === channelId);

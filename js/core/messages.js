@@ -101,6 +101,49 @@ export function initNarrowWatcher() {
   }).observe(app);
 }
 
+// A message row paints its author's name ONCE, from whatever store.profiles held
+// at that instant, and nothing ever told it to look again. So any profile that
+// arrives after the row does leaves the row saying "someone" - not for a frame,
+// but permanently, until something unrelated re-renders it.
+//
+// Found by probe-apps failing two runs in three on the cold-load leg while the
+// realtime leg always passed: on a cold load the rows and the member list are
+// two different arrivals racing, and on a realtime delivery the members are
+// long since in. It is not an app-specific bug. Anybody whose profile lands late
+// hits it - somebody who joined while you were offline, an author of a healed
+// message, a member list still in flight when the first page paints.
+//
+// The repair is narrow on purpose: only rows whose rendered name no longer
+// matches what the store now says, and only the parts that can change.
+export function repaintAuthors(root) {
+  const host = root || $('messages');
+  if (!host) return 0;
+  let fixed = 0;
+  for (const who of host.querySelectorAll('.who[data-user]')) {
+    const id = who.dataset.user;
+    if (!id) continue;
+    const want = nameOf(id);
+    if (who.textContent === want) continue;
+    who.textContent = want;
+    // The APP pill is decided by the same profile, so it is wrong for exactly
+    // the same rows and has to be corrected in the same pass.
+    const head = who.parentElement;
+    const isApp = !!profileOf(id)?.is_app;
+    const pill = head?.querySelector('.pill-bot');
+    if (isApp && !pill) {
+      const span = el('span', 'pill pill-bot', 'APP');
+      who.insertAdjacentElement('afterend', span);
+    } else if (!isApp && pill) {
+      pill.remove();
+    }
+    fixed++;
+  }
+  // The face comes from the same profile row as the name. Re-running the second
+  // paint phase is cheaper than reasoning about which gutters changed.
+  if (fixed) hydrateAvatars(host);
+  return fixed;
+}
+
 export function avatarHtml(userId, size = 36) {
   const p = profileOf(userId);
   const name = p?.display_name || p?.username || '?';

@@ -292,25 +292,32 @@ export function initAuth(onSignedIn) {
   $('otpResend').onclick = () => { if (!$('otpResend').disabled) sendCode(); };
 
   // ---- sign out ----
-  // Sign out lives in the user menu now (js/shell.js). The old top-level button
-  // is gone, so bind only if some surface still offers one.
+  // Sign out lives in the user menu (js/shell.js) and on the no-team screen.
+  // Bind here too if some surface still offers a top-level button.
   const so = $('signout');
-  if (so) {
-    so.onclick = async () => {
-      // Same as the user menu: the cached conversations come off the device.
-      await Promise.all([
-        import('../lib/pagecache.js').then((m) => m.wipe()),
-        import('../lib/readcache.js').then((m) => m.wipe()),
-        // Attachment cache off the device too. 'dek-storage-v1' must match
-        // STORAGE in sw.js.
-        window.caches ? caches.delete('dek-storage-v1') : Promise.resolve(),
-      ]).catch(() => { /* signing out must not be blocked by storage */ });
-      markIntentionalSignOut();
-      await sb.auth.signOut();
-      location.hash = '';
-      location.reload();
-    };
-  }
+  if (so) so.onclick = signOutEverywhere;
+}
+
+// The one teardown, in one place. It used to be written out twice - here and in
+// js/shell.js - and the screen that needed it most had neither: somebody who
+// signs in with the wrong email lands on "you are not part of a team yet", which
+// hides the nav toggle, which is the only route to the user menu, which is the
+// only place Sign out existed. They were locked into the wrong account with no
+// way out but clearing site data.
+export async function signOutEverywhere() {
+  // The local-first caches keep this person's conversations on the device so the
+  // app can paint before the network. On a shared phone - which is most of them
+  // here - signing out has to take them with it.
+  await Promise.all([
+    import('../lib/pagecache.js').then((m) => m.wipe()),
+    import('../lib/readcache.js').then((m) => m.wipe()),
+    // 'dek-storage-v1' must match STORAGE in sw.js.
+    window.caches ? caches.delete('dek-storage-v1') : Promise.resolve(),
+  ]).catch(() => { /* signing out must not be blocked by storage */ });
+  markIntentionalSignOut();
+  await sb.auth.signOut();
+  location.hash = '';
+  location.reload();
 }
 
 function startCooldown() {

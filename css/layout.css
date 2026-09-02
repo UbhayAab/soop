@@ -279,6 +279,24 @@
 .noteam .field { margin-bottom: 0; }
 .noteam .fineprint { margin-top: var(--s-2); }
 
+/* Who you are, and the way back out. Below a rule because it is not part of the
+   join task above it: somebody reaches for this precisely when the join task is
+   the wrong task, having signed in with the wrong address. On a phone the
+   sidebar's user menu is not reachable from this screen, so before this existed
+   there was no way to sign out at all without clearing site data. */
+.noteam-who {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  margin-top: var(--s-5);
+  padding-top: var(--s-4);
+  border-top: var(--bw) solid var(--c-border);
+  font-size: var(--t-sm);
+}
+.noteam-who b { color: var(--c-text); font-weight: var(--t-semibold); word-break: break-all; }
+
 /* ------------------------------------------------------- loading / failed
    The two states that used to be indistinguishable from an empty room, and from
    each other. "Loading" has to look like work in progress or ten seconds of it

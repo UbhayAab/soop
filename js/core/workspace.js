@@ -227,8 +227,23 @@ export function orgMenu(ev, org) {
         });
         if (!ok) return;
         try {
+          // Standing inside one of its servers when you leave? loadSpaces()
+          // refreshes the rail and nothing else, so store.ws, store.channels and
+          // the messages already painted all stayed exactly as they were and the
+          // channel you had just lost access to was still on screen, still
+          // scrollable, answering from cache. leaveSpace has always navigated
+          // away afterwards; this path never did.
+          const wasInside = store.ws?.org_id === org.org_id;
           await api.leaveOrg(org.org_id);
           await loadSpaces();
+          if (wasInside) {
+            const next = store.spaces.find((x) => !x.archived_at && !x.scheduled_delete_at)
+              || store.spaces[0];
+            // Nothing left to go to: a full reload is the only way to clear the
+            // rendered channel, the caches and the subscriptions in one move.
+            if (next) await switchWorkspace(next);
+            else { location.hash = ''; location.reload(); return; }
+          }
           toast('You have left ' + org.name + '.', 'success');
         } catch (e) { toast(serverError(e), 'error'); }
       },
@@ -749,6 +764,15 @@ export async function switchWorkspace(target) {
     store.dms = boot.dms || [];
     store.profiles = new Map((boot.members || []).map((m) => [m.user_id, { id: m.user_id, ...m }]));
     store.online = new Set((boot.members || []).filter((m) => m.online).map((m) => m.user_id));
+    // The member list REPLACED here, silently, was the last piece of the
+    // "someone" bug. This app is local-first: pagecache paints the previous
+    // conversation before the network answers, so rows are already on screen
+    // when the bootstrap lands. Every other place that touches store.profiles
+    // emits this - member_joined, member_status, reloadMembers - and the one
+    // that replaces the whole map did not, so nothing repainted the names it
+    // had just made knowable. Rows kept saying "someone" until something
+    // unrelated re-rendered them.
+    bus.emit('profiles');
     store.unread = new Map((boot.unread || []).map((u) => [u.scope_id, u]));
     store.notify = new Map((boot.notify || []).map((n) => [n.scope_id, n]));
     store.drafts = new Map((boot.drafts || []).map((d) => [d.scope_type + ':' + d.scope_id, d.body_text]));
