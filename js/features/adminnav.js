@@ -46,6 +46,23 @@ const ROWS = [
     },
   },
   {
+    id: 'invitelink',
+    ico: 'link',
+    label: 'Invite with a link',
+    // Any MEMBER, not only an admin: create_org_invite has minted member links
+    // for anybody in the org since 0107, and the whole point of the QR sheet is
+    // that somebody standing next to a new colleague can get them in without
+    // finding an admin first. It was reachable only by long-pressing the org
+    // tile on the rail or by digging through the servers modal - two gestures
+    // with nothing on screen to suggest either exists.
+    show: () => !embed.active && !!store.ws?.org_id
+      && (store.orgs || []).some((o) => o.org_id === store.ws.org_id),
+    run: async () => {
+      const { openShareSheet } = await import('./orgshare.js');
+      await openShareSheet(store.ws.org_id);
+    },
+  },
+  {
     id: 'people',
     ico: 'members',
     label: 'Who is in this Space',

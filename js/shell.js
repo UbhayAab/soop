@@ -18,7 +18,7 @@ import { icon } from './icons.js';
 import ui, { openPanel, contextMenu, toast, closePopovers, closePanel } from './ui.js';
 import { openThemePicker, effectiveTheme, THEMES, MODES, storedMode } from './theme.js';
 import { api, tryRpc } from './api.js';
-import { sb, markIntentionalSignOut } from './sb.js';
+import { sb } from './sb.js';
 import { embed } from './embed.js';
 
 // How many registered header buttons stay visible on the channel bar before the
@@ -97,23 +97,10 @@ function userMenu(ev) {
     // Roadmap 9: embedded, identity belongs to the host dashboard - the bridge
     // carries the signout verb with the full teardown, and a self-service Sign
     // out here would reload into an auth-wait frame that can never sign back in.
-    ...(embed.active ? [] : [{ label: 'Sign out', danger: true, onClick: async () => {
-      // The local-first caches keep this person's conversations on the device so
-      // the app can paint before the network. On a shared phone - which is most
-      // of them here - signing out has to take them with it. Imported here, not
-      // at the top, so neither file joins the first-paint module graph.
-      await Promise.all([
-        import('./lib/pagecache.js').then((m) => m.wipe()),
-        import('./lib/readcache.js').then((m) => m.wipe()),
-        // The attachment cache holds this person's photos. 'dek-storage-v1'
-        // must match STORAGE in sw.js.
-        window.caches ? caches.delete('dek-storage-v1') : Promise.resolve(),
-      ]).catch(() => { /* signing out must not be blocked by storage */ });
-      markIntentionalSignOut();
-      await sb.auth.signOut();
-      location.hash = '';
-      location.reload();
-    } }]),
+    // One teardown, in core/auth.js, so the no-team screen and this menu can
+    // never drift apart about what signing out means.
+    ...(embed.active ? [] : [{ label: 'Sign out', danger: true, onClick: () =>
+      import('./core/auth.js').then((m) => m.signOutEverywhere()) }]),
   ]);
 }
 

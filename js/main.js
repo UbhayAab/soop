@@ -222,6 +222,7 @@ async function enter() {
 
   const { data: prof } = await sb.from('profiles')
     .select('*').eq('id', store.me).maybeSingle();
+  signedInEmail = s.user?.email || '';
   store.myProfile = prof || { id: store.me, display_name: 'you' };
   store.profiles.set(store.me, store.myProfile);
   paintIdentity();
@@ -296,6 +297,8 @@ async function enter() {
   paintInstallButton();
 }
 
+let signedInEmail = '';
+
 // ------------------------------------------------------------------ no team
 // The screen for somebody who has an account and belongs to nothing yet. It has
 // to do three things the old empty <div> did not: say plainly that this is not
@@ -310,6 +313,10 @@ export function showNoTeam(msg) {
   // to "pick a channel" when there are none. Leaving that chrome around the
   // message is what still made it read as broken rather than as a step.
   document.body.classList.add('no-team');
+  // WHO is signed in, on the screen, at the top. Somebody who typed the wrong
+  // email gets here, and until this said so there was nothing anywhere on the
+  // page naming the account they had actually landed in.
+  const email = store.myProfile?.email || sbUserEmail() || '';
   box.innerHTML = `
     <div class="noteam">
       <h2>${org ? `You are in ${esc(org.name)}` : 'You are signed in'}</h2>
@@ -322,6 +329,12 @@ export function showNoTeam(msg) {
       <div id="joinErr" class="autherr hidden"></div>
       <p class="muted fineprint">Nothing is wrong with your account and your password is saved.
         You just have not been added to a team yet.</p>
+      <div class="noteam-who">
+        <span class="muted">Signed in as ${email ? `<b>${esc(email)}</b>` : 'this account'}</span>
+        <button id="noteamOut" class="sm ghost">Sign out</button>
+      </div>
+      <p class="muted fineprint">Wrong account? Sign out and come back with the email your
+        invite was sent to. You do not need a code to leave this screen.</p>
     </div>`;
   if (msg) { $('joinErr').textContent = msg; $('joinErr').classList.remove('hidden'); }
 
@@ -373,7 +386,13 @@ export function showNoTeam(msg) {
   };
   $('joinGo').onclick = go;
   $('joinCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+  $('noteamOut').onclick = () => import('./core/auth.js').then((m) => m.signOutEverywhere());
 }
+
+// Set once at boot, because store.myProfile is a profiles row and profiles does
+// not carry the address. The no-team screen has to be able to say which account
+// somebody actually signed into.
+function sbUserEmail() { return signedInEmail; }
 
 function subscribeUser(uid) {
   import('./sb.js').then(({ subscribe }) => {

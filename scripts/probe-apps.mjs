@@ -211,6 +211,22 @@ try {
   check('cold load: the message renders with the app name',
     r2 && r2.who === APP_NAME, r2 ? `got "${r2.who}"` : 'row not found');
   check('cold load: the APP pill survives a reload', !!r2?.pill);
+  // This leg failed two runs in three before the bootstrap started announcing
+  // its member list. Pin the signal itself, so a regression says what broke.
+  {
+    const emits = await page.evaluate(async () => {
+      const { bus } = await import('./js/store.js');
+      let n = 0;
+      bus.on('profiles', () => { n += 1; });
+      const { switchWorkspace } = await import('./js/core/workspace.js');
+      const { store } = await import('./js/store.js');
+      await switchWorkspace(store.spaces.find((x) => x.id === store.ws.id) || store.ws);
+      await new Promise((r) => setTimeout(r, 3000));
+      return n;
+    });
+    check('cold load: loading a Space announces its member list', emits > 0,
+      `${emits} 'profiles' emits`);
+  }
 
   // ---- 3. heal read ------------------------------------------------------
   // Post while the socket is down, then bring it back: the gap is closed by the

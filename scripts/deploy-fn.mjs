@@ -23,13 +23,32 @@ const walk = (d) => {
 };
 walk(dir);
 
+// What is deployed right now, so a redeploy cannot quietly change a setting it
+// was never asked to change.
+const existing = await fetch(`https://api.supabase.com/v1/projects/${REF}/functions`, {
+  headers: { Authorization: `Bearer ${TOKEN}` },
+}).then((r) => (r.ok ? r.json() : [])).then((all) => all.find((f) => f.slug === name) || null)
+  .catch(() => null);
+if (existing) console.log(`existing ${name}: verify_jwt=${existing.verify_jwt} (preserved)`);
+
 const form = new FormData();
 form.append('metadata', new Blob([JSON.stringify({
   entrypoint_path: 'index.ts',
   name,
-  // dek-app is deliberately open: a cron job on a factory PC has no Supabase JWT,
-  // and the function is its own security boundary via private.app_ctx.
-  verify_jwt: !['soop-handoff', 'dek-app'].includes(name),
+  // Never decided by a list in this file alone. A redeploy that silently flips a
+  // public function to verify_jwt:true takes it off the internet, and the deploy
+  // still answers 200 - which is exactly what happened to mail-otp, the sign-in
+  // endpoint, when it was redeployed for an unrelated one-line change.
+  //
+  // So: an existing function KEEPS whatever it already has, and the list below
+  // only decides the value for a function being created for the first time.
+  //   soop-handoff - embed handoff, called before there is a session
+  //   dek-app      - a cron job on a factory PC has no Supabase JWT; the
+  //                  function is its own boundary via private.app_ctx
+  //   mail-otp     - the sign-in door itself; requiring a JWT to get one is a
+  //                  deadlock
+  verify_jwt: existing ? existing.verify_jwt
+    : !['soop-handoff', 'dek-app', 'mail-otp'].includes(name),
 })], { type: 'application/json' }), 'metadata.json');
 for (const p of files) {
   form.append('file', new Blob([readFileSync(p)]), p.replaceAll('\\', '/').split(`functions/${name}/`)[1]);
