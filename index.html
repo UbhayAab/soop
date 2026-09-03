@@ -137,9 +137,6 @@
       <div class="brand brand-card"><span class="brand-mark" id="brandMarkCard"></span><h1 style="font-size:22px;">Dek</h1></div>
       <p class="tagline">Channels and voice rooms like Discord. Threads that never shout over the room, like Slack. Media that stays right here, like WhatsApp.</p>
 
-      <!-- DPDP s.6(1) notice shown at signup -->
-      <div id="dpdpNotice" class="dpdpNotice hidden"></div>
-
       <!-- Signing in is the only thing most people who open this page are here to
            do, so it is the only thing above the fold. "Your name" used to sit
            first, which reads as a registration form to somebody who already has
@@ -163,7 +160,8 @@
       <!-- Provisioned accounts arrive with a temporary password and are made to
            replace it before they can use the app. -->
       <form id="setPwStep" class="hidden" novalidate>
-        <p class="muted">Welcome<span id="pwWho"></span>. Choose a password before you continue - the temporary one stops working now.</p>
+        <p class="muted">Welcome<span id="pwWho"></span>. Choose a password so you can sign in
+          without waiting for a code next time.</p>
         <!-- Readonly, and deliberately on screen. A change-password form with no
              username field gives the password manager nothing to attach the new
              password to, so it either saves it under the wrong account or does
@@ -176,7 +174,14 @@
         <label class="field"><span class="field-label">Confirm password</span>
           <input id="newPw2" type="password" placeholder="Type it again" autocomplete="new-password" /></label>
         <div id="pwMeter" class="pwmeter"><i></i></div>
-        <button id="pwSave" type="submit" class="wide">Set password and continue</button>
+        <!-- Asked HERE, not on the sign-in card. On the sign-in card it was an
+             orphan labelled "Only needed for the options below", which is not a
+             sentence anybody can act on. Here it is plainly part of setting up
+             the account, and it is prefilled from the email so it is a
+             correction rather than a chore. -->
+        <label class="field"><span class="field-label">Your name</span>
+          <input id="displayName" placeholder="What your colleagues will see" maxlength="40" autocomplete="name" /></label>
+        <button id="pwSave" type="submit" class="wide">Save and continue</button>
       </form>
 
       <div id="otpStep" class="hidden">
@@ -190,6 +195,14 @@
           <button id="otpResend" class="ghost sm">Resend code</button>
         </div>
       </div>
+
+      <!-- DPDP s.6(1) notice, shown on the steps where personal data is actually
+           collected: requesting a code, which creates the account from an email,
+           and the setup screen, which collects a name. It used to sit above the
+           email field on every visit, so the first six lines of the app were
+           consent language read by everybody signing in for the four hundredth
+           time - which is not notice, it is wallpaper. -->
+      <div id="dpdpNotice" class="dpdpNotice hidden"></div>
 
       <div id="authErr" class="autherr hidden"></div>
 
@@ -214,11 +227,14 @@
            them back, and the server side has to be reopened with
            scripts/auth-config.mjs at the same time. -->
       <div class="authalt">
-        <label class="field hidden"><span class="field-label">Your name</span>
-          <input id="displayName" placeholder="Only needed for the options below" maxlength="40" autocomplete="name" /></label>
-        <button id="otpSend" class="ghost wide sm hidden">Email me a sign-in code instead</button>
+        <!-- Two ways in, shown as two ways in. They used to run together into one
+             column with an unexplained "Your name" box between them, so the page
+             read as a single form with a field nobody could account for. -->
+        <div class="author-sep"><span>or</span></div>
+        <button id="otpSend" class="ghost wide hidden">Email me a sign-in code</button>
         <button id="guestBtn" class="ghost wide sm hidden">Look around as a guest</button>
-        <p class="muted fineprint">Accounts here are created by your organisation and handed to you with a password. If you do not have one, ask whoever runs your team's Space.</p>
+        <p class="muted fineprint" id="authHelp">No password yet? Get a code, and you can choose a
+          password once you are in.</p>
       </div>
     </div>
     </div>

@@ -145,16 +145,54 @@ const errText = (page) =>
       noticeShown: !document.getElementById("dpdpNotice").classList.contains("hidden"),
       otpSend: vis("otpSend"),
       guestBtn: vis("guestBtn"),
-      nameField: vis("displayName"),
+      // The name field moved to the set-password step, where it is part of
+      // setting an account up. On the sign-in card it was an orphan labelled
+      // "Only needed for the options below".
+      nameOnCard: !!document.getElementById("displayName")?.closest("#setPwStep")
+        ? false
+        : vis("displayName"),
       codeSignin: cfg.CODE_SIGNIN,
       guestSignin: cfg.GUEST_SIGNIN,
     };
   });
-  ok(parity.noticeShown, "DPDP notice stayed hidden at initAuth");
+  // The notice is NOT wallpaper on the sign-in form any more. It is shown on the
+  // two screens where personal data is actually collected - requesting a code,
+  // which creates the account from an email, and the setup screen, which asks
+  // for a name. Notice at the point of collection is what s.6(1) asks for, and
+  // it is the only version anybody reads; above the email field it was six lines
+  // every returning user scrolled past forever.
+  ok(!parity.noticeShown, "DPDP notice is wallpaper on the sign-in form again");
   ok(parity.noticeGot === parity.noticeWant, "dpdpNotice text does not match NOTICE_AT_SIGNUP");
   ok(parity.otpSend === parity.codeSignin, `otpSend visibility (${parity.otpSend}) disagrees with CODE_SIGNIN=${parity.codeSignin}`);
   ok(parity.guestBtn === parity.guestSignin, `guestBtn visibility (${parity.guestBtn}) disagrees with GUEST_SIGNIN=${parity.guestSignin}`);
-  ok(parity.nameField === (parity.guestSignin || parity.codeSignin), "displayName field visibility disagrees with the flags");
+  ok(!parity.nameOnCard, "the sign-in card grew a name field again");
+
+  // And it must actually appear where it now claims to. A notice that moved off
+  // the first screen and onto no screen would be a compliance regression, not a
+  // tidy-up, so prove the code step shows it.
+  const onCode = await page.evaluate(async () => {
+    const shown = () => !document.getElementById("dpdpNotice").classList.contains("hidden");
+    const before = shown();
+    // Stub the send so no real email goes out, then press the real button and
+    // let the real handler decide. Un-hiding the element by hand and asserting
+    // it is un-hidden would prove nothing at all.
+    const realFetch = window.fetch;
+    window.fetch = async (u, o) => (String(u).includes("/mail-otp")
+      ? new Response(JSON.stringify({ ok: true }), { status: 200 })
+      : realFetch(u, o));
+    document.getElementById("email").value = "notice.probe@dek.app";
+    document.getElementById("otpSend").click();
+    await new Promise((r) => setTimeout(r, 1200));
+    window.fetch = realFetch;
+    return {
+      before,
+      after: shown(),
+      onCodeStep: !document.getElementById("otpStep").classList.contains("hidden"),
+    };
+  });
+  ok(onCode.onCodeStep, "pressing the code button did not reach the code step");
+  ok(onCode.before === false && onCode.after === true,
+    "the notice does not appear on the code step");
   await ctx.close();
 }
 

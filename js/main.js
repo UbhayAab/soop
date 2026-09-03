@@ -88,6 +88,7 @@ async function redeemFromRoute(r) {
       const s = store.spaces.find((x) => x.org_id === org?.id);
       if (s && s.id !== store.ws?.id) await switchWorkspace(s);
       toast('You are in ' + (org?.name || 'the organisation'), 'success');
+      if (org?.id) offerTheRest(org.id, org.name);
     } else {
       const ws = await api.redeemInvite(extractToken(r.token));
       await loadSpaces();
@@ -297,6 +298,31 @@ async function enter() {
   paintInstallButton();
 }
 
+// An organisation invite joins you to every OPEN server, which in most orgs here
+// is exactly one. Landing in a single room with no hint that five more exist is
+// how "I only got added to one channel" happens, and there is nothing on screen
+// that would ever tell you otherwise. So say so, once, right when the link has
+// just been used, and open the index if they want it.
+async function offerTheRest(orgId, orgName) {
+  try {
+    const [rows] = await tryRpc('list_org_spaces', { p_org: orgId });
+    const list = (Array.isArray(rows) ? rows : []).filter((x) => !x.archived_at && !x.is_member);
+    if (!list.length) return;
+    const open = list.filter((x) => x.join_policy === 'open').length;
+    const t = toast(
+      open
+        ? `${orgName} has ${open} more server${open === 1 ? '' : 's'} you can join.`
+        : `${orgName} has ${list.length} more server${list.length === 1 ? '' : 's'}, all invite only.`,
+      'info', 15000);
+    const b = el('button', 'sm', open ? 'See them' : 'See what exists');
+    b.onclick = async () => {
+      const { orgDirectory } = await import('./core/workspace.js');
+      await orgDirectory(orgId);
+    };
+    t.appendChild(b);
+  } catch { /* the rail and Browse servers still get them there */ }
+}
+
 let signedInEmail = '';
 
 // ------------------------------------------------------------------ no team
@@ -372,6 +398,9 @@ export function showNoTeam(msg) {
         document.body.classList.remove('no-team');
         await switchWorkspace(s);
         toast('You are in ' + (landed || s.name), 'success');
+        // Same as the signed-in redeem path: one server is usually not all of
+        // them, and nothing else on screen would ever say so.
+        if (s.org_id) offerTheRest(s.org_id, landed || s.name);
       } else {
         throw new Error('That invite was accepted but did not put you in a server. Ask your admin to add you to one.');
       }

@@ -46,6 +46,23 @@ const ROWS = [
     },
   },
   {
+    id: 'browse',
+    ico: 'folder',
+    label: 'Browse servers',
+    // An organisation invite joins you to every OPEN server in it, which is
+    // often exactly one, and there was no index anywhere that showed the rest.
+    // So somebody handed a link landed in a single server with no way to learn
+    // that four others existed, let alone join the public ones. The directory
+    // that answers this has existed all along behind a long-press on an org
+    // tile - a gesture with nothing on screen to suggest it.
+    show: () => !embed.active && !!store.ws?.org_id
+      && (store.orgs || []).some((o) => o.org_id === store.ws.org_id),
+    run: async () => {
+      const { orgDirectory } = await import('../core/workspace.js');
+      await orgDirectory(store.ws.org_id);
+    },
+  },
+  {
     id: 'invitelink',
     ico: 'link',
     label: 'Invite with a link',
