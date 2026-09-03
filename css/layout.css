@@ -1454,3 +1454,26 @@ body.nav-open #messages::after {
   border-radius: inherit;
   display: block;
 }
+
+
+/* Two ways in, drawn as two ways in. Before this they ran together into one
+   column - Sign in, then an unexplained name box, then a code button - and the
+   whole card read as a single form with a field nobody could account for. */
+.author-sep {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin: var(--s-5) 0 var(--s-4);
+  color: var(--c-text-3);
+  font-size: var(--t-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--t-track-caps);
+}
+.author-sep::before,
+.author-sep::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--c-border);
+}
+.author-sep.hidden { display: none; }

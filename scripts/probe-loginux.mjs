@@ -192,6 +192,108 @@ try {
     await page.close();
   }
 
+  // ---- E: the sign-in card asks for what it needs and nothing else ------
+  // Reported as "it shows email, the name, the password, and then enter a name.
+  // What does enter a name even mean?" - and it did: an orphan field labelled
+  // "Your name", placeholder "Only needed for the options below", sitting under
+  // the Sign in button, above a code button, under six lines of consent text.
+  {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await page.goto(BASE, { waitUntil: 'networkidle' });
+    await page.waitForSelector('#email', { state: 'visible', timeout: 60000 });
+    await page.waitForTimeout(900);
+    const card = await page.evaluate(() => {
+      const shown = (n) => !!n && n.offsetParent !== null;
+      const order = [...document.querySelectorAll('#auth input, #auth button')]
+        .filter(shown).map((n) => n.id);
+      const notice = document.getElementById('dpdpNotice');
+      const email = document.getElementById('email');
+      return {
+        order,
+        nameOnCard: shown(document.getElementById('displayName')),
+        noticeShown: shown(notice),
+        // Is anything above the email field except the brand and the tagline?
+        aboveEmail: [...document.querySelectorAll('.authcard > *')]
+          .filter((n) => shown(n) && n.getBoundingClientRect().bottom
+                        <= email.getBoundingClientRect().top)
+          .map((n) => n.id || n.className.split(' ')[0]),
+        separator: shown(document.querySelector('.author-sep')),
+        help: document.getElementById('authHelp')?.textContent.replace(/\s+/g, ' ').trim() || '',
+      };
+    });
+    check('login: no "Your name" box on the sign-in card', card.nameOnCard === false);
+    check('login: the consent wall is not the first thing above the email field',
+      card.noticeShown === false, card.aboveEmail.join(', '));
+    check('login: the controls are email, password, sign in, then the code option',
+      JSON.stringify(card.order) === JSON.stringify(['email', 'password', 'pwSignIn', 'otpSend']),
+      card.order.join(' > '));
+    check('login: the two ways in are visibly separated', card.separator === true);
+    check('login: the help text does not contradict the button above it',
+      /No password yet/.test(card.help), card.help);
+    await page.close();
+  }
+
+  // ---- F: the name is asked for where it means something ----------------
+  {
+    sql(`update public.profiles set must_set_password = true where id = '${demo.id}'; select 1;`);
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.goto(BASE, { waitUntil: 'networkidle' });
+    await page.waitForSelector('#email', { state: 'visible', timeout: 60000 });
+    await page.fill('#email', EMAIL);
+    await page.fill('#password', PASS);
+    await page.click('button:has-text("Sign in")');
+    await page.waitForTimeout(7000);
+    const step = await page.evaluate(() => {
+      const n = document.getElementById('displayName');
+      const shown = (x) => !!x && x.offsetParent !== null;
+      return {
+        nameHere: shown(n),
+        prefilled: n?.value || '',
+        placeholder: n?.placeholder || '',
+        noticeHere: shown(document.getElementById('dpdpNotice')),
+      };
+    });
+    check('setup: the name is asked for on the set-password screen', step.nameHere === true);
+    check('setup: it arrives prefilled rather than blank', step.prefilled.length > 0, step.prefilled);
+    check('setup: its placeholder says what it is for',
+      /colleagues will see/.test(step.placeholder), step.placeholder);
+    check('setup: the consent notice is shown where data is collected', step.noticeHere === true);
+    await page.close();
+    restoreLatch();
+  }
+
+  // ---- G: the rest of the organisation is findable ----------------------
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await signIn(page);
+    const row = await page.evaluate(() => {
+      const n = document.querySelector('[data-anav="browse"]');
+      return { present: !!n, label: n?.textContent.trim() || '' };
+    });
+    check('org: a "Browse servers" row is in the sidebar', row.present === true, row.label);
+    if (row.present) {
+      await page.click('[data-anav="browse"]');
+      await page.waitForTimeout(3500);
+      const dir = await page.evaluate(() => {
+        const rows = [...document.querySelectorAll('.orgdir-row')];
+        return {
+          open: rows.length > 0,
+          count: rows.length,
+          // Every server in the org, whether or not you are in it, with the
+          // ones you can join actually offering a Join.
+          joinable: rows.filter((r) => r.querySelector('[data-join]')).length,
+          alreadyIn: rows.filter((r) => r.querySelector('[data-open]')).length,
+          locked: rows.filter((r) => r.querySelector('.orgdir-locked')).length,
+        };
+      });
+      check(`org: it lists the organisation's servers`, dir.open === true, `${dir.count} rows`);
+      check('org: every row offers Join, Open or says it is invite only',
+        dir.count > 0 && (dir.joinable + dir.alreadyIn + dir.locked) === dir.count,
+        `${dir.joinable} join / ${dir.alreadyIn} in / ${dir.locked} locked`);
+    }
+    await page.close();
+  }
+
   // ---- D: nobody is left unable to choose a password --------------------
   {
     // The precise population, not the loose one. "password_set_at is null" also

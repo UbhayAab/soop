@@ -60,12 +60,14 @@ export function readAuthCallback() {
 export function initAuth(onSignedIn) {
   // Someone clicked an expired or already-used sign-in link. Without this they
   // land on a blank sign-in screen with no idea why nothing happened.
-  // Show DPDP s.6(1) notice at signup.
+  // The DPDP s.6(1) notice is filled in here but stays hidden until the screen
+  // where personal data is actually collected. It used to be the first thing on
+  // the sign-in card: six lines of consent language above the email field, read
+  // by everybody who ever opened the app, including the person signing in for
+  // the four hundredth time. Notice at the point of collection is both what the
+  // section asks for and the only version anybody reads.
   const notice = $('dpdpNotice');
-  if (notice) {
-    notice.textContent = NOTICE_AT_SIGNUP;
-    notice.classList.remove('hidden');
-  }
+  if (notice) notice.textContent = NOTICE_AT_SIGNUP;
   const cb = readAuthCallback();
   if (cb.error) {
     authError(/expired|invalid/i.test(cb.error)
@@ -85,7 +87,7 @@ export function initAuth(onSignedIn) {
 
   // ---- guest ----
   $('guestBtn').onclick = async () => {
-    const name = $('displayName').value.trim() || 'Guest ' + Math.floor(1000 + Math.random() * 9000);
+    const name = 'Guest ' + Math.floor(1000 + Math.random() * 9000);
     const btn = $('guestBtn');
     busy(btn, true);
     authError('');
@@ -102,7 +104,16 @@ export function initAuth(onSignedIn) {
   // Both ship hidden; these two lines are what put them back, so the flags in
   // config.js are the only thing to change on the client.
   $('guestBtn').classList.toggle('hidden', !GUEST_SIGNIN);
-  $('displayName').closest('.field').classList.toggle('hidden', !(GUEST_SIGNIN || CODE_SIGNIN));
+  // The "or" rule belongs to whatever is under it. With nothing under it, it is
+  // a divider between a form and empty space.
+  document.querySelector('.author-sep')?.classList.toggle('hidden', !(GUEST_SIGNIN || CODE_SIGNIN));
+  const help = $('authHelp');
+  if (help) {
+    help.textContent = CODE_SIGNIN
+      ? 'No password yet? Get a code, and you can choose a password once you are in.'
+      : "Accounts here are created by your organisation and handed to you with a password. "
+        + "If you do not have one, ask whoever runs your team's Space.";
+  }
 
   // ---- password sign-in ----
   // The interim path while the organisations finish their own mailer: accounts
@@ -176,6 +187,15 @@ export function initAuth(onSignedIn) {
       if (error) throw error;
       // Only drop the latch once GoTrue has actually accepted the new password.
       await api.completePasswordSetup();
+      // The name is part of setting the account up, not a separate errand. A
+      // failure here must not strand somebody on this screen with a password
+      // that has already been changed - they are in, and they can rename
+      // themselves from their profile.
+      const chosen = ($('displayName')?.value || '').trim();
+      if (chosen && chosen !== store.myProfile?.display_name) {
+        try { await api.setProfile({ display_name: chosen }); }
+        catch (err) { console.warn('could not save the display name', err.message); }
+      }
       // The password manager saved the temporary password on the way in. Leave
       // the new one where it can find it and let the form's submit be what it
       // reads, rather than being asked to guess from a SPA that never navigates.
@@ -225,6 +245,9 @@ export function initAuth(onSignedIn) {
       $('otpTarget').textContent = email;
       show('otpStep');
       hide('emailStep');
+      // Requesting a code is what CREATES the account, so this screen is a point
+      // of collection and the notice belongs on it.
+      $('dpdpNotice')?.classList.remove('hidden');
       $('code').focus();
       startCooldown();
     } catch (e) {
@@ -266,8 +289,9 @@ export function initAuth(onSignedIn) {
         const { error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
         if (error) throw error;
       }
-      const name = $('displayName').value.trim();
-      if (name) await api.setProfile({ display_name: name });
+      // The name is asked for on the set-password screen now, which every
+      // account created this way is sent to. mail-otp seeds it from the email
+      // in the meantime so nobody is ever nameless.
       await onSignedIn();
     } catch (e) {
       authError(/expired|invalid|wrong/i.test(e.message || '')
@@ -285,6 +309,7 @@ export function initAuth(onSignedIn) {
 
   $('otpBack').onclick = () => {
     hide('otpStep');
+    $('dpdpNotice')?.classList.add('hidden');
     show('emailStep');
     authError('');
     stopCooldown();
@@ -351,6 +376,17 @@ export function showSetPassword(email) {
   // The password manager needs a username on this form or it has nothing to file
   // the new password against - see the comment on #pwUser in index.html.
   $('pwUser').value = email || '';
+  // Prefilled from whatever the account already has - which for an account made
+  // from a code is the email's local part, seeded by mail-otp. A prefilled field
+  // is a correction, and people correct things; an empty one labelled "Your
+  // name" on a sign-in card is a question nobody knows why they are being asked.
+  const nameField = $('displayName');
+  if (nameField) {
+    nameField.value = store.myProfile?.display_name
+      || (email ? email.split('@')[0] : '');
+  }
+  // Personal data is collected on THIS screen, so the notice belongs on it.
+  $('dpdpNotice')?.classList.remove('hidden');
   authError('');
   setTimeout(() => $('newPw').focus(), 40);
 }
