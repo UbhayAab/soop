@@ -434,11 +434,21 @@ async function drawServers(host, org) {
   ]);
   current.overview = o;
 
+  const liveServers = servers.filter((s) => !s.archived_at && !s.scheduled_delete_at);
+  const noneOpen = liveServers.length > 0 && !liveServers.some((s) => s.join_policy === 'open');
+
   host.innerHTML = `
     <div class="ap-rowhead">
       <h2 class="ap-h2">Servers <span class="muted">${servers.filter((s) => !s.archived_at).length} live</span></h2>
       <button class="sm" id="apNewServer">＋ New server</button>
     </div>
+    ${noneOpen ? `<div class="ap-warn">
+      <b>Your invite link cannot put anybody anywhere.</b>
+      <span>An invite joins somebody to every server marked "anyone with the link", and
+        ${esc(org.name)} has none. They will join the organisation and land in an empty app.
+        Open at least one server below, or add people to servers one at a time.</span>
+      <button class="sm" id="apOpenFirst">Let anyone into ${esc(liveServers[0].name)}</button>
+    </div>` : ''}
     <div class="ap-table">${servers.map((s) => {
       const doomed = !!s.scheduled_delete_at;
       const gone = !!s.archived_at;
@@ -449,7 +459,9 @@ async function drawServers(host, org) {
           <b>${esc(s.name)}</b>
           ${doomed ? `<span class="ap-chip warn">deleting ${esc(relTime(s.scheduled_delete_at))}</span>`
             : gone ? '<span class="ap-chip">archived</span>' : ''}
-          ${s.join_policy === 'open' ? '' : '<span class="ap-chip">invite only</span>'}
+          ${s.join_policy === 'open'
+            ? '<span class="ap-chip ok">anyone with the link</span>'
+            : '<span class="ap-chip">invite only</span>'}
           <div class="muted ap-person-sub">${s.members} member${s.members === 1 ? '' : 's'} · ${s.channels} channel${s.channels === 1 ? '' : 's'}</div>
         </div>
         <div class="ap-acts">
@@ -457,12 +469,30 @@ async function drawServers(host, org) {
             ? `<button class="sm ghost" data-a="restore">Restore</button>
                ${doomed ? '<button class="sm danger" data-a="purge">Delete now</button>' : ''}`
             : `<button class="sm ghost" data-a="open">Open</button>
+               <button class="sm ghost" data-a="policy">${s.join_policy === 'open'
+                 ? 'Make invite only' : 'Let anyone in'}</button>
                <button class="sm ghost" data-a="rename">Rename</button>
                <button class="sm ghost" data-a="archive">Archive</button>
                <button class="sm danger" data-a="delete">Delete</button>`}
         </div>
       </div>`;
     }).join('') || '<div class="empty">No servers yet.</div>'}</div>`;
+
+  host.querySelector('#apOpenFirst')?.addEventListener('click', async () => {
+    const first = liveServers[0];
+    const ok = await UI.confirmModal({
+      title: 'Let anyone into ' + first.name + '?',
+      body: 'Anybody who opens an invite link for ' + org.name + ' joins this server '
+          + 'automatically. Its private channels stay private. You can close it again at any time.',
+      confirmLabel: 'Let them in',
+    });
+    if (!ok) return;
+    try {
+      await api.setJoinPolicy(first.id, 'open');
+      UI.toast('Your invite link now lands people in ' + first.name, 'success');
+      refresh();
+    } catch (e) { UI.toast(e.message, 'error'); }
+  });
 
   host.querySelector('#apNewServer').onclick = async () => {
     const out = await UI.formModal({
@@ -491,6 +521,29 @@ async function drawServers(host, org) {
       const ws = store.spaces.find((x) => x.id === id);
       if (ws) await switchWorkspace(ws);
       else UI.toast('You are not in that server. Add yourself under People to open it.', 'error');
+    });
+
+    act('policy', async () => {
+      const toOpen = s.join_policy !== 'open';
+      // Opening a server is a privacy decision, so it is confirmed and the
+      // consequence is spelled out. Closing one is not - it only ever removes
+      // reach - so it goes straight through.
+      if (toOpen) {
+        const ok = await UI.confirmModal({
+          title: 'Let anyone into ' + s.name + '?',
+          body: 'Anybody who opens an invite link for ' + org.name + ' joins this server '
+              + 'automatically, without anyone approving them. Its private channels stay private. '
+              + 'You can close it again at any time.',
+          confirmLabel: 'Let them in',
+        });
+        if (!ok) return;
+      }
+      try {
+        await api.setJoinPolicy(id, toOpen ? 'open' : 'invite');
+        UI.toast(toOpen ? 'Anyone with the link can join ' + s.name
+                        : s.name + ' is invite only now', 'success');
+        refresh();
+      } catch (e) { UI.toast(e.message, 'error'); }
     });
 
     act('rename', async () => {
@@ -926,6 +979,14 @@ ${APPS_CSS}
 .ap-chip.admin{background:var(--c-accent-quiet);color:var(--c-accent);border-color:transparent}
 .ap-chip.ok{color:var(--c-success,#2f855a)}
 .ap-chip.warn{color:var(--c-danger)}
+/* The one state that makes an organisation's invite link do nothing at all:
+   every server invite-only, so a person joins the org and lands nowhere. Said
+   on the screen that can fix it, with the fix on it. */
+.ap-warn{display:grid;gap:var(--s-2);justify-items:start;margin:0 0 var(--s-4);
+  padding:var(--s-3) var(--s-4);border-radius:var(--r-md);
+  background:var(--c-warn-quiet,var(--c-bg-2));border:var(--bw) solid var(--c-border)}
+.ap-warn b{font-weight:var(--t-bold)}
+.ap-warn span{color:var(--c-text-2);font-size:var(--t-sm);line-height:var(--t-loose);max-width:64ch}
 .ap-manage-head{display:flex;gap:var(--s-4);align-items:center;margin-bottom:var(--s-4)}
 .ap-servers{display:flex;flex-direction:column;gap:var(--s-3)}
 .ap-server{border:1px solid var(--c-border);border-radius:var(--r-md);padding:var(--s-4)}

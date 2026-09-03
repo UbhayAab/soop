@@ -294,6 +294,81 @@ try {
     await page.close();
   }
 
+  // ---- H: an admin can decide which servers a link lands people in ------
+  // The half of "my invite only added me to one server" that is a DECISION
+  // rather than a bug: redeem_org_invite joins every OPEN server, and
+  // join_policy defaulted to 'invite' before 0109, so most servers here are
+  // closed. Which ones open is the admin's call - "HR" being invite-only is
+  // very plausibly deliberate - so the fix is a control, not a data migration.
+  {
+    const [ws] = sql(`select w.id, w.name, w.join_policy, w.org_id
+                        from public.workspaces w
+                        join public.org_members om on om.org_id = w.org_id
+                        join auth.users u on u.id = om.user_id
+                       where u.email = '${EMAIL}' and om.org_role = 'admin'
+                         and w.archived_at is null limit 1;`);
+    if (!ws) {
+      check('policy: found a server the demo account can administer', false);
+    } else {
+      const restorePolicy = () => sql(
+        `update public.workspaces set join_policy = '${ws.join_policy}' where id = '${ws.id}'; select 1;`);
+      try {
+        sql(`update public.workspaces set join_policy = 'invite' where id = '${ws.id}'; select 1;`);
+        const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+        await signIn(page);
+        await page.evaluate(async (orgId) => {
+          const { bus } = await import('./js/store.js');
+          bus.emit('orgadmin:open', { orgId });
+          await new Promise((r) => setTimeout(r, 2500));
+          document.querySelector('[data-sec="servers"]')?.click();
+          await new Promise((r) => setTimeout(r, 2500));
+        }, ws.org_id);
+
+        const before = await page.evaluate((id) => {
+          const row = document.querySelector(`.ap-server-row[data-ws="${id}"]`);
+          return {
+            chip: row?.querySelector('.ap-chip')?.textContent.trim() || '',
+            button: row?.querySelector('[data-a="policy"]')?.textContent.trim() || '',
+            warnShown: !!document.getElementById('apOpenFirst'),
+          };
+        }, ws.id);
+        check('policy: a closed server says so on its row', before.chip === 'invite only', before.chip);
+        check('policy: and offers a control to change it', before.button === 'Let anyone in', before.button);
+
+        // Press it for real, confirm the dialog, and read the DATABASE back -
+        // a green toast is not the claim, "an invite link now lands here" is.
+        await page.click(`.ap-server-row[data-ws="${ws.id}"] [data-a="policy"]`);
+        await page.waitForTimeout(700);
+        await page.click('.modal button:has-text("Let them in")');
+        await page.waitForTimeout(3000);
+
+        const [after] = sql(`select join_policy p from public.workspaces where id = '${ws.id}';`);
+        check('policy: pressing it actually opens the server', after.p === 'open', after.p);
+
+        const back = await page.evaluate((id) => {
+          const row = document.querySelector(`.ap-server-row[data-ws="${id}"]`);
+          return {
+            chip: row?.querySelector('.ap-chip')?.textContent.trim() || '',
+            button: row?.querySelector('[data-a="policy"]')?.textContent.trim() || '',
+          };
+        }, ws.id);
+        check('policy: the row repaints to the new state',
+          back.chip === 'anyone with the link' && back.button === 'Make invite only',
+          `${back.chip} / ${back.button}`);
+
+        // And the thing that actually matters: the org invite now has somewhere
+        // to put people. list_org_spaces is what the directory and the share
+        // sheet both read.
+        const [openNow] = sql(`select count(*) n from public.workspaces
+                                where org_id = '${ws.org_id}' and archived_at is null
+                                  and join_policy = 'open';`);
+        check('policy: the organisation now has a server an invite can land in',
+          Number(openNow.n) > 0, `${openNow.n} open`);
+        await page.close();
+      } finally { restorePolicy(); }
+    }
+  }
+
   // ---- D: nobody is left unable to choose a password --------------------
   {
     // The precise population, not the loose one. "password_set_at is null" also
