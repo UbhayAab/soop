@@ -63,6 +63,12 @@ export const api = {
   // ---------- identity (0067) ----------
   // Title is descriptive and carries no access; roles are still roles.
   myIdentityRules: () => rpc('my_identity_rules', {}),
+  // A name only the caller sees. Empty string clears it.
+  setNickname: (subject, nickname) => rpc('set_nickname', {
+    p_subject: subject, p_nickname: nickname || '',
+  }),
+  myNicknames: () => rpc('my_nicknames', {}),
+
   setMyIdentity: (p) => rpc('set_my_identity', {
     p_display_name: p.display_name ?? null,
     p_title: p.title ?? null,

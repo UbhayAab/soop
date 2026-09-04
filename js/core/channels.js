@@ -150,6 +150,19 @@ export async function renderChannels() {
     h += '</div>';
   }
 
+  // Direct messages have their own tab on a phone, and this list is the CHANNEL
+  // list. Painting both here is why the drawer reads as a dumping ground:
+  // "in the channel view I can see DMs - why? We already have a DM tab."
+  // On a wide screen there is no tab bar (css/shell.css only shows it below
+  // 860px), so the drawer is the only route and the list stays.
+  // Read what is actually on screen rather than a class somebody has to remember
+  // to keep in sync: the tab bar is shown purely by CSS (css/shell.css shows it
+  // below 860px), so its computed display IS the answer to "does this device
+  // have a DM tab".
+  const tabbar = document.getElementById('tabbar');
+  const hasDmTab = !!tabbar && getComputedStyle(tabbar).display !== 'none';
+  const dmsBelongHere = !hasDmTab;
+  if (dmsBelongHere) {
   h += '<h3><span>Direct messages</span></h3><div class="navgroup">';
   for (const d of store.dms) {
     const others = (d.other_user_ids || []).filter((u) => u !== store.me);
@@ -165,6 +178,7 @@ export async function renderChannels() {
       ${unread ? (count ? `<span class="badge">${count}</span>` : '<span class="dot-unread"></span>') : ''}</div>`;
   }
   h += '<div class="chan chan-add" data-newdm="1">＋ New message</div></div>';
+  }
 
   host.innerHTML = h;
 

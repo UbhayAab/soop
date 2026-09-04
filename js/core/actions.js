@@ -417,15 +417,18 @@ export function registerCoreHeader() {
 bus.on('profile:open', async ({ userId, anchor } = {}) => {
   if (!userId) return;
   const p = store.profiles.get(userId) || {};
+  const nick = store.nicknames.get(userId) || '';
   const box = el('div', 'profile-card');
   box.innerHTML = `
     <div class="pc-head">${avatarHtml(userId, 56)}
-      <div><b>${esc(p.display_name || p.username || 'user')}</b>
+      <div><b>${esc(nameOf(userId))}</b>
+      ${nick ? `<div class="muted">you call them this - they are ${esc(p.display_name || p.username || 'unnamed')}</div>` : ''}
       ${p.username ? `<div class="muted">@${esc(p.username)}</div>` : ''}
       ${p.pronouns ? `<div class="muted">${esc(p.pronouns)}</div>` : ''}</div></div>
     <div id="pcStatus" class="muted"></div>
     <div class="pc-actions">
       <button class="sm ghost" data-a="full">Full profile</button>
+      <button class="sm ghost" data-a="nick">${nick ? 'Change what you call them' : 'Rename for yourself'}</button>
       ${userId !== store.me ? '<button class="sm" data-a="dm">Message</button>' : ''}
       ${userId !== store.me ? '<button class="sm ghost" data-a="block">Block</button>' : ''}
       ${userId !== store.me && hasPerm(PERM.KICK) ? '<button class="sm ghost" data-a="kick">Remove</button>' : ''}
@@ -441,6 +444,35 @@ bus.on('profile:open', async ({ userId, anchor } = {}) => {
     bus.emit('profile:page', { userId });
   });
   box.querySelector('[data-a="dm"]')?.addEventListener('click', () => { m.close(); startDM(userId); });
+  // A name only you see. Nobody is told, nothing is sent to them, and clearing
+  // the box puts their own name back.
+  box.querySelector('[data-a="nick"]')?.addEventListener('click', async () => {
+    const real = p.display_name || p.username || 'this person';
+    const out = await formModal({
+      title: 'What do you want to call them?',
+      note: `Only you will see this. To everybody else they stay ${real}. `
+          + 'Leave it empty to go back to their own name.',
+      fields: [{ name: 'nickname', label: 'Your name for them', value: nick,
+                 placeholder: real, maxlength: 40 }],
+      submitLabel: 'Save',
+    });
+    if (out === null || out === undefined) return;
+    const val = (out.nickname || '').trim();
+    try {
+      await api.setNickname(userId, val);
+      if (val) store.nicknames.set(userId, val); else store.nicknames.delete(userId);
+      // Every rendered name comes from nameOf, and nothing re-reads it on its
+      // own. This is the same repaint the bootstrap fires after it replaces the
+      // member list.
+      bus.emit('profiles');
+      m.close();
+      toast(val ? `You will see them as ${val}` : 'Back to their own name');
+    } catch (e) {
+      toast(/field_locked/.test(e.message || '')
+        ? 'Your organisation has turned personal nicknames off.'
+        : (e.message || 'Could not save that'), 'error');
+    }
+  });
   box.querySelector('[data-a="block"]')?.addEventListener('click', async () => {
     // Personal boundary, not an admin action: the moderation empty state told
     // people to press a button that did not exist anywhere. api.blockUser had

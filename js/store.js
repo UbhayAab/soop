@@ -20,6 +20,11 @@ export const store = {
   dms: [],
 
   profiles: new Map(),      // user_id -> profile
+  // Names YOU gave people, that only you see. Deliberately a sibling of
+  // profiles rather than a field on it: get_bootstrap, member_joined,
+  // member_status, reloadMembers and presence all REPLACE entries in that map,
+  // so anything stored inside it is one repaint away from being erased.
+  nicknames: new Map(),     // subject_id -> nickname
   online: new Set(),
   unread: new Map(),        // scope_id -> {unread, mention_count}
   notify: new Map(),        // scope_id -> {notify_level, muted_until}
@@ -50,6 +55,11 @@ export function resetChannelState() {
 }
 
 export const nameOf = (id) => {
+  // A nickname wins over everything, including your own. This is the one
+  // chokepoint every rendered name goes through, which is why the feature is
+  // three lines rather than sixty call sites.
+  const nick = store.nicknames.get(id);
+  if (nick) return nick;
   if (id === store.me) return store.myProfile?.display_name || 'you';
   const p = store.profiles.get(id);
   return p?.display_name || p?.username || 'someone';

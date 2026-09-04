@@ -225,6 +225,13 @@ async function enter() {
     .select('*').eq('id', store.me).maybeSingle();
   signedInEmail = s.user?.email || '';
   store.myEmail = signedInEmail;
+  // Names this person gave other people. One round trip, before the first paint,
+  // because nameOf consults it on every rendered name and a late arrival would
+  // mean every row painting the real name first and flickering to the nickname.
+  try {
+    const nicks = await api.rpc('my_nicknames', {});
+    store.nicknames = new Map(Object.entries(nicks || {}));
+  } catch { /* an older database: names simply render as they always did */ }
   store.myProfile = prof || { id: store.me, display_name: 'you' };
   store.profiles.set(store.me, store.myProfile);
   paintIdentity();
