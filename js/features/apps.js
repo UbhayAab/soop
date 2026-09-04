@@ -75,7 +75,7 @@ export async function drawApps(host, org) {
       note: 'The name and picture are what people will see on every message it posts.',
       fields: [
         { name: 'name', label: 'Name', required: true, placeholder: 'Dispatch Bot' },
-        { name: 'description', label: 'What it does', placeholder: 'Posts the Bhiwandi loading numbers at 06:15' },
+        { name: 'description', label: 'What it does', placeholder: 'Posts the morning dispatch numbers' },
       ],
       submitLabel: 'Create',
     });
@@ -158,7 +158,7 @@ async function openApp(host, org, appId) {
       const out = await formModal({
         title: 'New token',
         note: 'Give it the name of the machine it will live on. That is what makes it possible to kill the right one later.',
-        fields: [{ name: 'label', label: 'Where will this token live?', placeholder: 'Bhiwandi dispatch PC' }],
+        fields: [{ name: 'label', label: 'Where will this token live?', placeholder: 'The machine it runs on' }],
         submitLabel: 'Create token',
       });
       if (!out) return;
