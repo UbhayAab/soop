@@ -661,7 +661,11 @@ async function main() {
   hydrateIcons(document);
   initAvatarSweep();
   initNarrowWatcher();
-  initAuth(enter);
+  // Wrapped, because everything after this line is the rest of the application.
+  // When initAuth threw on a stale shell it took initComposer, initVoice,
+  // initShortcuts and every registration below it with it - so one missing
+  // button did not break one button, it broke the whole boot.
+  try { initAuth(enter); } catch (e) { console.error('initAuth failed', e); }
   initComposer();
   initVoice();
   initShortcuts();
