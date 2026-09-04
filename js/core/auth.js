@@ -208,6 +208,11 @@ export function initAuth(onSignedIn) {
   $('setPwStep').addEventListener('submit', (e) => { e.preventDefault(); savePassword(); });
   $('newPw').addEventListener('input', () => paintStrength($('newPw').value));
 
+  // "Forgot my password" and "email me a code" are the same machine: prove you
+  // hold the mailbox, then land somewhere. The only difference is where they
+  // land, so it is one flag rather than a second flow.
+  let resetMode = false;
+
   // ---- request a code ----
   const sendCode = async () => {
     const email = $('email').value.trim();
@@ -243,6 +248,12 @@ export function initAuth(onSignedIn) {
         if (error) throw error;
       }
       $('otpTarget').textContent = email;
+      $('otpLead').textContent = resetMode
+        ? 'To reset your password we first need to know it is you.'
+        : '';
+      $('otpLead').classList.toggle('hidden', !resetMode);
+      $('otpVerifyBtn').textContent = resetMode ? 'Verify and choose a new password'
+                                                : 'Verify and sign in';
       show('otpStep');
       hide('emailStep');
       // Requesting a code is what CREATES the account, so this screen is a point
@@ -259,7 +270,16 @@ export function initAuth(onSignedIn) {
   };
   // Enter in the email box submits the sign-in form now, which is the path
   // almost everyone here is on. Requesting a code is an explicit button press.
-  $('otpSend').onclick = sendCode;
+  $('otpSend').onclick = () => { resetMode = false; sendCode(); };
+  $('pwForgot').onclick = () => {
+    if (!/^\S+@\S+\.\S+$/.test($('email').value.trim())) {
+      authError('Type your email address first, then press this again.');
+      $('email').focus();
+      return;
+    }
+    resetMode = true;
+    sendCode();
+  };
   // The button ships hidden; this is what puts it back, so the flag is the only
   // thing to change when the mailer exists.
   $('otpSend').classList.toggle('hidden', !CODE_SIGNIN);
@@ -288,6 +308,15 @@ export function initAuth(onSignedIn) {
       } else {
         const { error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
         if (error) throw error;
+      }
+      if (resetMode) {
+        // Latch first, so a reset that is interrupted here - tab closed, phone
+        // dies - resumes on the next sign-in instead of quietly leaving the old
+        // password in place while the person believes they changed it.
+        await tryRpc('start_password_reset', {});
+        resetMode = false;
+        showSetPassword(email);
+        return;
       }
       // The name is asked for on the set-password screen now, which every
       // account created this way is sent to. mail-otp seeds it from the email

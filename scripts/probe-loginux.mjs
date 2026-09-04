@@ -224,8 +224,9 @@ try {
     check('login: no "Your name" box on the sign-in card', card.nameOnCard === false);
     check('login: the consent wall is not the first thing above the email field',
       card.noticeShown === false, card.aboveEmail.join(', '));
-    check('login: the controls are email, password, sign in, then the code option',
-      JSON.stringify(card.order) === JSON.stringify(['email', 'password', 'pwSignIn', 'otpSend']),
+    check('login: the controls read email, password, sign in, forgot, then code',
+      JSON.stringify(card.order)
+        === JSON.stringify(['email', 'password', 'pwSignIn', 'pwForgot', 'otpSend']),
       card.order.join(' > '));
     check('login: the two ways in are visibly separated', card.separator === true);
     check('login: the help text does not contradict the button above it',
@@ -367,6 +368,124 @@ try {
         await page.close();
       } finally { restorePolicy(); }
     }
+  }
+
+  // ---- I: forgot-password is a door you can walk through yourself -------
+  {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await page.goto(BASE, { waitUntil: 'networkidle' });
+    await page.waitForSelector('#email', { state: 'visible', timeout: 60000 });
+    await page.waitForTimeout(800);
+    const has = await page.evaluate(() => {
+      const b = document.getElementById('pwForgot');
+      return { present: !!b, visible: !!b && b.offsetParent !== null, label: b?.textContent.trim() };
+    });
+    check('reset: the sign-in form offers a way out when the password is lost',
+      has.present && has.visible, has.label || 'missing');
+
+    // Pressing it with an empty email must teach rather than fail silently.
+    const empty = await page.evaluate(() => {
+      document.getElementById('email').value = '';
+      document.getElementById('pwForgot').click();
+      const e = document.getElementById('authErr');
+      return { msg: e.textContent.trim(), shown: !e.classList.contains('hidden') };
+    });
+    check('reset: pressing it with no email says what to do',
+      empty.shown && /email address first/i.test(empty.msg), empty.msg);
+
+    // With an email, it goes to the code step and says WHY, so the screen does
+    // not look identical to an ordinary code sign-in.
+    const sent = await page.evaluate(async () => {
+      const realFetch = window.fetch;
+      window.fetch = async (u, o) => (String(u).includes('/mail-otp')
+        ? new Response(JSON.stringify({ ok: true }), { status: 200 })
+        : realFetch(u, o));
+      document.getElementById('email').value = 'reset.probe@dek.app';
+      document.getElementById('pwForgot').click();
+      await new Promise((r) => setTimeout(r, 1200));
+      window.fetch = realFetch;
+      const lead = document.getElementById('otpLead');
+      return {
+        onCodeStep: !document.getElementById('otpStep').classList.contains('hidden'),
+        lead: lead && !lead.classList.contains('hidden') ? lead.textContent.trim() : '',
+        cta: document.getElementById('otpVerifyBtn').textContent.trim(),
+      };
+    });
+    check('reset: it reaches the code step', sent.onCodeStep === true);
+    check('reset: the code step says it is a reset, not a sign-in',
+      /reset your password/i.test(sent.lead), sent.lead || '(no lead line)');
+    check('reset: and the button says where it goes',
+      /choose a new password/i.test(sent.cta), sent.cta);
+    await page.close();
+  }
+
+  // ---- J: your name is findable, and you are told it needs setting ------
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await signIn(page);
+    const nav = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('[data-pnav]')];
+      return {
+        ids: rows.map((r) => r.dataset.pnav),
+        labels: rows.map((r) => r.querySelector('.ch-name')?.textContent.trim()),
+        visible: rows.every((r) => r.getBoundingClientRect().height > 0),
+      };
+    });
+    check('profile: the sidebar has a "You" group with profile and password',
+      JSON.stringify(nav.ids) === JSON.stringify(['profile', 'password']), nav.ids.join(', '));
+    check('profile: both rows are visible', nav.visible === true, nav.labels.join(' / '));
+
+    if (nav.ids.includes('profile')) {
+      await page.click('[data-pnav="profile"]');
+      await page.waitForTimeout(2500);
+      const editor = await page.evaluate(() => {
+        const dlg = document.querySelector('.modal');
+        return {
+          open: !!dlg,
+          hasName: !!dlg?.querySelector('input[name="display_name"], #pfName, input'),
+          title: dlg?.querySelector('.modal-head strong')?.textContent.trim() || '',
+        };
+      });
+      check('profile: the row opens the editor', editor.open === true, editor.title);
+      check('profile: with somewhere to type a name', editor.hasName === true);
+      await page.keyboard.press('Escape');
+    }
+
+    // The nudge only fires for a name that is still the guessed one. Force that
+    // state, reload, and require it - then put the name back.
+    const [me] = sql(`select p.display_name d from public.profiles p
+                      join auth.users u on u.id = p.id where u.email = '${EMAIL}';`);
+    const local = EMAIL.split('@')[0];
+    try {
+      sql(`update public.profiles set display_name = '${local}' where id = '${demo.id}'; select 1;`);
+      const p2 = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+      await signIn(p2);
+      await p2.waitForTimeout(7000);
+      const nudge = await p2.evaluate(() => {
+        const t = [...document.querySelectorAll('.toast, [class*="toast"]')]
+          .map((n) => n.textContent).join(' | ');
+        return { text: t, hasButton: !!document.querySelector('.toast button, [class*="toast"] button') };
+      });
+      check('profile: a guessed name gets told so, once',
+        /showing as/i.test(nudge.text), nudge.text.slice(0, 90) || '(no nudge)');
+      check('profile: with a button that opens the editor', nudge.hasButton === true);
+      await p2.close();
+    } finally {
+      sql(`update public.profiles set display_name = '${String(me.d).replace(/'/g, "''")}'
+           where id = '${demo.id}'; select 1;`);
+    }
+    await page.close();
+  }
+
+  // ---- K: joining a server joins the organisation -----------------------
+  {
+    const [row] = sql(`select count(*) n from public.workspace_members wm
+                        join public.workspaces w on w.id = wm.workspace_id
+                       where w.org_id is not null
+                         and not exists (select 1 from public.org_members m
+                                          where m.org_id = w.org_id and m.user_id = wm.user_id);`);
+    check('org: nobody is in a server without being in its organisation',
+      Number(row.n) === 0, `${row.n} stranded`);
   }
 
   // ---- D: nobody is left unable to choose a password --------------------

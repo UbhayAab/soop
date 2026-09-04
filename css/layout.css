@@ -1477,3 +1477,25 @@ body.nav-open #messages::after {
   background: var(--c-border);
 }
 .author-sep.hidden { display: none; }
+
+
+/* A text button that reads as a link, for the way out of a form rather than the
+   way through it. "Forgot your password?" as a filled button would compete with
+   Sign in; as plain text under it, it is where a person looks the moment the
+   button above has just failed them. */
+.linkbtn {
+  display: inline-block;
+  background: none;
+  border: 0;
+  padding: var(--s-2) 0 0;
+  margin: 0;
+  color: var(--c-accent);
+  font-size: var(--t-sm);
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  width: auto;
+  align-self: flex-start;
+}
+.linkbtn:hover { color: var(--c-text); }

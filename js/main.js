@@ -224,6 +224,7 @@ async function enter() {
   const { data: prof } = await sb.from('profiles')
     .select('*').eq('id', store.me).maybeSingle();
   signedInEmail = s.user?.email || '';
+  store.myEmail = signedInEmail;
   store.myProfile = prof || { id: store.me, display_name: 'you' };
   store.profiles.set(store.me, store.myProfile);
   paintIdentity();
