@@ -377,17 +377,40 @@ function paintPage(list, ordered, { head = HEAD_ROWS } = {}) {
 const LAST_CH_KEY = 'dak.lastChannel';
 let prepainted = null;          // { id, uid } already on screen from the cache
 
-function rememberLastChannel(c) {
+// PER SERVER, not one global slot. It used to be a single {id, name, uid}, which
+// meant the memory belonged to whichever channel was opened last ANYWHERE. Leave
+// #dispatch in one server, open a channel in another, come back, and the stored
+// id is the other server's - not found in this one's channel list, so the lookup
+// fell through to default_channel_id and landed on #general. Reported exactly
+// that way: "as soon as I change server by mistake I again go to the default
+// general again". One slot cannot remember two rooms.
+function readLastMap() {
   try {
-    localStorage.setItem(LAST_CH_KEY, JSON.stringify({ id: c.id, name: c.name, uid: store.me }));
+    const raw = JSON.parse(localStorage.getItem(LAST_CH_KEY) || 'null');
+    if (!raw || raw.uid !== store.me) return {};
+    // Migrate the old single-slot shape rather than discarding it: somebody
+    // mid-session should not lose the one room it did remember.
+    if (raw.id && !raw.byWs) return store.ws ? { [store.ws.id]: raw.id } : {};
+    return raw.byWs || {};
+  } catch { return {}; }
+}
+
+function rememberLastChannel(c) {
+  const ws = c?.workspace_id || store.ws?.id;
+  if (!ws || !c?.id) return;
+  try {
+    const byWs = readLastMap();
+    byWs[ws] = c.id;
+    localStorage.setItem(LAST_CH_KEY, JSON.stringify({ uid: store.me, byWs }));
   } catch { /* private mode: the cache is a nicety, not a requirement */ }
 }
 
-export function lastChannelId() {
-  try {
-    const last = JSON.parse(localStorage.getItem(LAST_CH_KEY) || 'null');
-    return last?.uid === store.me ? last.id || null : null;
-  } catch { return null; }
+// The channel this person was last in, IN THIS SERVER. Takes the workspace
+// explicitly because workspace.js calls it while store.ws is still the old one.
+export function lastChannelId(workspaceId) {
+  const ws = workspaceId || store.ws?.id;
+  if (!ws) return null;
+  return readLastMap()[ws] || null;
 }
 
 export async function paintLastChannelFromCache() {
