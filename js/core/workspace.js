@@ -798,7 +798,9 @@ export async function switchWorkspace(target) {
   // does, and the cold-start paint has ALREADY drawn that channel from this
   // phone's storage - opening a different one instead would swap the screen out
   // from under the person a few seconds after showing it to them.
-  const lastId = lastChannelId();
+  // Explicitly THIS server's memory. Passing target rather than reading store.ws
+  // matters: this runs during the switch, so the two are not the same thing yet.
+  const lastId = lastChannelId(target.id);
   const first = store.channels.find((c) => c.id === lastId && c.kind !== 'voice' && !c.archived_at)
     // What the Space chose for people arriving, before falling back to a name
     // this code happens to know. Somebody's first view of an organisation
