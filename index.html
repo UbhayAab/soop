@@ -155,6 +155,10 @@
         <label class="field"><span class="field-label">Password</span>
           <input id="password" type="password" placeholder="Your password" autocomplete="current-password" /></label>
         <button id="pwSignIn" type="submit" class="wide">Sign in</button>
+        <!-- Under the button that just failed, which is where somebody looks the
+             moment it does. Before this the only way back into an account whose
+             password was lost was to ask an operator for a temporary one. -->
+        <button id="pwForgot" type="button" class="linkbtn">Forgot your password?</button>
       </form>
 
       <!-- Provisioned accounts arrive with a temporary password and are made to
@@ -185,6 +189,7 @@
       </form>
 
       <div id="otpStep" class="hidden">
+        <p class="muted hidden" id="otpLead"></p>
         <p class="muted">Check <b id="otpTarget"></b>. Open the email and either
           <b>tap the sign-in link</b>, or type the code here if the email contains one.</p>
         <label class="field"><span class="field-label">Code (if you got one)</span>

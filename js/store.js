@@ -4,6 +4,8 @@
 export const store = {
   me: null,                 // auth user id
   myProfile: null,          // profiles row for me
+  myEmail: '',              // auth email; profiles does not carry it, and the
+                            // sign-in screen and the name nudge both need it
   perms: 0n,                // my permission bitfield in the current workspace
   isAdmin: false,           // platform admin OR ADMINISTRATOR bit here
 
