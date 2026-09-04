@@ -67,7 +67,23 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failGetLater = false;
 let listTasksBody = null;
 
-const NOW = Date.now();
+// Anchored to 09:00 LOCAL, and the page is frozen to the same instant.
+//
+// This was Date.now(), and the two "Due today" fixtures sit at NOW + 1h and
+// NOW + 2h. Run the suite after 22:00 local and both land on TOMORROW, so the
+// Due today section is empty, every later section shifts up one, and the probe
+// reports four failures that say nothing about the app. It did exactly that at
+// 23:34 IST and cost a bisect. A probe whose result depends on the time of day
+// is worse than no probe: it teaches you to ignore it.
+//
+// 09:00 is far enough from both midnights that a fixture two hours either side
+// is still unambiguously the same local day, whatever time the suite runs.
+const ANCHOR = (() => {
+  const d = new Date();
+  d.setHours(9, 0, 0, 0);
+  return d.getTime();
+})();
+const NOW = ANCHOR;
 const iso = (ms) => new Date(ms).toISOString();
 // create_task writes the saved row server-side, so every task-bearing queue
 // item arrives as BOTH a get_later row and a list_tasks row sharing
@@ -95,6 +111,11 @@ const TASKS = [
 const browser = await chromium.launch();
 try {
   const context = await browser.newContext({ viewport: { width: 900, height: 700 } });
+  // Freeze the PAGE's clock to the same anchor the fixtures are built from.
+  // Anchoring only the fixtures is not enough: the panel decides "overdue" and
+  // "due today" by comparing due_at against its own idea of now, so the two
+  // clocks have to be the same clock or the buckets disagree with the data.
+  await context.clock.setFixedTime(new Date(NOW));
   // Installed BEFORE navigation so the booted app's RPCs are interceptable.
   const rpcRoute = (route) => {
     const req = route.request();
