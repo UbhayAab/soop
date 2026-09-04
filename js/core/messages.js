@@ -25,8 +25,9 @@ export async function hydrateAvatars(root) {
     img.dataset.ha = '1';
     const url = await mediaUrl(img.dataset.akey).catch(() => null);
     if (!url || !img.isConnected) {
-      const p = profileOf(img.dataset.user);
-      const name = p?.display_name || p?.username || '?';
+      // nameOf, not display_name: a nickname has to reach the INITIALS too, or
+      // the letters on the circle disagree with the name beside it.
+      const name = nameOf(img.dataset.user) || '?';
       // Carry the SIZE and the colour across. The replacement used to be a bare
       // `avatar` div with neither, so a face that failed to load did not fall
       // back to initials - it fell back to a zero-sized transparent box, and the
@@ -49,8 +50,7 @@ export async function hydrateAvatars(root) {
     // as broken.
     img.addEventListener('error', () => {
       if (!img.isConnected) return;
-      const p2 = profileOf(img.dataset.user);
-      const nm = p2?.display_name || p2?.username || '?';
+      const nm = nameOf(img.dataset.user) || '?';
       const fb = el('div', 'avatar', esc(initials(nm)));
       fb.style.cssText = img.style.cssText;
       fb.style.background = `hsl(${hueOf(img.dataset.user || nm)} 45% 32%)`;
@@ -146,7 +146,7 @@ export function repaintAuthors(root) {
 
 export function avatarHtml(userId, size = 36) {
   const p = profileOf(userId);
-  const name = p?.display_name || p?.username || '?';
+  const name = nameOf(userId) || '?';
   const h = hueOf(userId || name);
   // A stored face beats initials. The image paints as a placeholder with its
   // storage key and hydrateAvatars fills the signed URL on the same second pass
