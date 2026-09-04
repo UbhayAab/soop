@@ -57,6 +57,31 @@ export function readAuthCallback() {
   return { hasToken };
 }
 
+// The sign-in screen is the one surface where a thrown error locks EVERYBODY
+// out: no session, no app, no way to reach a menu that could fix it. So nothing
+// here reaches into the DOM without checking.
+//
+// This is not hypothetical. Adding "Forgot your password?" put
+//   $('pwForgot').onclick = ...
+// in initAuth, and a phone that had the previous index.html in its service
+// worker cache while fetching the new auth.js over the network threw
+// "Cannot set properties of null" on that line, aborted initAuth, and showed a
+// dead login page. The shell and the code are separate requests and can always
+// skew for one load; the code has to survive it.
+const missingIds = [];
+function bind(id, ev, fn) {
+  const n = $(id);
+  if (!n) { missingIds.push(id); return null; }
+  if (ev === 'click') n.onclick = fn;
+  else n.addEventListener(ev, fn);
+  return n;
+}
+
+// What a usable sign-in screen cannot do without. If any of these are absent the
+// page being rendered is older than the code rendering it, and no amount of
+// defensive binding makes that page work - it has no password field to type in.
+const SHELL_REQUIRED = ['email', 'password', 'emailStep', 'pwSignIn'];
+
 export function initAuth(onSignedIn) {
   // Someone clicked an expired or already-used sign-in link. Without this they
   // land on a blank sign-in screen with no idea why nothing happened.
@@ -86,7 +111,7 @@ export function initAuth(onSignedIn) {
   } catch { /* storage unavailable */ }
 
   // ---- guest ----
-  $('guestBtn').onclick = async () => {
+  bind('guestBtn', 'click', async () => {
     const name = 'Guest ' + Math.floor(1000 + Math.random() * 9000);
     const btn = $('guestBtn');
     busy(btn, true);
@@ -100,7 +125,7 @@ export function initAuth(onSignedIn) {
       authError(e.message || 'Could not start a guest session');
       busy(btn, false);
     }
-  };
+  });
   // Both ship hidden; these two lines are what put them back, so the flags in
   // config.js are the only thing to change on the client.
   $('guestBtn').classList.toggle('hidden', !GUEST_SIGNIN);
@@ -163,11 +188,11 @@ export function initAuth(onSignedIn) {
       busy(btn, false);
     }
   };
-  $('emailStep').addEventListener('submit', (e) => { e.preventDefault(); passwordSignIn(); });
+  bind('emailStep', 'submit', (e) => { e.preventDefault(); passwordSignIn(); });
   // keydown, not input: autofill writes a value without either, and telling the
   // two apart is what lets the failure message name the right cause.
-  $('password').addEventListener('keydown', () => { pwWasTyped = true; });
-  $('password').addEventListener('paste', () => { pwWasTyped = true; });
+  bind('password', 'keydown', () => { pwWasTyped = true; });
+  bind('password', 'paste', () => { pwWasTyped = true; });
 
   // ---- forced password change ----
   const savePassword = async () => {
@@ -205,8 +230,8 @@ export function initAuth(onSignedIn) {
       busy(btn, false);
     }
   };
-  $('setPwStep').addEventListener('submit', (e) => { e.preventDefault(); savePassword(); });
-  $('newPw').addEventListener('input', () => paintStrength($('newPw').value));
+  bind('setPwStep', 'submit', (e) => { e.preventDefault(); savePassword(); });
+  bind('newPw', 'input', () => paintStrength($('newPw')?.value || ''));
 
   // "Forgot my password" and "email me a code" are the same machine: prove you
   // hold the mailbox, then land somewhere. The only difference is where they
@@ -270,8 +295,8 @@ export function initAuth(onSignedIn) {
   };
   // Enter in the email box submits the sign-in form now, which is the path
   // almost everyone here is on. Requesting a code is an explicit button press.
-  $('otpSend').onclick = () => { resetMode = false; sendCode(); };
-  $('pwForgot').onclick = () => {
+  bind('otpSend', 'click', () => { resetMode = false; sendCode(); });
+  bind('pwForgot', 'click', () => {
     if (!/^\S+@\S+\.\S+$/.test($('email').value.trim())) {
       authError('Type your email address first, then press this again.');
       $('email').focus();
@@ -279,7 +304,7 @@ export function initAuth(onSignedIn) {
     }
     resetMode = true;
     sendCode();
-  };
+  });
   // The button ships hidden; this is what puts it back, so the flag is the only
   // thing to change when the mailer exists.
   $('otpSend').classList.toggle('hidden', !CODE_SIGNIN);
@@ -329,27 +354,70 @@ export function initAuth(onSignedIn) {
       busy(btn, false);
     }
   };
-  $('otpVerifyBtn').onclick = verify;
-  $('code').addEventListener('keydown', (e) => { if (e.key === 'Enter') verify(); });
-  $('code').addEventListener('input', (e) => {
+  bind('otpVerifyBtn', 'click', verify);
+  bind('code', 'keydown', (e) => { if (e.key === 'Enter') verify(); });
+  bind('code', 'input', (e) => {
     e.target.value = e.target.value.replace(/\D/g, '').slice(0, 8);
     if (e.target.value.length === 6) verify();
   });
 
-  $('otpBack').onclick = () => {
+  bind('otpBack', 'click', () => {
     hide('otpStep');
     $('dpdpNotice')?.classList.add('hidden');
     show('emailStep');
     authError('');
     stopCooldown();
-  };
-  $('otpResend').onclick = () => { if (!$('otpResend').disabled) sendCode(); };
+  });
+  bind('otpResend', 'click', () => { if (!$('otpResend')?.disabled) sendCode(); });
 
   // ---- sign out ----
   // Sign out lives in the user menu (js/shell.js) and on the no-team screen.
   // Bind here too if some surface still offers a top-level button.
   const so = $('signout');
   if (so) so.onclick = signOutEverywhere;
+
+  reportShellSkew();
+}
+
+// A control that is merely NEW being absent is survivable - bind() skipped it and
+// everything else still works. A control the screen cannot function without being
+// absent means the HTML in front of the person is older than the JavaScript
+// running on it, which happens when a navigation falls back to the service
+// worker's cached shell while the module requests reach the network. One load,
+// one device, and until now a dead login page with no way out.
+//
+// So: throw the stale shell away and reload, once. sessionStorage rather than
+// localStorage, and a single attempt, because a reload loop on the sign-in
+// screen would be worse than the bug it is fixing.
+const SKEW_KEY = 'dak.shellSkew';
+function reportShellSkew() {
+  const absent = SHELL_REQUIRED.filter((id) => !$(id));
+  if (missingIds.length) console.warn('auth: shell is missing', missingIds.join(', '));
+  if (!absent.length) return;
+
+  console.warn('auth: the page is older than the code', absent.join(', '));
+  // Offline, this is the WRONG move: the stale shell is the only shell there is,
+  // and deleting the caches to reload would leave nothing to come back to. Say
+  // so and stop; the next online load fixes itself.
+  if (navigator.onLine === false) return;
+  let tried = null;
+  try { tried = sessionStorage.getItem(SKEW_KEY); } catch { /* private mode */ }
+  if (tried) return;                       // already tried; do not loop
+  try { sessionStorage.setItem(SKEW_KEY, '1'); } catch { /* ignore */ }
+
+  (async () => {
+    try {
+      // Drop every cache this app owns, not just the shell: if the HTML was
+      // stale there is no reason to trust the rest of that generation either.
+      if (window.caches) {
+        const names = await caches.keys();
+        await Promise.all(names.map((n) => caches.delete(n)));
+      }
+      const reg = await navigator.serviceWorker?.getRegistration?.();
+      await reg?.update?.().catch(() => {});
+    } catch { /* a reload without the cache clear is still worth trying */ }
+    location.reload();
+  })();
 }
 
 // The one teardown, in one place. It used to be written out twice - here and in
