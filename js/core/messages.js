@@ -3,7 +3,7 @@
 // DMs, search results and pins all look identical.
 import { sb } from '../sb.js';
 import { api } from '../api.js';
-import { store, bus, nameOf, profileOf } from '../store.js';
+import { store, bus, nameOf, profileOf, adminKindOf } from '../store.js';
 import { $, el, esc, fmt, timeOf, dayOf, plain, hueOf, initials } from '../util.js';
 import { QUICK_EMOJI } from '../config.js';
 import { getMessageActions, toast, contextMenu } from '../ui.js';
@@ -212,6 +212,7 @@ export function buildMessage(m, opts = {}) {
     <div class="mbody">
       ${opts.grouped ? '' : `<div class="mhead">
         <span class="who" data-user="${esc(m.author_id || '')}">${esc(who)}</span>
+        ${adminPillHtml(m.author_id)}
         ${isBot ? '<span class="pill pill-bot">APP</span>' : ''}
         ${m.priority === 'urgent' ? '<span class="pill pill-urgent">URGENT</span>' : ''}
         ${m.topic ? `<span class="pill pill-topic" data-topic="${esc(m.topic)}">${esc(m.topic)}</span>` : ''}
@@ -284,6 +285,29 @@ export function buildMessage(m, opts = {}) {
   bus.emit('message:render', { msg: m, el: row, context });
   return row;
 }
+
+// The label beside an admin's name, on every surface that shows one. Painted
+// from store.admins, which list_space_admins fills a moment AFTER the bootstrap
+// (0120), so rows already on screen are patched by repaintAdminPills when it
+// lands or changes rather than waiting for something else to re-render them.
+export function adminPillHtml(userId) {
+  const kind = adminKindOf(userId);
+  if (!kind) return '';
+  return `<span class="pill pill-admin" data-adm="${kind}">${kind === 'owner' ? 'OWNER' : 'ADMIN'}</span>`;
+}
+
+function repaintAdminPills() {
+  for (const head of document.querySelectorAll('.msg .mhead')) {
+    const who = head.querySelector('.who[data-user]');
+    if (!who) continue;
+    const kind = adminKindOf(who.dataset.user);
+    const pill = head.querySelector('.pill-admin');
+    if (kind && pill?.dataset.adm === kind) continue;
+    pill?.remove();
+    if (kind) who.insertAdjacentHTML('afterend', adminPillHtml(who.dataset.user));
+  }
+}
+bus.on('admins', repaintAdminPills);
 
 function paintThreadIndicator(node, th) {
   node.style.display = '';
@@ -773,24 +797,53 @@ export function applyReaction({ message_id, emoji, user_id, added }) {
   paintReactions(message_id);
 }
 
+// A DM row is a dm_messages row, and its reactions live in dm_message_reactions
+// (0119). Both toggle_reaction and message_reactions resolve through
+// public.messages, so for a DM the first raised 'forbidden' on a button this
+// file had just offered, and the second silently read nothing. The row itself
+// says which it is - dm_messages carries conversation_id, messages carries
+// channel_id - and while a conversation is open, nothing else is on screen.
+export function isDMMessage(messageId) {
+  const m = messageId ? store.msgCache.get(messageId) : null;
+  if (m?.conversation_id) return true;
+  if (m?.channel_id) return false;
+  return !!store.currentDM && !store.current;
+}
+
+function reactionError(e, dm) {
+  const m = String(e?.message || '');
+  // PGRST202: the DM half is not on this database yet (migration 0119).
+  if (dm && (e?.code === 'PGRST202' || /could not find the function/i.test(m))) {
+    return 'Reactions in direct messages are not switched on for this server yet.';
+  }
+  if (/rate_limited/i.test(m)) return 'Too many reactions at once - give it a moment.';
+  if (/\bblocked\b/i.test(m)) return 'You cannot react in this conversation.';
+  if (/forbidden|42501/i.test(m)) return 'You cannot react to that message.';
+  return m || 'Reaction failed';
+}
+
 // Optimistic: paint immediately, persist after. The server broadcast reconciles
 // everyone else, and the periodic refetch heals any missed broadcast.
 export async function toggleReaction(messageId, emoji) {
   const em = store.rxn.get(messageId);
   const has = em?.get(emoji)?.has(store.me);
+  const dm = isDMMessage(messageId);
   applyReaction({ message_id: messageId, emoji, user_id: store.me, added: !has });
   try {
-    await api.react(messageId, emoji);
+    await (dm ? api.reactDM(messageId, emoji) : api.react(messageId, emoji));
   } catch (e) {
     applyReaction({ message_id: messageId, emoji, user_id: store.me, added: !!has });
-    toast(e.message || 'Reaction failed', 'error');
+    toast(reactionError(e, dm), 'error');
   }
 }
 
-export async function loadReactions(ids) {
+// `dm` may be passed by a caller that knows (openDM does); otherwise the first
+// id decides, because one screen never mixes the two kinds.
+export async function loadReactions(ids, { dm } = {}) {
   ids = (ids || []).filter(Boolean);
   if (!ids.length) return;
-  const { data } = await sb.from('message_reactions')
+  const fromDM = dm ?? isDMMessage(ids[0]);
+  const { data } = await sb.from(fromDM ? 'dm_message_reactions' : 'message_reactions')
     .select('message_id,emoji,user_id').in('message_id', ids);
   const byMsg = new Map();
   for (const r of data || []) {

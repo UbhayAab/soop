@@ -8,7 +8,7 @@ import { PERM } from '../config.js';
 import { $, el, esc, fmt, plain, relTime, timeOf, toLocalInput, fromLocalInput } from '../util.js';
 import { addMessageAction, addHeaderButton, registerPanel, openPanel, toast, modal,
   formModal, confirmModal, contextMenu, addSwitcherSource } from '../ui.js';
-import { buildMessage, avatarHtml, jumpTo } from './messages.js';
+import { buildMessage, avatarHtml, jumpTo, adminPillHtml } from './messages.js';
 import { icon } from '../icons.js';
 import { setReply } from './composer.js';
 import { openThread } from './threads.js';
@@ -421,7 +421,7 @@ bus.on('profile:open', async ({ userId, anchor } = {}) => {
   const box = el('div', 'profile-card');
   box.innerHTML = `
     <div class="pc-head">${avatarHtml(userId, 56)}
-      <div><b>${esc(nameOf(userId))}</b>
+      <div><b>${esc(nameOf(userId))}</b> ${adminPillHtml(userId)}
       ${nick ? `<div class="muted">you call them this - they are ${esc(p.display_name || p.username || 'unnamed')}</div>` : ''}
       ${p.username ? `<div class="muted">@${esc(p.username)}</div>` : ''}
       ${p.pronouns ? `<div class="muted">${esc(p.pronouns)}</div>` : ''}</div></div>
