@@ -482,7 +482,11 @@ function subscribeUser(uid) {
         // and until now it only nudged a badge and flashed the title - so a DM
         // arriving while you were reading a channel, in another Space, or with
         // the phone in your pocket told you nothing at all.
-        bus.emit('dm:new', p);
+        // 'dm:incoming', not 'dm:new': 'dm:new' is the name the sidebar, the
+        // DMs panel and Ctrl+Shift+K emit to OPEN the New message picker, and
+        // core/dms.js answers it by opening that dialog - so this arrival, on
+        // the same name, popped the picker on whoever had just been messaged.
+        bus.emit('dm:incoming', p);
         if (p?.conversation_id && p.conversation_id === store.currentDM) {
           import('./core/dms.js').then(({ reconcileDM }) => reconcileDM?.());
         }
