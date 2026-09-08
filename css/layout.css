@@ -1322,6 +1322,13 @@ body.nav-open #messages::after {
   aside#panel > .content {
     padding: var(--s-5) var(--s-5) calc(var(--s-9) + var(--safe-b) + var(--tabbar-h, 0px));
   }
+  /* The footer needs the same reservation. It is the sheet's last row and the
+     thread panel's reply composer lives in it (the DMs panel's "New message"
+     button did too): without this it sat UNDER the floating tab bar - painted,
+     unreachable, and reported as "there is no option to start a DM". */
+  aside#panel > footer {
+    padding-bottom: calc(var(--s-4) + var(--safe-b) + var(--tabbar-h, 0px));
+  }
 
   @keyframes sheet-in {
     from { opacity: 0; transform: translateY(16px); }

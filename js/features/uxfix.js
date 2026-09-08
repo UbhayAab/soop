@@ -23,6 +23,7 @@ import { PERM } from '../config.js';
 import { modal, escPush } from '../ui.js';
 import { avatarHtml, applyEdit } from '../core/messages.js';
 import { openChannel } from '../core/channels.js';
+import { reloadAdmins } from '../core/workspace.js';
 
 // --------------------------------------------------------------------------
 // polish.css is not in index.html and index.html is not ours to edit. Injecting
@@ -1161,6 +1162,21 @@ async function memberRoleMap() {
   return { roles: out, complete: got };
 }
 
+// list_space_admins (0120) is the answer every member can read: it also knows
+// about organisation admins, who hold no Space role and were therefore
+// invisible to the derivation above, and it does not depend on member_roles
+// being readable, which for an ordinary member it is not. The derivation stays
+// as what a database without the RPC still gets. Where the two disagree the
+// server wins, except that Owner is the stronger word and is never demoted.
+function withAdmins(derived) {
+  const out = new Map(derived);
+  for (const [id, kind] of store.admins) {
+    if (kind === 'owner') out.set(id, 'Owner');
+    else if (out.get(id) !== 'Owner') out.set(id, 'Admin');
+  }
+  return out;
+}
+
 function registerMembersPanel(ui) {
   ui.registerPanel({
     id: 'members',
@@ -1168,7 +1184,12 @@ function registerMembersPanel(ui) {
     title: 'Members',
     async render(body) {
       body.innerHTML = panelSkeleton();
-      const { roles, complete } = await memberRoleMap();
+      // Re-ask who the admins are on every open: set_org_role broadcasts nothing
+      // this client listens to, and "I just made her an admin, open Members" is
+      // exactly the moment the badge has to be there.
+      const [derived] = await Promise.all([memberRoleMap(), reloadAdmins()]);
+      const { complete } = derived;
+      const roles = withAdmins(derived.roles);
       // store.profiles is a global cache of everyone this session has ever seen
       // - across every Space, every DM and every search result. Listing it under
       // the heading "Members" was wrong: measured on a seeded workspace it

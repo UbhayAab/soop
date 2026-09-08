@@ -25,6 +25,11 @@ export const store = {
   // member_status, reloadMembers and presence all REPLACE entries in that map,
   // so anything stored inside it is one repaint away from being erased.
   nicknames: new Map(),     // subject_id -> nickname
+  // Who runs the current Space: user_id -> 'owner' | 'admin'. Filled from
+  // list_space_admins (0120) so every member sees the same badges, not only
+  // the people who can read member_roles. Empty until it answers, and empty
+  // for good on a database that predates it.
+  admins: new Map(),
   online: new Set(),
   unread: new Map(),        // scope_id -> {unread, mention_count}
   notify: new Map(),        // scope_id -> {notify_level, muted_until}
@@ -66,6 +71,10 @@ export const nameOf = (id) => {
 };
 
 export const profileOf = (id) => store.profiles.get(id) || null;
+
+// 'owner' | 'admin' | null. The one chokepoint for "does this person run the
+// Space", so a badge beside a name means the same thing on every surface.
+export const adminKindOf = (id) => (id ? store.admins.get(id) || null : null);
 
 export function hasPerm(bit) {
   if (store.isAdmin) return true;
@@ -112,5 +121,6 @@ export const bus = {
 //   'thread:open'       -> {threadId, root}
 //   'panel:close'
 //   'profiles'          -> profiles map was refreshed
+//   'admins'            -> store.admins was refreshed (repaint any badge)
 //   'unread'            -> unread counts changed
 //   'realtime:ch'       -> {event, payload} raw channel broadcast passthrough

@@ -5,7 +5,7 @@ import { api, table, tryRpc } from '../api.js';
 import { sb, subscribe } from '../sb.js';
 import { store, bus, hasPerm } from '../store.js';
 import { PERM } from '../config.js';
-import { $, el, esc, initials, hueOf, debounceLead } from '../util.js';
+import { $, el, esc, initials, hueOf, debounceLead, debounce } from '../util.js';
 import { icon } from '../icons.js';
 import { toast, formModal, modal, confirmModal, typeToConfirm, contextMenu, renderHeaderButtons } from '../ui.js';
 import { renderChannels, openChannel, refreshUnread, lastChannelId } from './channels.js';
@@ -704,6 +704,9 @@ export async function switchWorkspace(target) {
   store.ws = target;
   store.current = null;
   store.currentDM = null;
+  // The last Space's admins must not badge this Space's people for the moment
+  // before list_space_admins answers (reloadAdmins, below the bootstrap).
+  store.admins = new Map();
   // The server name is the menu, Discord-style. Before this the only route to
   // Leave was a right-click on the rail icon, which nothing advertised and a
   // phone cannot perform.
@@ -789,6 +792,9 @@ export async function switchWorkspace(target) {
   // a second time here was a duplicate round trip on the slowest path there is.
 
   bus.emit('workspace', { ws: target });
+  // Not awaited: a badge is not worth holding the first channel for, and rows
+  // already painted are patched when it lands (messages.js repaintAdminPills).
+  reloadAdmins();
   renderHeaderButtons();
   await renderChannels();
   subscribeWorkspace(target);
@@ -864,6 +870,7 @@ function subscribeWorkspace(ws) {
     // The payload carries the profile, so one person joining a 300-member Space
     // costs every other client zero queries instead of one each.
     member_joined: (p) => {
+      reloadAdminsSoon();
       if (!p?.user_id) { reloadMembers(); return; }
       store.profiles.set(p.user_id, {
         id: p.user_id, display_name: p.display_name, username: p.username,
@@ -875,7 +882,16 @@ function subscribeWorkspace(ws) {
     member_left: (p) => {
       if (p?.user_id) store.profiles.delete(p.user_id);
       bus.emit('profiles');
+      reloadAdminsSoon();
     },
+    // Everything 0051 broadcasts that can change who counts as an admin here.
+    // set_org_role broadcasts nothing this client hears, which is why the
+    // Members panel also re-asks on every open (features/uxfix.js).
+    members_updated: () => reloadAdminsSoon(),
+    member_updated: () => reloadAdminsSoon(),
+    role_updated: () => reloadAdminsSoon(),
+    role_deleted: () => reloadAdminsSoon(),
+    ownership_transferred: () => reloadAdminsSoon(),
     // A colleague changed their custom status. Without this it only showed up
     // after a full reload: core/presence.js deliberately fetches profiles ONLY
     // for ids it has never seen, so an existing member's status_text was never
@@ -903,6 +919,36 @@ export async function reloadMembers() {
   for (const p of profs) store.profiles.set(p.id, { ...(store.profiles.get(p.id) || {}), ...p });
   bus.emit('profiles');
 }
+
+// Who runs this Space, for everybody in it to see: user_id -> 'owner'|'admin'
+// from list_space_admins (0120). Asked AFTER the bootstrap rather than folded
+// into it, because get_bootstrap's live body post-dates this repo's migrations
+// and is not redefined here. On a database without the RPC the map stays empty
+// and the Members panel keeps its own derivation, which only admins could read.
+let adminsGen = 0;
+let adminsRpcMissing = false;
+export async function reloadAdmins() {
+  const ws = store.ws;
+  if (!ws || adminsRpcMissing) return;
+  const gen = ++adminsGen;
+  const [map, err] = await tryRpc('list_space_admins', { p_workspace: ws.id });
+  if (gen !== adminsGen || store.ws?.id !== ws.id) return;      // a switch overtook this
+  if (err) {
+    // PGRST202 = not in the schema cache = migration not applied. Stop asking
+    // for the rest of this session instead of once per member event.
+    if (err.code === 'PGRST202' || /could not find the function/i.test(err.message || '')) {
+      adminsRpcMissing = true;
+    }
+    return;
+  }
+  const next = new Map(Object.entries(map && typeof map === 'object' ? map : {}));
+  const same = next.size === store.admins.size
+    && [...next].every(([id, kind]) => store.admins.get(id) === kind);
+  store.admins = next;
+  if (!same) bus.emit('admins');
+}
+// A role change lands as a burst of ws-topic events; one re-read per burst.
+const reloadAdminsSoon = debounce(() => { reloadAdmins(); }, 800);
 
 export async function reloadChannels(openId) {
   if (!store.ws) return;
