@@ -181,7 +181,52 @@ to the same state, in this order:
   admins (the Members panel used to work it out by reading `member_roles`, which
   RLS hides from everybody else).
 
-All four are written to be safe to run twice.
+- `supabase/migrations/0121_dm_reaction_rpc.sql` and
+  `0122_space_admins.sql` - the same three fixes from a parallel branch,
+  renumbered. Additive on top of 0120; each says at its top why it moved.
+- `supabase/migrations/0123_reconcile_dm_reactions_and_admins.sql` - the merge of
+  the two. `private.space_admin_ids` becomes the one answer to "who runs this
+  Space", read by both `get_member_badges` and `get_bootstrap` so the first paint
+  and every refresh cannot disagree; and `toggle_reaction` gains the
+  deleted-message and personal-block rules.
+- `supabase/migrations/0124_push_drain_actually_sends.sql` - **push notifications
+  had never been delivered once.** The drain authenticated with the publishable
+  key against a function that requires the service role (403, every fifteen
+  seconds, 1438 of them in six hours), and sent `{}` where the contract is
+  `{user_ids,title,body,url}`. Needs two things this file cannot do for you:
+  a Vault secret `push_drain_key` and the matching Edge Function secret
+  `PUSH_DRAIN_SECRET`, and a redeploy of the `web-push` function
+  (`node scripts/deploy-fn.mjs web-push`). Without the Vault row the drain logs a
+  warning and does nothing, rather than hammering the function.
+- `supabase/migrations/0125_activity_includes_dms.sql` - the Activity tab was
+  correctly empty: `get_activity` covered channels only, and across this whole
+  database 126 messages have ever contained a mention. Adds direct messages.
+- `supabase/migrations/0126_later_board.sql` - `create_task_in_channel` (a task
+  could not be written down without first finding a message), `claim_task`
+  (unclaimed work could not be picked up), `team_workload` (there was no view of
+  anybody but yourself), and an `unclaimed` filter on `list_tasks`.
+- `supabase/migrations/0127_org_form_templates.sql` - org-level form templates
+  plus a searchable import, so a leave-request form is written once and posted
+  into any channel of any server in the same organisation.
+
+All of them are written to be safe to run twice.
+
+### The two things that are NOT a migration
+
+`0124` only works if both halves of the push credential exist. If you are
+standing a fresh project up:
+
+```sql
+select vault.create_secret('<a long random string>', 'push_drain_key',
+  'Shared secret app.drain_notifications sends to the web-push function.');
+```
+
+then set the SAME value as the Edge Function secret `PUSH_DRAIN_SECRET` (the
+Supabase dashboard, or POST it to `/v1/projects/<ref>/secrets`), and redeploy the
+function. Check it worked with `select status_code, count(*) from
+net._http_response group by 1` - a row of 403s means the two values disagree, and
+a row of 200s means push is live. That one query is how all four faults in the
+push chain were found.
 
 0119 leans on four things that are already in your database and are NOT in this
 repository. Check them before running it, because a missing one is a migration
