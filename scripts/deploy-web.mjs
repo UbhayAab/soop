@@ -43,8 +43,15 @@ const DENY_EXT = ['.md', '.sql', '.log'];
 
 // Probe scripts live at the repo root as well as in scripts/.
 const isProbe = (n) => /^probe-.*\.mjs$/.test(n);
+// Scratch. A harness written at the repo root during a piece of work, left
+// behind, swept up by `git add -A` and then SERVED - which is exactly what
+// happened to a pair of __geo_forms files, 200 on the live site until somebody
+// noticed. They held nothing sensitive; the deny-list is not the place to find
+// that out. Anything a person would call temporary is named like this.
+const isScratch = (n) => /^(__|tmp[-_.]|scratch[-_.])/i.test(n);
 
 const denied = (name) => DENY_DIRS.has(name)
+  || isScratch(name)
   || DENY_FILES.has(name)
   || DENY_EXT.some((e) => name.endsWith(e))
   || isProbe(name);

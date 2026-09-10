@@ -2,3 +2,6 @@ node_modules/
 screenshots/
 s/
 .DS_Store
+
+# Scratch harnesses written at the repo root during a piece of work.
+__*
