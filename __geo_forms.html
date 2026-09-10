@@ -1,0 +1,148 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="./css/tokens.css">
+<link rel="stylesheet" href="./css/base.css">
+<link rel="stylesheet" href="./css/components.css">
+<link rel="stylesheet" href="./css/layout.css">
+<link rel="stylesheet" href="./css/messages.css">
+<link rel="stylesheet" href="./css/panels.css">
+<link rel="stylesheet" href="./css/features.css">
+<link rel="stylesheet" href="./css/reading.css">
+<link rel="stylesheet" href="./css/shell.css">
+<style>
+.frm-card{border:1px solid var(--c-border);border-radius:var(--r-lg);
+  padding:var(--s-4) var(--s-5);margin:var(--s-1) 0;background:var(--c-surface-2);max-width:520px}
+.frm-card.frm-closed{opacity:.92}
+.frm-head{display:flex;align-items:flex-start;gap:var(--s-4)}
+.frm-title{flex:1;font-weight:var(--t-bold);word-break:break-word}
+/* Tint for the signal, --c-text for the label: --c-accent on --c-accent-quiet is
+   3.72:1 in light and 4.08:1 in dark, both under AA at 10.5px. */
+.frm-tag{flex:none;font-size:var(--t-2xs);font-weight:var(--t-black);letter-spacing:.5px;
+  padding:var(--s-1) var(--s-3);border-radius:var(--r-xs);
+  background:var(--c-accent-quiet);color:var(--c-text)}
+.frm-closed .frm-tag{background:var(--c-surface-3);color:var(--c-text-2)}
+.frm-desc{color:var(--c-text-2);font-size:var(--t-sm);margin-top:var(--s-2)}
+.frm-qs{color:var(--c-text-2);font-size:var(--t-xs);margin:var(--s-3) 0 var(--s-4)}
+.frm-foot{flex-wrap:wrap;align-items:center;gap:var(--s-3)}
+/* --c-text-inverse, not --c-accent-text: the latter is white in every theme and
+   lands at 3.16:1 on the dark accent. */
+.frm-fill{min-height:36px;padding:var(--s-3) var(--s-6);border-radius:var(--r-md);border:0;
+  font-weight:var(--t-semibold);background:var(--c-accent);color:var(--c-text-inverse)}
+/* There used to be a second, higher-specificity copy of that colour here, keyed
+   on :root[data-theme="light"] and :root[data-theme="colorful"], purely to beat
+   a polish.css rule that read .frm-fill as accent-coloured TEXT and painted dark
+   blue on blue - 1.23:1, the primary action on every form unreadable. That rule
+   has been deleted at the source, so the override is redundant and gone with it,
+   and the two enumerated theme ids go with it too: they named the light looks
+   that existed at the time, so the defence had already stopped covering the
+   themes added since. .ackl-confirm is built identically and never carried the
+   override, which is what made the two buttons disagree in the first place. */
+.frm-done{display:inline-flex;align-items:center;gap:var(--s-2);
+  color:var(--c-text-2);font-size:var(--t-sm);font-weight:var(--t-semibold)}
+.frm-done svg{width:15px;height:15px;color:var(--c-success)}
+.frm-err{color:var(--c-danger);font-size:var(--t-sm)}
+
+.frm-resp{margin-bottom:var(--s-3)}
+.frm-respwho{display:flex;gap:var(--s-3);align-items:baseline;margin-bottom:var(--s-3)}
+.frm-pair{display:flex;gap:var(--s-4);padding:var(--s-2) 0;border-top:1px solid var(--c-border-subtle)}
+.frm-k{flex:0 0 40%;color:var(--c-text-2);font-size:var(--t-sm)}
+.frm-v{flex:1;word-break:break-word;font-size:var(--t-sm)}
+
+.frm-row{cursor:pointer}
+.frm-meta{display:flex;flex-wrap:wrap;gap:var(--s-2);align-items:center;
+  font-size:var(--t-xs);margin-top:var(--s-2)}
+.frm-pill{font-size:var(--t-2xs);font-weight:var(--t-black);letter-spacing:.4px;
+  padding:var(--s-0) var(--s-3);border-radius:var(--r-xs);
+  background:var(--c-surface-3);color:var(--c-text-2)}
+.frm-pill.open{background:var(--c-success-quiet);color:var(--c-text)}
+
+.frm-tools{display:flex;gap:var(--s-3);align-items:center;flex-wrap:wrap;
+  margin-bottom:var(--s-4)}
+.frm-find{flex:1 1 200px;min-width:0}
+.frm-tools button{flex:none;white-space:nowrap;min-height:36px}
+.frm-rowacts{display:flex;flex-wrap:wrap;gap:var(--s-2);margin-top:var(--s-3)}
+
+.frm-impq{width:100%}
+.frm-imp .field{margin-top:var(--s-4)}
+/* No max-height and no overflow here on purpose: .modal-body is already the
+   scroller, and a second one nested inside it strands the Import button in a
+   box that scrolls independently of the modal on a phone. */
+.frm-impres{margin-top:var(--s-4)}
+.frm-improw{display:flex;gap:var(--s-4);align-items:center;flex-wrap:wrap;cursor:default}
+.frm-impname{flex:1 1 200px;min-width:0;word-break:break-word}
+.frm-improw>button{flex:none;min-height:36px}
+/* At 390px the Import button takes its own line rather than squeezing the
+   title into a two-letter column, and the panel toolbar stacks for the same
+   reason. */
+@media (max-width: 480px){
+  .frm-tools>*{flex:1 1 100%}
+  .frm-improw>button{width:100%}
+}
+
+.frm-builder .frm-rows{display:flex;flex-direction:column;gap:var(--s-3)}
+.frm-brow{display:grid;gap:var(--s-3);align-items:center;
+  grid-template-columns:22px minmax(0,1fr) minmax(0,140px) auto 36px;
+  padding:var(--s-3);border:1px solid var(--c-border-subtle);border-radius:var(--r-md)}
+.frm-bnum{color:var(--c-text-3);font-size:var(--t-sm);text-align:center}
+.frm-bopts{grid-column:2 / -1}
+.frm-breq{display:flex;align-items:center;gap:var(--s-2);
+  font-size:var(--t-sm);color:var(--c-text-2);white-space:nowrap}
+.frm-bdel{min-width:36px;min-height:36px}
+@media (max-width: 720px){
+  .frm-brow{grid-template-columns:22px minmax(0,1fr) 36px}
+  .frm-btype{grid-column:2}
+  .frm-breq{grid-column:2}
+  .frm-bdel{grid-row:1;grid-column:3}
+}</style>
+<style>body{margin:0}.harness{padding:12px}</style>
+</head><body><div class="harness">
+
+<h4 class="sec">panel</h4>
+<div id="panelbody">
+  <div class="frm-tools">
+    <input class="frm-find" type="search" placeholder="Search forms in this Space">
+    <button class="sm" type="button">Import from organisation</button>
+  </div>
+  <div class="frm-list">
+    <h4 class="sec">Open</h4>
+    <div class="result frm-row">
+      <div><b>Monthly field report for the Bhiwandi outreach team</b></div>
+      <div class="frm-meta muted">
+        <span class="frm-pill open">OPEN</span>
+        #general &middot; Rakesh Kulkarni &middot; 2 days ago &middot; 14 answered
+      </div>
+      <div class="frm-rowacts">
+        <button class="sm ghost" type="button">See answers</button>
+        <button class="sm ghost" type="button">Save to organisation</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h4 class="sec">import dialog</h4>
+<div class="modal" style="max-width:640px"><div class="modal-body">
+  <div class="frm-imp">
+    <input class="frm-impq" type="search" placeholder="Search by name, by who made it, or paste a form ID">
+    <label class="field"><span class="field-label">Post it into</span>
+      <select class="frm-impch"><option>#general</option></select></label>
+    <div class="frm-impres">
+      <div class="result frm-improw">
+        <div class="frm-impname">
+          <b>Leave Request Form</b>
+          <div class="frm-desc">Fill this in before Friday so we can plan cover.</div>
+          <div class="frm-meta muted">3 questions &middot; Priya Deshmukh &middot; updated 4 days ago &middot; in 3 channels</div>
+        </div>
+        <button class="sm" type="button">Import</button>
+      </div>
+      <div class="result frm-improw">
+        <div class="frm-impname">
+          <b>Expense claim (travel, printing and hall hire for camps)</b>
+          <div class="frm-meta muted">6 questions &middot; someone &middot; updated 3 weeks ago &middot; not used yet</div>
+        </div>
+        <button class="sm" type="button">Import</button>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+</div></body></html>

@@ -15,7 +15,7 @@
 import { rpc, tryRpc } from '../api.js';
 import { store, bus, nameOf, hasPerm } from '../store.js';
 import { PERM } from '../config.js';
-import { el, esc, fmt, relTime } from '../util.js';
+import { el, esc, fmt, relTime, debounce } from '../util.js';
 import { icon } from '../icons.js';
 import { getSub } from '../sb.js';
 
@@ -44,6 +44,12 @@ function humanError(e) {
   if (/not_a_date/i.test(m)) return 'One of the date questions is not a valid date.';
   if (/invalid_option/i.test(m)) return 'Pick one of the listed options.';
   if (/answer_too_long/i.test(m)) return 'One of your answers is too long.';
+  if (/already_imported/i.test(m)) return 'That form is already open in this channel. Close the one that is there first.';
+  if (/archived/i.test(m)) return 'That organisation form has been retired. An organisation admin can bring it back.';
+  // Import raises a bare forbidden for three different reasons - you cannot see
+  // the channel, you cannot post in it, or the form belongs to a different
+  // organisation - and the server deliberately does not say which, so neither
+  // does this.
   if (/forbidden/i.test(m)) return 'You do not have permission to do that.';
   if (/rate_limited/i.test(m)) return 'Slow down a moment, then try again.';
   return 'That did not work. Try again in a moment.';
@@ -373,57 +379,251 @@ function newFormDialog(prefill = {}) {
   });
 }
 
+// ------------------------------------------------------------ organisation
+// The report this exists for: "If I make an organisation-level form - say a
+// Leave Request Form - why can't I just import it when I am in some other
+// channel of some other server of the same organisation? Right now I have to
+// make it in one channel, then the second channel, then the third."
+//
+// Server side that is a template plus a per-channel copy (0127). Here it is two
+// buttons: import one that already exists, and promote a form that works into
+// one everybody else can import.
+const myOrg = () => store.ws?.org_id || null;
+const iAmOrgAdmin = () => (store.orgs || [])
+  .find((o) => o.org_id === store.ws?.org_id)?.org_role === 'admin';
+
+// The person who wrote the template is usually an org admin in a DIFFERENT
+// Space, so store.profiles has nothing for them and nameOf() would render the
+// literal word "someone" on every row. The server sends the name for exactly
+// that case; nameOf still wins when we do know them, so a nickname is honoured.
+const madeBy = (t) => (store.profiles.has(t.created_by) || store.nicknames.has(t.created_by)
+  ? nameOf(t.created_by)
+  : (t.created_by_name || 'someone'));
+
+async function importDialog() {
+  const org = myOrg();
+  if (!org) { toastFn?.('This Space is not part of an organisation yet', 'error'); return; }
+  const chans = (store.channels || []).filter((c) => c.kind !== 'voice' && !c.archived_at);
+  if (!chans.length) { toastFn?.('Make a text channel first - a form lives in a channel', 'error'); return; }
+
+  const wrap = el('div', CLS + '-imp');
+  wrap.innerHTML = `
+    <input class="${CLS}-impq" type="search" autocomplete="off"
+      placeholder="Search by name, by who made it, or paste a form ID"
+      aria-label="Search organisation forms">
+    <label class="field"><span class="field-label">Post it into</span>
+      <select class="${CLS}-impch">${chans.map((c) =>
+    `<option value="${esc(c.id)}"${c.id === store.current?.id ? ' selected' : ''}>#${esc(c.name)}</option>`).join('')}</select></label>
+    <div class="${CLS}-impres"><div class="muted">Loading…</div></div>`;
+
+  const m = uiRef.modal({
+    title: 'Import a form from your organisation',
+    body: wrap,
+    wide: true,
+    actions: [{ label: 'Close', kind: 'ghost', onClick: (close) => close() }],
+  });
+
+  const qEl = wrap.querySelector('.' + CLS + '-impq');
+  const chEl = wrap.querySelector('.' + CLS + '-impch');
+  const res = wrap.querySelector('.' + CLS + '-impres');
+  // Every keystroke fires a round trip, and they come back out of order on a
+  // 3G phone. Only the newest one is allowed to paint.
+  let seq = 0;
+
+  const paint = async () => {
+    const mine = ++seq;
+    const [data, err] = await tryRpc('search_form_templates', {
+      p_org: org, p_query: qEl.value.trim() || null, p_limit: 25, p_offset: 0,
+    });
+    if (mine !== seq) return;
+
+    res.innerHTML = '';
+    if (err) { res.appendChild(el('div', 'empty', esc(humanError(err)))); return; }
+
+    const rows = data?.rows || [];
+    if (!rows.length) {
+      res.appendChild(el('div', 'empty', qEl.value.trim()
+        ? `Nothing in this organisation matches "${esc(qEl.value.trim())}".`
+        : 'Your organisation has no shared forms yet. Open a form that already '
+          + 'works in this Space and choose <b>Save to organisation</b>, and every '
+          + 'other channel can import it from here.'));
+      return;
+    }
+
+    for (const t of rows) {
+      const n = (t.fields || []).length;
+      const card = el('div', 'result ' + CLS + '-improw');
+      card.innerHTML = `
+        <div class="${CLS}-impname">
+          <b>${esc(t.title)}</b>
+          ${t.description ? `<div class="${CLS}-desc">${esc(t.description)}</div>` : ''}
+          <div class="${CLS}-meta muted">
+            ${n} question${n === 1 ? '' : 's'} ·
+            ${esc(madeBy(t))} ·
+            updated ${esc(relTime(t.updated_at))} ·
+            ${t.used_count === 0 ? 'not used yet'
+    : `in ${t.used_count} channel${t.used_count === 1 ? '' : 's'}`}
+          </div>
+        </div>`;
+      const go = el('button', 'sm', 'Import');
+      go.type = 'button';
+      go.onclick = async () => {
+        go.disabled = true;
+        try {
+          const form = await rpc('import_form_template', { p_template: t.id, p_channel: chEl.value });
+          if (form?.id) cache.delete(form.id);
+          m.close();
+          toastFn?.('Posted in #' + (chans.find((c) => c.id === chEl.value)?.name || 'channel'), 'success');
+          if (form?.message_id) bus.emit('message:jump', { messageId: form.message_id });
+        } catch (e) { go.disabled = false; toastErr(e); }
+      };
+      card.appendChild(go);
+      res.appendChild(card);
+    }
+
+    if (data?.total > rows.length) {
+      res.appendChild(el('div', 'muted pad',
+        `Showing ${rows.length} of ${data.total}. Type a few letters to narrow it down.`));
+    }
+  };
+
+  qEl.addEventListener('input', debounce(paint, 150));
+  paint();
+}
+
+// Promote a form that already works here into one the whole organisation can
+// import. Deliberately built from an existing form rather than from a blank
+// builder: the Leave Request that has been collecting answers in #hr for six
+// months is the version worth copying, not a retyped guess at it.
+async function saveToOrg(formId, btn) {
+  const org = myOrg();
+  if (!org) { toastFn?.('This Space is not part of an organisation yet', 'error'); return; }
+  btn.disabled = true;
+  try {
+    const f = await load(formId, true);
+    await rpc('create_form_template', {
+      p_org: org,
+      p_title: f.title,
+      p_desc: f.description || null,
+      p_fields: f.fields || [],
+      p_multi: !!f.multi,
+    });
+    btn.textContent = 'Saved to organisation';
+    toastFn?.('Saved. Any channel in this organisation can import it now.', 'success');
+  } catch (e) { btn.disabled = false; toastErr(e); }
+}
+
 // ------------------------------------------------------------------ list panel
+// The Space's own forms are already loaded in full, so this filter is local: a
+// Space with 200 forms is one list, and a round trip per keystroke to narrow a
+// list you are already holding is a round trip for nothing. The organisation
+// search in the import dialog is the one that has to hit the server, because
+// those templates live outside this Space entirely.
+function matchesForm(r, q) {
+  if (!q) return true;
+  const ch = (store.channels || []).find((c) => c.id === r.channel_id);
+  return [r.title, r.description, ch?.name, nameOf(r.created_by)]
+    .some((v) => String(v || '').toLowerCase().includes(q));
+}
+
 async function renderList(body) {
   body.innerHTML = '<div class="muted pad">loading…</div>';
   if (!store.ws) { body.innerHTML = '<div class="empty">Open a Space first.</div>'; return; }
 
   const [rows, err] = await tryRpc('list_forms', { p_workspace: store.ws.id, p_open_only: false });
   if (err) { body.innerHTML = `<div class="empty">${esc(humanError(err))}</div>`; return; }
-  if (!rows?.length) {
-    const b = el('div', 'empty',
-      'No forms yet. A form is how you collect the same few answers from everyone - '
-      + 'a leave request, an expense claim, a weekly field report.<br><br>');
-    const go = el('button', 'sm', 'Create a form in this channel');
-    go.onclick = () => newFormDialog();
-    b.appendChild(go);
-    body.innerHTML = '';
-    body.appendChild(b);
-    return;
-  }
+  const all = rows || [];
 
   body.innerHTML = '';
-  const open = rows.filter((r) => !r.closed);
-  const done = rows.filter((r) => r.closed);
 
-  const section = (title, list, empty) => {
-    body.appendChild(el('h4', 'sec', esc(title)));
-    if (!list.length) { body.appendChild(el('div', 'empty', esc(empty))); return; }
-    for (const r of list) {
-      const ch = store.channels.find((c) => c.id === r.channel_id);
-      const card = el('div', 'result ' + CLS + '-row', `
-        <div><b>${esc(r.title)}</b></div>
-        <div class="${CLS}-meta muted">
-          <span class="${CLS}-pill${r.closed ? '' : ' open'}">${r.closed ? 'CLOSED' : 'OPEN'}</span>
-          #${esc(ch?.name || 'channel')} · ${esc(nameOf(r.created_by))} ·
-          ${esc(relTime(r.created_at))} ·
-          ${r.responder_count || 0} answered
-        </div>`);
-      card.title = 'Jump to this form';
-      card.onclick = () => {
-        if (r.message_id) bus.emit('message:jump', { messageId: r.message_id });
-        else if (r.channel_id) bus.emit('channel:request', { channelId: r.channel_id });
-      };
-      if (r.can_view_responses) {
-        const v = el('button', 'sm ghost', 'See answers');
-        v.onclick = (e) => { e.stopPropagation(); openResponses(r.id); };
-        card.appendChild(v);
-      }
-      body.appendChild(card);
+  // The toolbar is painted even when the Space has no forms at all, because
+  // that is exactly the state the report describes: you are in the second
+  // channel, you have nothing here, and the form you want already exists
+  // somewhere else in the organisation.
+  const tools = el('div', CLS + '-tools');
+  const find = el('input', CLS + '-find');
+  find.type = 'search';
+  find.placeholder = 'Search forms in this Space';
+  find.setAttribute('aria-label', 'Search forms in this Space');
+  find.autocomplete = 'off';
+  tools.appendChild(find);
+
+  if (myOrg()) {
+    const imp = el('button', 'sm', 'Import from organisation');
+    imp.type = 'button';
+    imp.title = 'Post a form your organisation already uses into a channel here';
+    imp.onclick = () => importDialog();
+    tools.appendChild(imp);
+  }
+  body.appendChild(tools);
+
+  const listHost = el('div', CLS + '-list');
+  body.appendChild(listHost);
+
+  const draw = () => {
+    const q = find.value.trim().toLowerCase();
+    const shown = all.filter((r) => matchesForm(r, q));
+    listHost.innerHTML = '';
+
+    if (!all.length) {
+      const b = el('div', 'empty',
+        'No forms yet. A form is how you collect the same few answers from everyone - '
+        + 'a leave request, an expense claim, a weekly field report.<br><br>');
+      const go = el('button', 'sm', 'Create a form in this channel');
+      go.onclick = () => newFormDialog();
+      b.appendChild(go);
+      listHost.appendChild(b);
+      return;
     }
+    if (!shown.length) {
+      listHost.appendChild(el('div', 'empty', `Nothing in this Space matches "${esc(find.value.trim())}".`));
+      return;
+    }
+
+    const section = (title, list, empty) => {
+      listHost.appendChild(el('h4', 'sec', esc(title)));
+      if (!list.length) { listHost.appendChild(el('div', 'empty', esc(empty))); return; }
+      for (const r of list) {
+        const ch = (store.channels || []).find((c) => c.id === r.channel_id);
+        const card = el('div', 'result ' + CLS + '-row', `
+          <div><b>${esc(r.title)}</b></div>
+          <div class="${CLS}-meta muted">
+            <span class="${CLS}-pill${r.closed ? '' : ' open'}">${r.closed ? 'CLOSED' : 'OPEN'}</span>
+            #${esc(ch?.name || 'channel')} · ${esc(nameOf(r.created_by))} ·
+            ${esc(relTime(r.created_at))} ·
+            ${r.responder_count || 0} answered
+          </div>`);
+        card.title = 'Jump to this form';
+        card.onclick = () => {
+          if (r.message_id) bus.emit('message:jump', { messageId: r.message_id });
+          else if (r.channel_id) bus.emit('channel:request', { channelId: r.channel_id });
+        };
+
+        const acts = el('div', CLS + '-rowacts');
+        if (r.can_view_responses) {
+          const v = el('button', 'sm ghost', 'See answers');
+          v.type = 'button';
+          v.onclick = (e) => { e.stopPropagation(); openResponses(r.id); };
+          acts.appendChild(v);
+        }
+        if (iAmOrgAdmin()) {
+          const s = el('button', 'sm ghost', 'Save to organisation');
+          s.type = 'button';
+          s.title = 'Make this form importable from every channel in the organisation';
+          s.onclick = (e) => { e.stopPropagation(); saveToOrg(r.id, s); };
+          acts.appendChild(s);
+        }
+        if (acts.children.length) card.appendChild(acts);
+        listHost.appendChild(card);
+      }
+    };
+    section('Open', shown.filter((r) => !r.closed), 'Nothing open right now.');
+    section('Closed', shown.filter((r) => r.closed), 'No closed forms yet.');
   };
-  section('Open', open, 'Nothing open right now.');
-  section('Closed', done, 'No closed forms yet.');
+
+  // 150ms, the same debounce the Members and DMs panels use.
+  find.addEventListener('input', debounce(draw, 150));
+  draw();
 }
 
 // ------------------------------------------------------------------ realtime
@@ -496,6 +696,29 @@ function style() {
   padding:var(--s-0) var(--s-3);border-radius:var(--r-xs);
   background:var(--c-surface-3);color:var(--c-text-2)}
 .${CLS}-pill.open{background:var(--c-success-quiet);color:var(--c-text)}
+
+.${CLS}-tools{display:flex;gap:var(--s-3);align-items:center;flex-wrap:wrap;
+  margin-bottom:var(--s-4)}
+.${CLS}-find{flex:1 1 200px;min-width:0}
+.${CLS}-tools button{flex:none;white-space:nowrap;min-height:36px}
+.${CLS}-rowacts{display:flex;flex-wrap:wrap;gap:var(--s-2);margin-top:var(--s-3)}
+
+.${CLS}-impq{width:100%}
+.${CLS}-imp .field{margin-top:var(--s-4)}
+/* No max-height and no overflow here on purpose: .modal-body is already the
+   scroller, and a second one nested inside it strands the Import button in a
+   box that scrolls independently of the modal on a phone. */
+.${CLS}-impres{margin-top:var(--s-4)}
+.${CLS}-improw{display:flex;gap:var(--s-4);align-items:center;flex-wrap:wrap;cursor:default}
+.${CLS}-impname{flex:1 1 200px;min-width:0;word-break:break-word}
+.${CLS}-improw>button{flex:none;min-height:36px}
+/* At 390px the Import button takes its own line rather than squeezing the
+   title into a two-letter column, and the panel toolbar stacks for the same
+   reason. */
+@media (max-width: 480px){
+  .${CLS}-tools>*{flex:1 1 100%}
+  .${CLS}-improw>button{width:100%}
+}
 
 .${CLS}-builder .${CLS}-rows{display:flex;flex-direction:column;gap:var(--s-3)}
 .${CLS}-brow{display:grid;gap:var(--s-3);align-items:center;

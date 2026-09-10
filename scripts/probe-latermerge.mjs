@@ -1,13 +1,13 @@
 // Behavioral guard for the Later/Tasks read-side merge (ROADMAP step 21):
 // later.js joins get_later saved rows onto list_tasks({p_filter:'mine'}) by
-// message_id and resections the queue into Overdue / Due today / Waiting on me
+// message_id and resections the queue into Late / Due today / Yours to move
 // above the plain To do / In progress / Done flow - but fd5c0e2 shipped with
 // only boot screenshots, so nothing proved the join, the sectioning, the
 // task-card contract or the personal-queue badge. This probe drives the REAL
 // booted panel module against canned RPC answers fulfilled locally:
 //
 //   1. task-backed rows surface as sections with counts in due-date order,
-//      undated assigned work lands in Waiting on me (no date is not overdue)
+//      undated assigned work lands in Yours to move (no date is not overdue)
 //   2. a task whose message_id has no saved row stays invisible - the join
 //      rides the server-written saved row, never raw tasks
 //   3. task cards offer Open-in-Tasks + Jump only (the board owns the state
@@ -66,6 +66,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let failGetLater = false;
 let listTasksBody = null;
+// Every list_tasks POST, not just the last: the panel asks twice per open now
+// (p_filter 'mine' for this view, 'unclaimed' for the Up for grabs count).
+const listTasksCalls = [];
 
 // Anchored to 09:00 LOCAL, and the page is frozen to the same instant.
 //
@@ -125,7 +128,8 @@ try {
       return route.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(SAVED) });
     }
     if (name === "list_tasks") {
-      try { listTasksBody = JSON.parse(req.postData() || "{}"); } catch { listTasksBody = null; }
+      try { listTasksBody = JSON.parse(req.postData() || "{}"); listTasksCalls.push(listTasksBody); }
+      catch { listTasksBody = null; }
       return route.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(TASKS) });
     }
     return route.fallback();
@@ -194,9 +198,10 @@ try {
 
   const secLabel = (i) => dom.sections[i]?.label || "";
   const secCount = (i) => dom.sections[i]?.count || "";
-  ok(secLabel(0) === "Overdue" && secCount(0) === "2", `Overdue section first with count 2, got ${JSON.stringify(dom.sections[0])}`);
+  // "Late", not "Overdue": the word a volunteer reads about their own work.
+  ok(secLabel(0) === "Late" && secCount(0) === "2", `Late section first with count 2, got ${JSON.stringify(dom.sections[0])}`);
   ok(secLabel(1) === "Due today" && secCount(1) === "1", `Due today second with count 1, got ${JSON.stringify(dom.sections[1])}`);
-  ok(secLabel(2) === "Waiting on me" && secCount(2) === "1", `Waiting on me third with count 1, got ${JSON.stringify(dom.sections[2])}`);
+  ok(secLabel(2) === "Yours to move" && secCount(2) === "1", `Yours to move third with count 1, got ${JSON.stringify(dom.sections[2])}`);
   ok(secLabel(3) === "To do" && secCount(3) === "1", `To do fourth with count 1, got ${JSON.stringify(dom.sections[3])}`);
   ok(secLabel(5) === "Done" && secCount(5) === "1", `Done last with count 1, got ${JSON.stringify(dom.sections[5])}`);
   ok(!dom.emptyState.includes("Your Later queue is empty"), "non-empty queue must not show the empty explainer");
@@ -209,14 +214,21 @@ try {
   ok(!!first && !!second && cardIndex(first) < cardIndex(second),
     `overdue cards must sort earliest-due first, got [${dom.cards.map((c) => c.buttons.join("|")).join(" ; ")}]`);
   ok(!!first && first.text.includes("overdue"), `overdue card carries an overdue due-label, got ${first && first.text.slice(0, 120)}`);
-  ok(!!first && first.buttons.includes("Open in Tasks") && first.buttons.includes("Jump"),
-    `task card offers Open in Tasks + Jump, got ${first && JSON.stringify(first.buttons)}`);
-  ok(!!first && !first.buttons.includes("Remove") && !first.buttons.includes("To do") && !first.buttons.includes("In progress") && !first.buttons.includes("Done"),
-    `task card must not carry the saved-state buttons, got ${first && JSON.stringify(first.buttons)}`);
+  // The card used to only read and jump, on the grounds that the Tasks board owns
+  // the state machine. True, and also why finishing something you had done meant
+  // leaving this surface, finding the other one and finding the row again. The
+  // two verbs that close the loop live on the card; everything else is "More".
+  ok(!!first && first.buttons.includes("Done") && first.buttons.includes("More"),
+    `task card offers Done + More, got ${first && JSON.stringify(first.buttons)}`);
+  // The saved-item state machine is a DIFFERENT machine and must not appear on a
+  // task card: To do / In progress belong to a parked message, not to work.
+  ok(!!first && !first.buttons.includes("Remove") && !first.buttons.includes("To do")
+     && !first.buttons.includes("In progress"),
+    `task card must not carry the saved-item state buttons, got ${first && JSON.stringify(first.buttons)}`);
 
   const waiting = findCard("Undated work");
   ok(!!waiting && waiting.overBody && waiting.text.includes("waiting on review"),
-    "undated task lands in Waiting on me with its blocker note");
+    "undated task lands in Yours to move with its blocker note");
 
   const orphanVisible = dom.cards.some((c) => c.text.includes("Orphan task"));
   ok(!orphanVisible, "a task with no matching saved row must stay invisible (join rides message_id)");
@@ -229,9 +241,12 @@ try {
 
   ok(dom.badgeHasCount && dom.badgeText === "5",
     `badge must count exactly overdue+today+waiting+todo = 5, got ${dom.badgeText || "(none)"}`);
-  ok(listTasksBody && listTasksBody.p_filter === "mine" && listTasksBody.p_include_done === false
-    && listTasksBody.p_channel === null && listTasksBody.p_workspace === "ws-ws1",
-    `list_tasks POST must carry mine/include_done:false/null channel/seeded workspace, got ${JSON.stringify(listTasksBody)}`);
+  const mineCall = listTasksCalls.find((c) => c && c.p_filter === "mine");
+  ok(mineCall && mineCall.p_include_done === false
+    && mineCall.p_channel === null && mineCall.p_workspace === "ws-ws1",
+    `a list_tasks POST must carry mine/include_done:false/null channel/seeded workspace, got ${JSON.stringify(listTasksCalls)}`);
+  ok(listTasksCalls.some((c) => c && c.p_filter === "unclaimed"),
+    `the panel must also ask for unclaimed work to count Up for grabs, got ${JSON.stringify(listTasksCalls.map((c) => c && c.p_filter))}`);
 
   // Error half: a failed get_later degrades to one honest card.
   failGetLater = true;

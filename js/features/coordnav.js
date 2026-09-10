@@ -96,8 +96,16 @@ export function register({ ui }) {
 
   // tasks.js owns the count; it publishes on the bus rather than being imported,
   // because a feature may never import another feature.
-  bus.on('tasks:count', ({ open }) => {
-    if (open === openTasks) return;
+  // The payload is optional and two callers omit it. taskprogress.js and
+  // quicktask.js both emit a bare bus.emit('tasks:count') meaning "something
+  // changed, recount" - and destructuring undefined THROWS, so this handler blew
+  // up on every one of them. The bus caught it and logged, which is why the
+  // symptom was a badge that silently stopped updating rather than an error
+  // anybody saw. A ping with no number is not a number: ignore it and wait for
+  // the one tasks.js publishes, which is the only caller that actually counts.
+  bus.on('tasks:count', (p) => {
+    const open = p?.open;
+    if (typeof open !== 'number' || open === openTasks) return;
     openTasks = open;
     if (navHost?.isConnected) paint(navHost, ui);
   });
