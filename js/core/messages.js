@@ -3,7 +3,7 @@
 // DMs, search results and pins all look identical.
 import { sb } from '../sb.js';
 import { api } from '../api.js';
-import { store, bus, nameOf, profileOf, roleTagOf } from '../store.js';
+import { store, bus, nameOf, profileOf, roleTagOf, adminKindOf } from '../store.js';
 import { $, el, esc, fmt, timeOf, dayOf, plain, hueOf, initials } from '../util.js';
 import { QUICK_EMOJI } from '../config.js';
 import { getMessageActions, toast, contextMenu } from '../ui.js';
@@ -315,6 +315,20 @@ export function buildMessage(m, opts = {}) {
   bus.emit('message:render', { msg: m, el: row, context });
   return row;
 }
+
+// OWNER / ADMIN only, for a surface that deliberately does not want to call a
+// moderator anything. Everything else uses roleTagHtml above; both read the one
+// badge map, so the two can never disagree about who runs the Space.
+export function adminPillHtml(userId) {
+  const kind = adminKindOf(userId);
+  if (!kind) return '';
+  return `<span class="pill pill-role" data-adm="${kind}">${kind === 'owner' ? 'OWNER' : 'ADMIN'}</span>`;
+}
+
+// A badge refresh is a name refresh: repaintAuthors below reconciles the pill on
+// every row already on screen, and it is the only thing that should, or two
+// passes fight over the same element.
+bus.on('badges', () => repaintAuthors());
 
 function paintThreadIndicator(node, th) {
   node.style.display = '';
@@ -804,43 +818,68 @@ export function applyReaction({ message_id, emoji, user_id, added }) {
   paintReactions(message_id);
 }
 
+// A DM row is a dm_messages row, and its reactions live in dm_message_reactions
+// (0119). Both toggle_reaction and message_reactions resolve through
+// public.messages, so for a DM the first raised 'forbidden' on a button this
+// file had just offered, and the second silently read nothing. The row itself
+// says which it is - dm_messages carries conversation_id, messages carries
+// channel_id - and while a conversation is open, nothing else is on screen.
+export function isDMMessage(messageId) {
+  const m = messageId ? store.msgCache.get(messageId) : null;
+  if (m?.conversation_id) return true;
+  if (m?.channel_id) return false;
+  return !!store.currentDM && !store.current;
+}
+
+function reactionError(e, dm) {
+  const m = String(e?.message || '');
+  // PGRST202: the DM half is not on this database yet (migration 0119).
+  if (dm && (e?.code === 'PGRST202' || /could not find the function/i.test(m))) {
+    return 'Reactions in direct messages are not switched on for this server yet.';
+  }
+  if (/rate_limited/i.test(m)) return 'Too many reactions at once - give it a moment.';
+  if (/\bblocked\b/i.test(m)) return 'You cannot react in this conversation.';
+  if (/forbidden|42501/i.test(m)) return 'You cannot react to that message.';
+  return m || 'Reaction failed';
+}
+
 // Optimistic: paint immediately, persist after. The server broadcast reconciles
 // everyone else, and the periodic refetch heals any missed broadcast.
 export async function toggleReaction(messageId, emoji) {
   const em = store.rxn.get(messageId);
   const has = em?.get(emoji)?.has(store.me);
+  const dm = isDMMessage(messageId);
   applyReaction({ message_id: messageId, emoji, user_id: store.me, added: !has });
   try {
+    // One call for both kinds. public.toggle_reaction resolves which table the
+    // id lives in (0120), so the client does not have to be right about it -
+    // and isDMMessage is only used to word the failure, where being wrong costs
+    // a sentence rather than a lost reaction.
     await api.react(messageId, emoji);
   } catch (e) {
     applyReaction({ message_id: messageId, emoji, user_id: store.me, added: !!has });
-    // 'forbidden' is what the server says and it is not what a person needs to
-    // read. Until 0120 every reaction in a DM hit this branch, and "not allowed
-    // to perform this action" on a button the app itself had just drawn is the
-    // report that led here. If it happens now it means one specific thing.
-    const raw = e.message || '';
-    toast(/forbidden|not allowed|42501/i.test(raw)
-      ? 'That reaction was refused. You may have been removed from this conversation.'
-      : /rate|too many|slow/i.test(raw)
-        ? 'Slow down a moment - too many reactions at once.'
-        : (raw || 'Reaction failed'), 'error');
+    toast(reactionError(e, dm), 'error');
   }
 }
 
-// `kind` decides which table holds them. A DM message's reactions are in
+// `kind` is 'dm' or 'channel'. A DM message's reactions are in
 // dm_message_reactions, not message_reactions: message_reactions.message_id is a
 // foreign key onto public.messages and its channel_id is NOT NULL, so a DM
 // reaction has never been able to live there. Reading one table for both would
-// silently paint every DM as having no reactions, which is how this looked
-// before 0120 except that the write end also failed.
+// silently paint every DM as having no reactions.
 //
-// The caller says which, rather than this guessing from store.currentDM: the
-// sweep in presence.js heals whatever is on screen, and the answer has to come
-// from the surface that knows, not from a global read at the wrong moment.
-export async function loadReactions(ids, kind = 'channel') {
+// Omitting it asks isDMMessage, which reads the cached row's own shape. Callers
+// that KNOW still say so - openDM does - because the sweep in presence.js heals
+// whatever is on screen and an explicit answer from the surface beats a guess.
+export async function loadReactions(ids, kind) {
   ids = (ids || []).filter(Boolean);
   if (!ids.length) return;
-  const { data } = await sb.from(kind === 'dm' ? 'dm_message_reactions' : 'message_reactions')
+  // Tolerates the {dm:true} shape a parallel branch used, so a caller written
+  // against either signature lands in the right table.
+  const fromDM = typeof kind === 'object' && kind !== null
+    ? !!kind.dm
+    : kind ? kind === 'dm' : isDMMessage(ids[0]);
+  const { data } = await sb.from(fromDM ? 'dm_message_reactions' : 'message_reactions')
     .select('message_id,emoji,user_id').in('message_id', ids);
   const byMsg = new Map();
   for (const r of data || []) {

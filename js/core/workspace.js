@@ -5,7 +5,7 @@ import { api, table, tryRpc } from '../api.js';
 import { sb, subscribe } from '../sb.js';
 import { store, bus, hasPerm, setBadges } from '../store.js';
 import { PERM } from '../config.js';
-import { $, el, esc, initials, hueOf, debounceLead } from '../util.js';
+import { $, el, esc, initials, hueOf, debounceLead, debounce } from '../util.js';
 import { icon } from '../icons.js';
 import { toast, formModal, modal, confirmModal, typeToConfirm, contextMenu, renderHeaderButtons } from '../ui.js';
 import { renderChannels, openChannel, refreshUnread, lastChannelId } from './channels.js';
@@ -705,8 +705,8 @@ export async function switchWorkspace(target) {
   store.current = null;
   store.currentDM = null;
   // Admin is a fact about a person IN A SPACE. Carrying the last Space's answer
-  // across would put a pill beside somebody who is an ordinary member here, and
-  // the bootstrap below refills it a moment later either way.
+  // across would badge somebody who is an ordinary member here, for the moment
+  // before the bootstrap below refills it.
   setBadges([]);
   // The server name is the menu, Discord-style. Before this the only route to
   // Leave was a right-click on the rail icon, which nothing advertised and a
@@ -795,6 +795,9 @@ export async function switchWorkspace(target) {
   // a second time here was a duplicate round trip on the slowest path there is.
 
   bus.emit('workspace', { ws: target });
+  // Not awaited: a badge is not worth holding the first channel for, and rows
+  // already painted are patched when it lands (messages.js repaintAdminPills).
+  reloadAdmins();
   renderHeaderButtons();
   await renderChannels();
   subscribeWorkspace(target);
@@ -870,6 +873,7 @@ function subscribeWorkspace(ws) {
     // The payload carries the profile, so one person joining a 300-member Space
     // costs every other client zero queries instead of one each.
     member_joined: (p) => {
+      reloadAdminsSoon();
       if (!p?.user_id) { reloadMembers(); return; }
       store.profiles.set(p.user_id, {
         id: p.user_id, display_name: p.display_name, username: p.username,
@@ -881,7 +885,16 @@ function subscribeWorkspace(ws) {
     member_left: (p) => {
       if (p?.user_id) store.profiles.delete(p.user_id);
       bus.emit('profiles');
+      reloadAdminsSoon();
     },
+    // Everything 0051 broadcasts that can change who counts as an admin here.
+    // set_org_role broadcasts nothing this client hears, which is why the
+    // Members panel also re-asks on every open (features/uxfix.js).
+    members_updated: () => reloadAdminsSoon(),
+    member_updated: () => reloadAdminsSoon(),
+    role_updated: () => reloadAdminsSoon(),
+    role_deleted: () => reloadAdminsSoon(),
+    ownership_transferred: () => reloadAdminsSoon(),
     // A colleague changed their custom status. Without this it only showed up
     // after a full reload: core/presence.js deliberately fetches profiles ONLY
     // for ids it has never seen, so an existing member's status_text was never
@@ -908,30 +921,50 @@ export async function reloadMembers() {
   const profs = await table('profiles', (q) => q.in('id', ids));
   for (const p of profs) store.profiles.set(p.id, { ...(store.profiles.get(p.id) || {}), ...p });
   bus.emit('profiles');
-  refreshMemberBadges();
+  reloadAdmins();
 }
 
-// Re-ask who the admins are. Anybody in the Space may call this - the RPC hands
-// back one bit per member and nothing else - which is the point: the Members
-// panel used to work the same thing out by reading member_roles, and RLS hides
-// that table from ordinary members, so the pill was drawn only for the people
-// who already knew.
+// Who runs this Space, for everybody in it to see. get_bootstrap already carries
+// it per member on a cold start; this is the refresh - after a promotion, on the
+// ws-topic role events below, and on every Members open. Any member may call it:
+// the RPC returns one bit per person and no permission bitfields, which is the
+// whole point. The Members panel used to derive the same thing from
+// member_roles, a table RLS hides from anybody who cannot manage roles, so the
+// pill was drawn only for people who already knew the answer.
 //
-// Fire-and-forget by design. It is a badge; a failed refresh means the badges
-// stay as they were, which is the state the bootstrap left them in.
-export async function refreshMemberBadges() {
-  if (!store.ws) return false;
-  const [rows] = await tryRpc('get_member_badges', { p_workspace: store.ws.id });
+// Fire-and-forget. A failed refresh leaves the badges as the bootstrap left
+// them, which is the honest fallback.
+let adminsGen = 0;
+let adminsRpcMissing = false;
+export async function reloadAdmins() {
+  const ws = store.ws;
+  if (!ws || adminsRpcMissing) return false;
+  const gen = ++adminsGen;
+  const [rows, err] = await tryRpc('get_member_badges', { p_workspace: ws.id });
+  if (gen !== adminsGen || store.ws?.id !== ws.id) return false;   // a switch overtook this
+  if (err) {
+    // PGRST202 = not in the schema cache = migration not applied. Stop asking
+    // for the rest of this session instead of once per member event.
+    if (err.code === 'PGRST202' || /could not find the function/i.test(err.message || '')) {
+      adminsRpcMissing = true;
+    }
+    return false;
+  }
   if (!Array.isArray(rows)) return false;
+  const before = JSON.stringify([...store.badges].sort());
   setBadges(rows);
-  // Two events on purpose. 'profiles' repaints anything that draws a name;
-  // 'badges' is the narrower one the Members panel listens for to drop its own
-  // five-minute role cache, which would otherwise keep showing a promotion as
-  // not having happened for five minutes after it did.
+  if (JSON.stringify([...store.badges].sort()) === before) return true;
+  // Two events on purpose. 'badges' is the narrow one: the Members panel drops
+  // its own five-minute role cache on it, and message rows reconcile their pill.
+  // 'profiles' is the broad repaint every surface that draws a name listens for.
   bus.emit('badges');
   bus.emit('profiles');
   return true;
 }
+// The name the rest of this codebase reaches for. One function, two doors.
+export const refreshMemberBadges = reloadAdmins;
+// A role change lands as a burst of ws-topic events; one re-read per burst.
+const reloadAdminsSoon = debounce(() => { reloadAdmins(); }, 800);
 
 export async function reloadChannels(openId) {
   if (!store.ws) return;

@@ -15,14 +15,15 @@
 // four. Two connection banners is worse than one, and two wrappers around
 // window.fetch is a bug waiting to happen.
 
-import { store, bus, nameOf, hasPerm, setBadges } from '../store.js';
+import { store, bus, nameOf, hasPerm } from '../store.js';
 import { $, el, esc, plain, debounce, relTime } from '../util.js';
 import { icon } from '../icons.js';
-import { table, api, tryRpc } from '../api.js';
+import { table, api } from '../api.js';
 import { PERM } from '../config.js';
 import { modal, escPush } from '../ui.js';
 import { avatarHtml, applyEdit } from '../core/messages.js';
 import { openChannel } from '../core/channels.js';
+import { reloadAdmins } from '../core/workspace.js';
 
 // --------------------------------------------------------------------------
 // polish.css is not in index.html and index.html is not ours to edit. Injecting
@@ -1125,25 +1126,11 @@ async function memberRoleMap() {
     return { roles: roleCache.map, complete: true };
   }
 
-  // One RPC that any member may call, instead of three table reads two of which
-  // RLS hides from anybody who is not already an admin. That was the whole
-  // reason the pill was reported missing: the panel worked perfectly for the
-  // person who set the roles and drew nothing for everyone else, which is the
-  // exact inverse of who needs to know. It also carries the membership, so the
-  // filter below no longer needs its own read.
-  const [badges] = await tryRpc('get_member_badges', { p_workspace: store.ws.id });
-  if (Array.isArray(badges) && badges.length) {
-    setBadges(badges);
-    for (const b of badges) {
-      out.set(b.user_id, b.is_owner ? 'Owner' : b.is_admin ? 'Admin'
-        : b.member_type === 'moderator' ? 'Moderator' : 'Member');
-    }
-    roleCache = { ws: store.ws.id, at: Date.now(), map: out };
-    return { roles: out, complete: true };
-  }
-
-  // Pre-0120 server. Kept because a stale deploy should degrade to the old
-  // half-answer rather than to an unlabelled list.
+  // The pre-0120 derivation, and now ONLY that: get_member_badges is asked once
+  // per open by reloadAdmins() below, and asking it twice for the same answer is
+  // the kind of idle traffic this file is careful about elsewhere. Kept because
+  // a database without the RPC should still label whoever it can rather than
+  // showing an unlabelled list.
   let got = false;
   try {
     const [members, links, roles] = await Promise.all([
@@ -1184,6 +1171,23 @@ async function memberRoleMap() {
 // A promotion just landed: the five-minute cache above must not outlive it.
 bus.on('badges', () => { roleCache = { ws: null, at: 0, map: null }; });
 
+// get_member_badges is the answer every member can read: it also knows about
+// organisation admins, who hold no Space role at all and were therefore
+// invisible to the member_roles derivation above, and it does not need
+// member_roles to be readable, which for an ordinary member it is not. The
+// derivation stays as what a database without the RPC still gets. Where the two
+// disagree the server wins, except that Owner is the stronger word and is never
+// demoted to Admin.
+function withAdmins(derived) {
+  const out = new Map(derived);
+  for (const [id, b] of store.badges) {
+    if (b.is_owner) out.set(id, 'Owner');
+    else if (b.is_admin && out.get(id) !== 'Owner') out.set(id, 'Admin');
+    else if (b.member_type === 'moderator' && !out.get(id)) out.set(id, 'Moderator');
+  }
+  return out;
+}
+
 function registerMembersPanel(ui) {
   ui.registerPanel({
     id: 'members',
@@ -1191,7 +1195,25 @@ function registerMembersPanel(ui) {
     title: 'Members',
     async render(body) {
       body.innerHTML = panelSkeleton();
-      const { roles, complete } = await memberRoleMap();
+      // Re-ask on every open rather than trusting a cache: set_org_role
+      // broadcasts nothing this client listens to, and "I just made her an
+      // admin, open Members" is exactly the moment the badge has to be right.
+      await reloadAdmins();
+      // get_member_badges returns every member of the Space, so when it answers
+      // it is both the labels AND the membership, and the three table reads
+      // below are not needed at all. They are the fallback for a database that
+      // does not have the RPC yet, where the panel labels whoever it can.
+      let roles;
+      let complete;
+      if (store.badges.size) {
+        roles = withAdmins(new Map());
+        for (const id of store.badges.keys()) if (!roles.has(id)) roles.set(id, 'Member');
+        complete = true;
+      } else {
+        const derived = await memberRoleMap();
+        roles = withAdmins(derived.roles);
+        complete = derived.complete;
+      }
       // store.profiles is a global cache of everyone this session has ever seen
       // - across every Space, every DM and every search result. Listing it under
       // the heading "Members" was wrong: measured on a seeded workspace it

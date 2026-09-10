@@ -297,6 +297,10 @@ export const api = {
   unsaveItem: (id) => rpc('unsave_item', { p_message: id }),
   listSaved: () => rpc('list_saved', {}),
   react: (id, emoji) => rpc('toggle_reaction', { p_message: id, p_emoji: emoji }),
+  // A DM row is a dm_messages row. toggle_reaction resolves through
+  // public.messages and answers 'forbidden' for it, so DMs have their own
+  // (0119) - same arguments, same true/false answer.
+  reactDM: (id, emoji) => rpc('toggle_dm_reaction', { p_message: id, p_emoji: emoji }),
   markRead: (scopeType, scopeId, upToSeq) =>
     rpc('mark_read', { p_scope_type: scopeType, p_scope_id: scopeId, p_up_to_seq: upToSeq }),
   markUnread: (scopeType, scopeId, fromSeq) =>

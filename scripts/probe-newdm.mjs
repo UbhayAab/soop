@@ -20,7 +20,11 @@
 //   6. the DMs tab, tapped while the conversation it opened is on screen, goes
 //      BACK to the list rather than reopening the same conversation - before
 //      this there was no route back to the list at all once a DM was open
-//   7. zero pageerror.
+//   7. the footer's New message button clears the floating tab bar rather than
+//      being painted underneath it - the root cause a parallel branch measured
+//   8. dm:new still opens the picker (the only route to a GROUP), and it closes
+//   9. an arriving DM does NOT open the picker
+//  10. zero pageerror.
 //
 // Usage: node scripts/probe-newdm.mjs [--root <dir>]
 // Exit 0 PROBE CLEAN, 1 PROBE FAILED, 2 setup failure.
@@ -202,6 +206,70 @@ try {
     const marked = await page.$$eval("#panelContent .dmrow.on", (ns) => ns.length);
     ok(marked === 1, `the open conversation is not marked in the list (${marked} marked rows)`);
   }
+
+  // 7. the footer button is reachable, not painted under the floating tab bar.
+  //    This is the root cause a parallel branch measured: css/layout.css
+  //    reserved --tabbar-h for .content and not for the sheet's own footer, so
+  //    on a phone the one "+ New message" button that existed was drawn
+  //    underneath the tab bar - in the DOM, untappable, and reported as "there
+  //    is no option to start a DM". The bar sits at the bottom of the viewport,
+  //    so the test is: does the button's box end above where the bar starts.
+  //
+  //    The shell is unhidden FIRST and stays that way. Toggling it inside the
+  //    same evaluate as the measurement reads 16px low - the sheet-in keyframe
+  //    starts at translateY(16px) and an element that had no layout a moment ago
+  //    has not been through it yet. That is small enough to look like a real
+  //    8px overlap, which is exactly the bug being tested for.
+  await page.evaluate(() => {
+    document.getElementById("auth")?.classList.add("hidden");
+    document.getElementById("chat")?.classList.remove("hidden");
+  });
+  await page.evaluate(() => window.__p.ui.openPanel("dms"));
+  await page.waitForSelector("#panelContent .dmsearch", { state: "attached", timeout: 5000 });
+  await page.evaluate(() => Promise.all(
+    document.getElementById("panel").getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {})),
+  ));
+  const geo = await page.evaluate(() => {
+    const btn = document.querySelector("#panelFooter button");
+    const bar = document.getElementById("tabbar");
+    if (!btn || !bar) return null;
+    const b = btn.getBoundingClientRect();
+    const t = bar.getBoundingClientRect();
+    return { btnBottom: Math.round(b.bottom), barTop: Math.round(t.top), barShown: t.height > 0 };
+  });
+  ok(!!geo, "could not measure the footer button against the tab bar");
+  // A skipped geometry check must not read as a passed one.
+  ok(!!geo?.barShown, "the tab bar had no box to measure against, so this leg proved nothing");
+  ok(!geo?.barShown || geo.btnBottom <= geo.barTop,
+    `the footer New message button ends at ${geo?.btnBottom}px, under a tab bar that starts at ${geo?.barTop}px`);
+  if (geo) console.log(`probe-newdm: footer button ends ${geo.btnBottom}px, tab bar starts ${geo.barTop}px`);
+
+  // 8. the picker still opens from dm:new and closes again. It is the only route
+  //    to a GROUP conversation, so it has to survive a search box above it.
+  const picker = await page.evaluate(async () => {
+    const { bus } = await import("/js/store.js");
+    bus.emit("dm:new");
+    await new Promise((r) => setTimeout(r, 250));
+    const title = document.querySelector(".modal .modal-head strong")?.textContent.trim() || "";
+    const opened = !!document.querySelector(".picker-list");
+    document.querySelector(".modal .modal-head button.icon")?.click();
+    await new Promise((r) => setTimeout(r, 200));
+    return { title, opened, gone: !document.querySelector(".picker-list") };
+  });
+  ok(picker.opened, "dm:new did not open the New message picker");
+  ok(/new message/i.test(picker.title), `the picker is titled "${picker.title}", want New message`);
+  ok(picker.gone, "the New message picker did not close");
+
+  // 9. an arriving DM must NOT open the picker. main.js used to announce an
+  //    arrival on 'dm:new' - the same name the sidebar, this panel and
+  //    Ctrl+Shift+K use to OPEN it - so every DM you received popped a dialog.
+  const popped = await page.evaluate(async () => {
+    const { bus } = await import("/js/store.js");
+    bus.emit("dm:new", { conversation_id: "conv-a", id: "m1" });
+    await new Promise((r) => setTimeout(r, 250));
+    return !!document.querySelector(".picker-list");
+  });
+  ok(!popped, "an arrival-shaped payload on dm:new still opened the New message picker");
 
   ok(pageerrors.length === 0, `pageerror: ${pageerrors.join(" | ")}`);
 } catch (e) {

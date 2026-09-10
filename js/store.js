@@ -25,11 +25,15 @@ export const store = {
   // member_status, reloadMembers and presence all REPLACE entries in that map,
   // so anything stored inside it is one repaint away from being erased.
   nicknames: new Map(),     // subject_id -> nickname
-  // Who holds ADMINISTRATOR in the current Space, for the badge beside a name.
-  // A sibling of profiles for the same reason nicknames are one, and the
-  // comment above is the whole argument: every path that refreshes a profile
-  // row REPLACES the entry, and a fact that only get_bootstrap knows would be
-  // erased by the next presence fetch. Keyed by user id, rebuilt per Space.
+  // Who runs the current Space, for the badge beside a name. A sibling of
+  // profiles for the same reason nicknames are one, and the comment above is the
+  // whole argument: every path that refreshes a profile row REPLACES the entry,
+  // and a fact that only get_bootstrap knows would be erased by the next
+  // presence fetch. Keyed by user id, rebuilt per Space.
+  //
+  // Carries member_type as well as the two admin bits because Moderator is the
+  // third thing a name can be and it comes from the same read; a second map for
+  // it would be a second thing to keep in sync.
   badges: new Map(),        // user_id -> {is_admin, is_owner, member_type}
   online: new Set(),
   unread: new Map(),        // scope_id -> {unread, mention_count}
@@ -89,6 +93,15 @@ export function roleTagOf(id) {
   if (b.member_type === 'moderator') return 'Moderator';
   return null;
 }
+
+// 'owner' | 'admin' | null - the same question, asked the way the org console
+// asks it. Kept as its own name because "does this person RUN the Space" and
+// "what word goes beside their name" are different questions with different
+// answers: a moderator gets a pill and does not run anything.
+export const adminKindOf = (id) => {
+  const b = id ? store.badges.get(id) : null;
+  return b?.is_owner ? 'owner' : b?.is_admin ? 'admin' : null;
+};
 
 // Rebuild the badge map from anything shaped like the bootstrap's members array
 // or get_member_badges' rows. Both carry user_id + is_admin + is_owner +
@@ -152,5 +165,6 @@ export const bus = {
 //   'thread:open'       -> {threadId, root}
 //   'panel:close'
 //   'profiles'          -> profiles map was refreshed
+//   'badges'            -> store.badges was refreshed (repaint any name badge)
 //   'unread'            -> unread counts changed
 //   'realtime:ch'       -> {event, payload} raw channel broadcast passthrough

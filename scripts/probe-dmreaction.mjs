@@ -18,7 +18,8 @@
 //      both, because the healing sweep in presence.js runs every nine seconds
 //   3. tapping a reaction in a DM calls toggle_reaction with that message id,
 //      and paints optimistically before the server answers
-//   4. a server refusal rolls the optimistic paint back and says why in words
+//   4. a server refusal rolls the optimistic paint back and says why in words,
+//      and a block is worded as a block rather than as a general refusal
 //   5. the reaction broadcast on the dm: topic lands on the row
 //   6. zero pageerror.
 //
@@ -65,6 +66,7 @@ let dmTableReads = 0;
 let chTableReads = 0;
 let toggleBody = null;
 let toggleFails = false;
+let toggleCode = null;
 
 const browser = await chromium.launch();
 try {
@@ -81,6 +83,10 @@ try {
   });
   await context.route("**/rest/v1/rpc/toggle_reaction", (route) => {
     try { toggleBody = JSON.parse(route.request().postData() || "{}"); } catch { toggleBody = null; }
+    if (toggleCode) {
+      return route.fulfill({ status: 403, contentType: "application/json", headers: CORS,
+        body: JSON.stringify({ code: "42501", message: toggleCode }) });
+    }
     if (toggleFails) {
       return route.fulfill({ status: 403, contentType: "application/json", headers: CORS,
         body: JSON.stringify({ code: "42501", message: "forbidden" }) });
@@ -163,10 +169,23 @@ try {
   await sleep(600);
   painted = await page.$eval('[data-rx="dm1"]', (n) => n.textContent.replace(/\s+/g, " ").trim());
   ok(!/🎉/.test(painted), `a refused reaction stayed painted: "${painted}"`);
-  const toastText = await page.evaluate(() => (window.__p.readToasts() || []).join(" | "));
-  ok(/refused|removed from this conversation/i.test(toastText),
-    `a refusal still shows the raw server word instead of an explanation: "${toastText}"`);
-  ok(!/^forbidden$/i.test(toastText.trim()), `the toast is the bare server error: "${toastText}"`);
+  let toastText = await page.evaluate(() => (window.__p.readToasts() || []).join(" | "));
+  // A sentence, not the server's word. "forbidden" on a button the app itself
+  // drew is the report this whole change came from.
+  ok(/cannot react|refused|not switched on|removed from this conversation/i.test(toastText),
+    `a refusal shows something other than an explanation: "${toastText}"`);
+  ok(!/forbidden|42501/i.test(toastText), `the raw server error leaked into the toast: "${toastText}"`);
+
+  // 'blocked' is its own outcome (0121/0123: somebody who has blocked you does
+  // not receive your reactions) and must not be worded as a general refusal.
+  await page.evaluate(() => { window.__p.readToasts().length; });
+  toggleCode = "blocked";
+  await page.evaluate(() => window.__p.msgs.toggleReaction("dm1", "😂"));
+  await sleep(600);
+  toastText = await page.evaluate(() => (window.__p.readToasts() || []).join(" | "));
+  ok(/cannot react in this conversation/i.test(toastText),
+    `a block is not worded as one: "${toastText}"`);
+  toggleCode = null;
   toggleFails = false;
 
   // 5. somebody else's reaction arriving over the dm: topic lands on the row.

@@ -1304,12 +1304,17 @@ input[type="radio"] {
 }
 /* Owner / Admin / Moderator beside a name. Two people were made admins and
    nothing anywhere said so, so "who do I ask for access" had no answer on
-   screen. Warn rather than accent: accent is already the APP pill and the two
+   screen. Warm rather than accent: accent is already the APP pill and the two
    appear in the same header, and a role is a standing fact about a person, not
    an alert - so it is tinted at the same weight as everything else here rather
    than filled. Ordinary members get no pill at all; a badge on every row is
-   decoration. */
-.pill-role {
+   decoration.
+
+   .pill-admin is the name a parallel branch gave the same badge. Both are
+   listed rather than one being renamed away, because a service worker is
+   serving a cached bundle to somebody right now and it emits one of them. */
+.pill-role,
+.pill-admin {
   /* flex:none because this one also lands inside the flex row of the Members
      panel, where without it the pill is the item that gets squeezed. */
   flex: none;

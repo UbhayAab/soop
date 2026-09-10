@@ -331,7 +331,17 @@ export function newDMDialog() {
 }
 
 bus.on('dm:request', ({ conversationId }) => openDM(conversationId));
-bus.on('dm:new', newDMDialog);
+// Open the picker. A payload carrying a conversation_id is a DM ARRIVING -
+// main.js used to emit that on this very name, so every DM you received popped
+// this dialog at you; it is 'dm:incoming' now, and this guard is for anything
+// still saying it the old way.
+bus.on('dm:new', (p) => { if (p && p.conversation_id) return; newDMDialog(); });
+// Straight to a person, or a set of people, without the picker: the DMs panel's
+// search rows already know who.
+bus.on('dm:start', (p = {}) => {
+  const ids = Array.isArray(p.userIds) ? p.userIds : p.userId ? [p.userId] : [];
+  if (ids.length) startDM(ids);
+});
 // The `read` broadcast on the dm topic emits this, but nothing listened - so the
 // Seen line was painted exactly once per open and then froze forever while the
 // other person kept reading. Re-run the receipts fetch whenever it fires for the

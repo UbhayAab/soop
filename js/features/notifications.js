@@ -459,8 +459,8 @@ export function register({ ui, api }) {
   bus.on('message:new', ({ msg }) => { try { raise(msg); } catch { /* ignore */ } });
   // The DM half, which had no listener at all. main.js emits this from the
   // user-topic 'dm' event, which is the one place every DM arrives whether or
-  // not its conversation is open.
-  bus.on('dm:new', (p) => { try { raiseDM(p); } catch { /* ignore */ } });
+  // not its conversation is open. ('dm:new' is the New-message picker's name.)
+  bus.on('dm:incoming', (p) => { try { raiseDM(p); } catch { /* ignore */ } });
 
   // Keep the quiet-hours and pause mirror warm without a panel ever being opened.
   const sync = async () => {

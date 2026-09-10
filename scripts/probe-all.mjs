@@ -53,6 +53,11 @@ function serve(rootDir, port) {
       catch { res.writeHead(400).end(); return; }
       let file = normalize(join(rootDir, p));
       if (!file.startsWith(normalize(rootDir + sep))) { res.writeHead(403).end(); return; }
+      // `/` is the app. Without this the runner answered "not found: /" and the
+      // ten probes that navigate to PROBE_BASE booted a text page, then failed
+      // on the first element they looked for - passing only when run by hand
+      // against a server that maps a directory to its index.html.
+      if (p.endsWith("/")) file = join(file, "index.html");
       const body = await readFile(file).catch(() => null);
       if (body === null) { res.writeHead(404, { "content-type": "text/plain" }).end("not found: " + p); return; }
       res.writeHead(200, { "content-type": MIME[extname(file).toLowerCase()] || "application/octet-stream", "content-length": body.length });

@@ -145,13 +145,22 @@ const list = await page.evaluate(async () => {
       const r = rows.find((x) => x.dataset.dm === "c-old");
       return r ? (!!r.querySelector(".badge") || !!r.querySelector(".dot-unread")) : null;
     })(),
-    footerBtn: [...document.querySelectorAll("#panelFooter button")].some((b) => /new message/i.test(b.textContent)),
+    // The verb sits at the TOP of the content, under the search box: on a phone
+    // the footer sat under the floating tab bar, which is why the button that
+    // was only there read as not existing. (The footer keeps its copy too - the
+    // footer now clears the bar - and probe-newdm measures that.)
+    newBtn: [...document.querySelectorAll("#panelContent button.dmnew")].some((b) => /new message/i.test(b.textContent)),
   };
-  // Footer verb FIRST: a row click routes into openDM, which retires this very
-  // panel and empties #panelFooter - the button must be exercised while alive.
-  document.querySelector("#panelFooter button")?.click();
+  // Verb FIRST: a row click routes into openDM, which retires this very panel
+  // and empties #panelContent - the button must be exercised while alive.
+  [...document.querySelectorAll("#panelContent button.dmnew")]
+    .find((b) => /new message/i.test(b.textContent))?.click();
   await new Promise((r) => setTimeout(r, 100));
   out.dmNew = dmNew.length;
+  // dm:new opens the real picker; close it so the row click below lands on the
+  // panel and not on a modal scrim.
+  document.querySelector(".modal-back .modal-head button")?.click();
+  await new Promise((r) => setTimeout(r, 100));
   rows.find((r) => r.dataset.dm === "c-new")?.click();
   await new Promise((r) => setTimeout(r, 100));
   out.dmReq = dmReq;
@@ -166,9 +175,9 @@ ok(list.newBadge === true, "boolean-unread row shows no dot");
 ok(list.grpBadge === "2", `group row badge '${list.grpBadge}', want 2`);
 ok(list.grpSub.includes("group"), `group row sub '${list.grpSub.trim()}', want the group hint`);
 ok(list.quiet === false, "read row painted an unread marker");
-ok(list.footerBtn === true, "no New message footer button");
+ok(list.newBtn === true, "no New message button in the panel's search bar");
 ok(JSON.stringify(list.dmReq) === JSON.stringify(["c-new"]), `row click emitted ${JSON.stringify(list.dmReq)}`);
-ok(list.dmNew === 1, "footer button did not emit dm:new");
+ok(list.dmNew === 1, "New message button did not emit dm:new");
 
 // ---- Embed skip ----
 // initTabBar must never run under embed.active; the static markup stays hidden.
