@@ -436,6 +436,28 @@ export const getMessageActions = (msg) =>
 // ------------------------------------------------------------------ composer buttons
 const composerButtons = [];
 export function addComposerButton(def) { composerButtons.push({ order: 50, ...def }); }
+// A `show` predicate is read WHEN THE ROW IS PAINTED, and neither row was ever
+// repainted when the conversation changed. Both halves of that were reported in
+// the same message.
+//
+// The composer: the voice-note mic says "only where you can send", which was
+// true of a channel and stayed on screen in a direct message - so somebody held
+// it, recorded, released, and got "Open a channel first" with the recording
+// thrown away.
+//
+// The header: the call button says `!!store.currentDM`, and the only thing that
+// painted that row was the workspace load, when currentDM is null by
+// definition. So the handset NEVER appeared, in any direct message, ever -
+// which is why "aur direct call kha se kru m?" has no answer on screen. It is
+// order 8, the lowest of any header button, so it was never the four-button cap
+// hiding it; the row simply had not been drawn again since before there was a
+// conversation to draw it for.
+//
+// Both rows are a handful of buttons and rebuilding them is free.
+const repaintChrome = () => { renderComposerButtons(); renderHeaderButtons(); };
+bus.on('channel:open', repaintChrome);
+bus.on('dm:open', repaintChrome);
+
 export function renderComposerButtons() {
   const host = $('composerTools');
   if (!host) return;

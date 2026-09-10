@@ -321,7 +321,12 @@ function readBuilder(host) {
 }
 
 function newFormDialog(prefill = {}) {
-  if (!store.current) { toastFn?.('Open a channel first - a form lives in a channel', 'error'); return; }
+  if (!store.current) {
+    toastFn?.(store.currentDM
+      ? 'A form lives in a channel, not a direct message. Open a channel to make one.'
+      : 'Open a channel first - a form lives in a channel', 'error');
+    return;
+  }
 
   const wrap = el('div', CLS + '-builder');
   wrap.innerHTML = `
@@ -766,6 +771,9 @@ export function register({ ui }) {
 
   ui.addComposerButton({
     id: 'form', label: icon('doc'), title: 'Create a form',
+    // Same as the poll: create_form takes a channel, so there is nothing this
+    // button can do inside a direct message except raise an error.
+    show: () => !!store.current,
     onClick: () => newFormDialog(),
   });
   // initComposer() paints the tool row before features register.

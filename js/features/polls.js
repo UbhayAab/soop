@@ -183,7 +183,14 @@ function mount(msg, row) {
 
 // ------------------------------------------------------------------ compose
 async function pollDialog(ui, prefill = {}) {
-  if (!store.current) { ui.toast('Open a channel first - polls live in a channel', 'error'); return; }
+  // Says which, because somebody hitting this is usually in a DM and "open a
+  // channel first" reads as an error rather than as an explanation.
+  if (!store.current) {
+    ui.toast(store.currentDM
+      ? 'A poll lives in a channel, not a direct message. Open a channel to make one.'
+      : 'Open a channel first - polls live in a channel', 'error');
+    return;
+  }
   const fields = [
     { name: 'question', label: 'Question', required: true, value: prefill.question || '',
       placeholder: 'What should we do?' },
@@ -349,6 +356,10 @@ export function register({ ui }) {
 
   ui.addComposerButton({
     id: 'poll',
+    // A poll lives in a channel: the message that carries it needs one. The row
+    // now repaints on every scope change, so this is honoured rather than being
+    // read once at boot and never again.
+    show: () => !!store.current,
     label: icon('chart'),
     title: 'Create a poll',
     onClick: () => pollDialog(ui),

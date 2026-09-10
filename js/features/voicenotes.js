@@ -140,7 +140,15 @@ async function onStop() {
   // Sub-1.2KB is a pocket or an immediate cancel - never a voice note.
   if (cancelled || blob.size < 1200) return;
 
-  if (!store.current) { toast('Open a channel first', 'info'); return; }
+  // A VOICE NOTE IN A DIRECT MESSAGE.
+  //
+  // This used to demand store.current, which is null in a DM - so somebody in a
+  // conversation held the mic, recorded, released, and got "Open a channel
+  // first" with the recording thrown away. Reported exactly that way, twice in
+  // one breath: "audio note bhi n jaa rhe h" and "Open a channel first aa raha
+  // h". The composer has sent to both scopes for as long as there have been DMs;
+  // only this path had not been told.
+  if (!store.current && !store.currentDM) { toast('Open a conversation first', 'info'); return; }
   const dur = Date.now() - startedAt;
   const ext = /mp4/.test(type) ? 'm4a' : /ogg/.test(type) ? 'ogg' : 'webm';
   const file = new File([blob], `voice-note-${fmt(dur).replace(':', 'm')}s.${ext}`, { type });
@@ -155,16 +163,18 @@ async function onStop() {
   }
   try {
     const up = await uploadFile(file);
-    await api.send({
-      channel: store.current.id,
-      nonce: crypto.randomUUID(),
-      text: '',
-      attachments: [{
-        object_key: up.object_key, name: file.name,
-        mime: up.mime, size: file.size,
-        width: null, height: null, duration_ms: dur,
-      }],
-    });
+    const attachments = [{
+      object_key: up.object_key, name: file.name,
+      mime: up.mime, size: file.size,
+      width: null, height: null, duration_ms: dur,
+    }];
+    const nonce = crypto.randomUUID();
+    // Same two scopes the composer already sends to, chosen the same way.
+    if (store.currentDM) {
+      await api.sendDM({ conversation: store.currentDM, nonce, text: '', attachments });
+    } else {
+      await api.send({ channel: store.current.id, nonce, text: '', attachments });
+    }
   } catch (e) {
     toast(e.message || 'The voice note failed to send', 'error');
   } finally {
@@ -194,7 +204,7 @@ export function register(app) {
     order: 45,
     label: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>',
     title: 'Voice note',
-    show: () => !!store.current,
+    show: () => !!store.current || !!store.currentDM,
     onClick: () => {
       if (rec && rec.state === 'recording') stop(false);
       else start();

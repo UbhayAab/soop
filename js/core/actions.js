@@ -3,7 +3,7 @@
 // this file.
 import { sb } from '../sb.js';
 import { api, table, tryRpc } from '../api.js';
-import { store, bus, nameOf, hasPerm } from '../store.js';
+import { store, bus, nameOf, hasPerm, roleTagOf } from '../store.js';
 import { PERM } from '../config.js';
 import { $, el, esc, fmt, plain, relTime, timeOf, toLocalInput, fromLocalInput } from '../util.js';
 import { embed } from '../embed.js';
@@ -495,6 +495,8 @@ bus.on('profile:open', async ({ userId, anchor } = {}) => {
       ${userId !== store.me ? '<button class="sm" data-a="dm">Message</button>' : ''}
       ${userId !== store.me ? '<button class="sm" data-a="call">Call</button>' : ''}
       ${userId !== store.me ? '<button class="sm ghost" data-a="block">Block</button>' : ''}
+      ${userId !== store.me && hasPerm(PERM.MANAGE_WORKSPACE)
+    ? `<button class="sm ghost" data-a="mod">${roleTagOf(userId) === 'Moderator' ? 'Remove moderator' : 'Make moderator'}</button>` : ''}
       ${userId !== store.me && hasPerm(PERM.KICK) ? '<button class="sm ghost" data-a="kick">Remove</button>' : ''}
       ${userId !== store.me && hasPerm(PERM.BAN) ? '<button class="sm danger" data-a="ban">Ban</button>' : ''}
     </div>`;
@@ -555,6 +557,44 @@ bus.on('profile:open', async ({ userId, anchor } = {}) => {
       confirmLabel: 'Block',
     }))) return;
     try { await api.blockUser(userId); m.close(); toast('Blocked'); } catch (e) { toast(e.message, 'error'); }
+  });
+  // "Moderator kaise bnate h" - asked in a direct message, with a crying face,
+  // and the honest answer was that you could not. set_member_type has existed
+  // server-side since 0051 and NOTHING in this client had ever called it: the
+  // admin console printed member_type into a table cell and that was the whole
+  // of the feature. The server gates on MANAGE_WORKSPACE and refuses to let
+  // anybody act above their own rank, so this button only mirrors that.
+  box.querySelector('[data-a="mod"]')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    const isMod = roleTagOf(userId) === 'Moderator';
+    const name = p.display_name || p.username || 'They';
+    if (!isMod && !(await confirmModal({
+      title: 'Make ' + name + ' a moderator?',
+      body: 'A moderator can keep a channel tidy - pin, edit and remove messages. '
+        + 'It does not let them change roles, invite people or manage the Space.',
+      confirmLabel: 'Make moderator',
+    }))) return;
+    btn.disabled = true;
+    try {
+      await api.rpc('set_member_type', {
+        p_workspace: store.ws.id, p_user: userId, p_type: isMod ? 'member' : 'moderator',
+      });
+      // The badge beside their name comes from the badge map, so it has to be
+      // re-read or the card still says what it said a second ago.
+      const { refreshMemberBadges } = await import('./workspace.js');
+      await refreshMemberBadges();
+      toast(isMod ? name + ' is no longer a moderator' : name + ' is a moderator now', 'success');
+      m.close();
+    } catch (e) {
+      btn.disabled = false;
+      const raw = String(e?.message || '');
+      toast(/forbidden_hierarchy/.test(raw)
+        ? 'You cannot change somebody at or above your own level.'
+        : /cannot_target_self/.test(raw) ? 'You cannot change your own level.'
+          : /last_admin/.test(raw) ? 'They are the only admin left, so this would lock the Space.'
+            : /forbidden|42501/.test(raw) ? 'Only somebody who can manage this Space can do that.'
+              : (raw || 'That did not work'), 'error');
+    }
   });
   box.querySelector('[data-a="kick"]')?.addEventListener('click', async () => {
     if (!(await confirmModal({ title: 'Remove member', body: 'They lose access immediately.', confirmLabel: 'Remove', danger: true }))) return;
