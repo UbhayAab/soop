@@ -19,7 +19,7 @@
 // v39: DM reactions read and write their own table, the DMs panel starts a
 // conversation from a search at the top of it, an Owner/Admin/Moderator badge
 // beside every name, direct calls.
-const VERSION = 'dek-v41';
+const VERSION = 'dek-v42';
 const SHELL = VERSION + '-shell';
 const VENDOR = VERSION + '-vendor';
 

@@ -47,6 +47,11 @@ function route() {
   if ((m = h.match(/#\/join\/([^/?#]+)/))) return { kind: 'join', token: decodeURIComponent(m[1]) };
   if ((m = h.match(/#\/m\/([0-9a-f-]{36})\/(\d+)/i))) return { kind: 'message', channelId: m[1], seq: +m[2] };
   if ((m = h.match(/#\/c\/([0-9a-f-]{36})/i))) return { kind: 'channel', channelId: m[1] };
+  // A DIRECT MESSAGE had no route at all, which meant a push notification about
+  // one had nowhere to send you: tapping it could only open the app and leave
+  // you to find the conversation yourself. The queued payload now carries
+  // ./#/d/<conversation> (migration 0124) and this is the other half.
+  if ((m = h.match(/#\/d\/([0-9a-f-]{36})/i))) return { kind: 'dm', conversationId: m[1] };
   // The PWA manifest shortcuts have pointed here since launch; the router never
   // matched them, so "Threads" and "Search" from an installed icon did nothing.
   if (/^#\/threads/i.test(h)) return { kind: 'panel', panel: 'threads-list' };
@@ -59,6 +64,12 @@ async function applyRoute() {
   if (r.kind === 'channel') {
     const c = store.channels.find((x) => x.id === r.channelId);
     if (c) await openChannel(c);
+  } else if (r.kind === 'dm') {
+    // Straight to openDM rather than through the store.dms lookup a click uses:
+    // arriving cold from a notification, the conversation may not be in the
+    // bootstrap's list yet, and openDM reads the messages itself.
+    const { openDM } = await import('./core/dms.js');
+    await openDM(r.conversationId);
   } else if (r.kind === 'message') {
     const c = store.channels.find((x) => x.id === r.channelId);
     if (c) await openChannel(c, { jumpSeq: r.seq });

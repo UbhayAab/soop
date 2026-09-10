@@ -112,7 +112,14 @@
      geometry or behaviour, and it is the single file to read (or revert) when
      asking "why does it look like this now". -->
 <link rel="stylesheet" href="./css/reskin.css" />
-  <meta name="vapid-public-key" content="BEsEiFEZiqwd_F3dTemo44wvKM9JEk0Ykwsk7j5KX62Y3ttfCCgZCYxgL76Ns0oA_vbJjA24jPZ4yfClUPiWdCc" />
+  <!-- The VAPID application server public key, and it MUST be the pair of the
+       VAPID_PRIVATE_KEY the web-push function signs with. It was not: this tag
+       held BEsEiFEZ... while the function held BMOAGjdD..., so every browser
+       subscribed against a key the sender does not have and Apple answered
+       every single push with {"reason":"VapidPkHashMismatch"}. Change one of
+       these and you must change the other, and every existing subscription is
+       void - js/features/notifications.js re-subscribes when it notices. -->
+  <meta name="vapid-public-key" content="BMOAGjdDdmNngOJeTZvTnap0xG7U_QpGdo19fnvcPWXFQygmPW484rruKsGETRW77ad-D2RwoeYUtE3EdNNXJHs" />
 </head>
 <body>
 <div id="app">

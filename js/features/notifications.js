@@ -98,13 +98,36 @@ async function pushRegistration() {
   try { return (await navigator.serviceWorker.getRegistration()) || null; } catch { return null; }
 }
 
+// Is this subscription bound to the key we are advertising NOW? A push
+// subscription is minted against one applicationServerKey and is worthless the
+// moment the server signs with a different one - the push service answers
+// VapidPkHashMismatch and nothing arrives, forever, with no error anywhere the
+// person can see. That is not hypothetical: index.html published one key while
+// the sender held another, so every subscription ever made here was void.
+function boundToCurrentKey(sub, wantB64) {
+  const raw = sub?.options?.applicationServerKey;
+  if (!raw) return true;                        // browser will not say; assume ok
+  const want = urlBase64ToUint8Array(wantB64);
+  const have = new Uint8Array(raw);
+  if (have.length !== want.length) return false;
+  for (let i = 0; i < have.length; i++) if (have[i] !== want[i]) return false;
+  return true;
+}
+
 async function subscribeToPush(api) {
   const reg = await pushRegistration();
   if (!reg) throw new Error('The service worker is not registered on this page yet.');
-  const existing = await reg.pushManager.getSubscription();
+  const key = vapidKey();
+  let existing = await reg.pushManager.getSubscription();
+  // Re-subscribing is the ONLY way to move to a new key; the old one cannot be
+  // re-signed. Drop it rather than keep a subscription that can never deliver.
+  if (existing && !boundToCurrentKey(existing, key)) {
+    try { await existing.unsubscribe(); } catch { /* it is going away either way */ }
+    existing = null;
+  }
   const sub = existing || await reg.pushManager.subscribe({
     userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(vapidKey()),
+    applicationServerKey: urlBase64ToUint8Array(key),
   });
   const j = sub.toJSON();
   if (!j.keys?.p256dh || !j.keys?.auth) throw new Error('The browser returned a subscription without keys.');
@@ -461,6 +484,21 @@ export function register({ ui, api }) {
   // user-topic 'dm' event, which is the one place every DM arrives whether or
   // not its conversation is open. ('dm:new' is the New-message picker's name.)
   bus.on('dm:incoming', (p) => { try { raiseDM(p); } catch { /* ignore */ } });
+
+  // Somebody just granted the permission from the Activity panel's offer.
+  // Permission alone only covers the tab being OPEN; the subscription is what
+  // reaches a closed phone, and until now it was a button three taps deep in a
+  // settings panel that exactly one account in this deployment had ever found.
+  bus.on('push:subscribe', async () => {
+    try {
+      await subscribeToPush(api);
+      ui.toast('You will be notified even when Dek is closed', 'success');
+    } catch (e) {
+      // Not an error the person caused, and desktop notifications still work
+      // while the tab is open, so this is a note rather than a failure.
+      console.warn('[dak] push subscribe failed', e);
+    }
+  });
 
   // Keep the quiet-hours and pause mirror warm without a panel ever being opened.
   const sync = async () => {

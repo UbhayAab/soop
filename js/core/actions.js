@@ -6,7 +6,8 @@ import { api, table, tryRpc } from '../api.js';
 import { store, bus, nameOf, hasPerm } from '../store.js';
 import { PERM } from '../config.js';
 import { $, el, esc, fmt, plain, relTime, timeOf, toLocalInput, fromLocalInput } from '../util.js';
-import { addMessageAction, addHeaderButton, registerPanel, openPanel, toast, modal,
+import { embed } from '../embed.js';
+import { addMessageAction, addHeaderButton, registerPanel, openPanel, refreshPanel, toast, modal,
   formModal, confirmModal, contextMenu, addSwitcherSource } from '../ui.js';
 import { buildMessage, avatarHtml, jumpTo, roleTagHtml } from './messages.js';
 import { icon } from '../icons.js';
@@ -308,25 +309,87 @@ registerPanel({
       body.appendChild(bar);
     }
     const [rows, err] = await tryRpc('get_activity', { p_workspace: store.ws.id, p_limit: 50 });
+    // body.innerHTML = '' below used to run unconditionally and threw away the
+    // Mark-everything-read bar the block above had just built, so the one
+    // control this panel offers existed only when the feed was EMPTY.
+    const keep = body.innerHTML;
     if (err) { body.innerHTML = `<div class="empty">${esc(err.message)}</div>`; return; }
+
+    body.innerHTML = keep;
+    // The offer, not a nag: no dialog, no automatic prompt, one row that only
+    // appears while there is something to turn on. Notifications live three taps
+    // deep in a settings panel, which is why nobody has them - measured on the
+    // live project, ONE push subscription across every account.
+    body.appendChild(notifyNudge());
+
     if (!rows?.length) {
-      body.innerHTML = '<div class="empty">Nothing yet. Mentions, reactions and thread replies land here.</div>';
+      body.appendChild(el('div', 'empty',
+        'Nothing yet. When somebody mentions you, replies in your thread, '
+        + 'reacts to something you wrote, or sends you a direct message, it lands here.'));
       return;
     }
-    body.innerHTML = '';
     for (const a of rows) {
       const ch = store.channels.find((c) => c.id === a.channel_id);
+      const dm = a.kind === 'dm' || a.kind === 'dm_reaction';
       const verb = a.kind === 'mention' ? 'mentioned you'
-        : a.kind === 'reaction' ? 'reacted to your message' : 'replied in a thread';
+        : a.kind === 'reaction' ? 'reacted to your message'
+          : a.kind === 'dm' ? 'sent you a message'
+            : a.kind === 'dm_reaction' ? 'reacted to your message'
+              : 'replied in a thread';
+      // A DM has no channel to name, and saying "in #?" for one - which is what
+      // this did before DMs were in the feed at all - reads as a bug.
+      const where = dm ? 'in a direct message' : `in #${ch?.name || 'a channel'}`;
       const card = el('div', 'result');
       card.innerHTML = `<div class="muted">${avatarHtml(a.actor_id, 18)}
-        <b>${esc(nameOf(a.actor_id))}</b> ${esc(verb)} in #${esc(ch?.name || '?')} · ${esc(relTime(a.created_at))}</div>
+        <b>${esc(nameOf(a.actor_id))}</b> ${esc(verb)} ${esc(where)} · ${esc(relTime(a.created_at))}</div>
         <div class="body">${fmt(plain(a.snippet, 160))}</div>`;
-      card.onclick = () => { if (ch) openChannel(ch, { keepPanel: true }); };
+      card.onclick = () => {
+        if (dm && a.conversation_id) bus.emit('dm:request', { conversationId: a.conversation_id });
+        else if (ch) openChannel(ch, { keepPanel: true });
+      };
       body.appendChild(card);
     }
   },
 });
+
+// One row, shown only while desktop notifications are available and not yet
+// granted, and only outside an embed (a cross-origin iframe can never be granted
+// the permission - the Notifications spec defines no Permissions-Policy feature
+// for it, so a button there is dead on arrival).
+function notifyNudge() {
+  const wrap = el('div');
+  const has = typeof Notification !== 'undefined';
+  if (!has || embed.active || Notification.permission !== 'default') return wrap;
+  if (localStorage.getItem('dak.notifyNudge') === 'off') return wrap;
+
+  const card = el('div', 'result act-nudge');
+  card.innerHTML = `<div><b>Get told when somebody needs you</b></div>
+    <div class="muted">Turn on notifications and Dek can reach you when you are
+      mentioned or sent a direct message, even when this tab is in the background.</div>`;
+  const row = el('div', 'row gap');
+  row.style.marginTop = 'var(--s-3)';
+  const yes = el('button', 'sm', 'Turn on notifications');
+  yes.type = 'button';
+  yes.onclick = async () => {
+    try {
+      const res = await Notification.requestPermission();
+      toast(res === 'granted' ? 'Notifications on' : 'Not granted - you can turn them on later in Notifications',
+        res === 'granted' ? 'success' : 'info');
+      // Subscribing to push is what makes it work with the tab CLOSED, and it is
+      // the step that has never once run on this deployment. features owns it;
+      // this only asks.
+      if (res === 'granted') bus.emit('push:subscribe');
+    } catch (e) { toast(e.message || 'The browser refused the request', 'error'); }
+    refreshPanel();
+  };
+  const no = el('button', 'sm ghost', 'Not now');
+  no.type = 'button';
+  no.onclick = () => { localStorage.setItem('dak.notifyNudge', 'off'); refreshPanel(); };
+  row.append(yes, no);
+  card.appendChild(row);
+  wrap.appendChild(card);
+  return wrap;
+}
 
 // ------------------------------------------------------------------ saved / later
 registerPanel({
