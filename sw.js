@@ -19,7 +19,7 @@
 // v39: DM reactions read and write their own table, the DMs panel starts a
 // conversation from a search at the top of it, an Owner/Admin/Moderator badge
 // beside every name, direct calls.
-const VERSION = 'dek-v48';
+const VERSION = 'dek-v49';
 const SHELL = VERSION + '-shell';
 const VENDOR = VERSION + '-vendor';
 
@@ -182,6 +182,21 @@ async function readLru(cache) {
   return [];
 }
 
+// How long a stored object is trusted without asking the server. These paths
+// carry a per-upload uuid so their bytes do not change; this is the belt, not
+// the braces, and it costs one 304 rather than one body.
+const REVALIDATE_AFTER = 7 * 24 * 60 * 60 * 1000;
+
+// Response headers are immutable, so re-dating a cached copy means rebuilding
+// it. Cheap, and it is the only way to know how old a cache entry is: the Cache
+// API stores no metadata of its own and Supabase storage sends no Cache-Control
+// at all (confirmed against a real signed object - only ETag and Last-Modified).
+function stamp(res) {
+  const h = new Headers(res.headers);
+  h.set('x-dek-cached-at', String(Date.now()));
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
+}
+
 async function lruPut(cache, key, res) {
   try {
     await cache.put(new Request(key), res);
@@ -203,41 +218,85 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
-  // Attachments: the ONE Supabase exception. Signed URLs rotate their query
-  // string on every mint, so caching them by full URL is useless - every
-  // viewer and every re-view gets a different cache key. Key by origin+path
-  // with the search stripped and you own the key. Served stale-while-
-  // revalidate because mint-upload's sha256 content addressing could not be
-  // confirmed from this repo (the edge function is not in it), so a cached
-  // body is not provably immutable; one release of SWR is the honest form.
+  // Attachments and avatars: the ONE Supabase exception, and the most expensive
+  // thing on this deployment.
+  //
+  // Signed URLs rotate their query string on every mint, so caching by full URL
+  // is useless - every viewer and every re-view gets a different key. Key by
+  // origin+path with the search stripped and you own the key.
+  //
+  // THE BUG THIS FIXES. An <img src> to another origin is a no-cors request, so
+  // a signed storage URL always came back OPAQUE: status 0, ok false, type
+  // 'opaque'. An opaque body has no readable length, so lruPut skipped it - and
+  // the comment here said so, accurately, for months. The consequence was never
+  // written down: this 150MB cache held NOTHING that an <img> had ever asked
+  // for, so every avatar and every photo was downloaded again on every cold
+  // start, forever. Measured before the fix with scripts/probe-mediareuse.mjs:
+  // second load, fresh token, same worker - 2 network hits and an empty cache.
+  //
+  // The fix is to stop accepting an opaque response. The service worker asks for
+  // the same bytes with an explicit CORS request, which Supabase storage allows
+  // (`Access-Control-Allow-Origin: *`, confirmed against a real signed object),
+  // and a readable response can be handed straight back to a no-cors <img> - the
+  // browser is happy to paint bytes the worker was allowed to read.
+  //
+  // CACHE FIRST, not stale-while-revalidate. SWR would still spend the download
+  // every time, just off the critical path, and egress on the free plan is the
+  // thing being paid for here. These objects are immutable in practice: the path
+  // carries a per-upload uuid (`ws/<workspace>/<uuid>.jpg`), so new bytes always
+  // arrive at a new path and changing an avatar writes a new key. A hit is
+  // therefore served without touching the network at all. REVALIDATE_AFTER is
+  // the belt: past it, one conditional request with If-None-Match, which costs a
+  // 304 and about two hundred bytes rather than the whole body.
   if (isSupabase(url) && url.pathname.includes('/storage/v1/object/')) {
     e.respondWith((async () => {
       const key = url.origin + url.pathname;
       const cache = await caches.open(STORAGE);
       const hit = await cache.match(key);
-      const net = (async () => {
+
+      const fetchAndStore = async (extraHeaders) => {
         try {
-          const res = await fetch(req);
-          if (res.ok) await lruPut(cache, key, res.clone());
-          // An OPAQUE response is a success for an <img>. The browser will
-          // happily paint bytes it refuses to let script read, and an <img src>
-          // to another origin is a no-cors request, so a signed storage URL
-          // always comes back opaque: status 0, ok false, type 'opaque'.
-          // `res.ok ? res : null` therefore threw every one of them away and
-          // returned Response.error(), which is why a profile photo rendered as
-          // the browser's grey broken-image glyph on every message - but only
-          // once the service worker was controlling the page. Measured: with the
-          // worker blocked, 4 of 4 avatars loaded at their natural size; with it
-          // in control, 0 of 4.
-          //
-          // It is still not CACHED - lruPut is skipped above because an opaque
-          // body has no readable length and would poison the LRU accounting.
-          // Served, not stored.
-          return res.ok || res.type === 'opaque' ? res : null;
-        } catch { return null; }
-      })();
-      e.waitUntil(net);   // keeps the background refresh alive past the cached reply
-      return hit || (await net) || Response.error();
+          // mode:'cors' is the whole fix. credentials:'omit' because the token
+          // is in the query string and a cookie would only invite a Vary.
+          const res = await fetch(url.href, {
+            mode: 'cors',
+            credentials: 'omit',
+            headers: extraHeaders || undefined,
+          });
+          if (res.status === 304 && hit) {
+            // Unchanged. Re-date the cached copy so the next revalidation is
+            // another REVALIDATE_AFTER away rather than every single load.
+            await lruPut(cache, key, stamp(hit.clone()));
+            return hit;
+          }
+          if (res.ok) {
+            await lruPut(cache, key, stamp(res.clone()));
+            return res;
+          }
+          return null;
+        } catch {
+          return null;
+        }
+      };
+
+      if (hit) {
+        const at = Number(hit.headers.get('x-dek-cached-at')) || 0;
+        if (Date.now() - at < REVALIDATE_AFTER) return hit;
+        // Old enough to be worth one conditional request. Serve the cached copy
+        // now either way; correcting a freak overwrite can happen in the
+        // background and does not need to hold up a photo.
+        const etag = hit.headers.get('etag');
+        e.waitUntil(fetchAndStore(etag ? { 'If-None-Match': etag } : null));
+        return hit;
+      }
+
+      const fresh = await fetchAndStore(null);
+      if (fresh) return fresh;
+      // The CORS fetch failed - a host that does not allow it, or offline. Fall
+      // back to the request as the browser made it. That still paints (an
+      // opaque response is fine for an <img>) and still cannot be stored, which
+      // is the old behaviour and the right floor rather than a broken image.
+      try { return await fetch(req); } catch { return Response.error(); }
     })());
     return;
   }

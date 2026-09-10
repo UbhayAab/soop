@@ -616,7 +616,37 @@ export async function openChannel(c, opts = {}) {
         .select(THREAD_COLS).order('last_message_at', { ascending: false }))
       .catch(() => []);
   }
-  const pMsgs = api.channelMessages(c.id, null, MESSAGE_PAGE)
+  // THE MESSAGES READ, AS A DELTA WHEN THIS PHONE ALREADY HAS THE PAGE.
+  //
+  // The threads read above has worked this way since the efficiency pass: only
+  // what changed since the snapshot crosses the wire. Messages did not, so
+  // every channel open paid for a full fifty-row page - including the channel
+  // you were in ninety seconds ago, whose rows were already painted from disk
+  // before the request even went out. Reported as "all the messages are
+  // downloading every time", and that is exactly what it was.
+  //
+  // resume(channel, cursor) is the same call reconcile() already makes after a
+  // dropped socket, so this is not new machinery, it is the existing machinery
+  // asked one moment earlier. It answers with the events past the cursor -
+  // usually none - and reports too_old when our position predates the retention
+  // floor, which re-snapshots and lands back on a full page.
+  //
+  // Only where the cursor is KNOWN and the rows are ALREADY ON SCREEN:
+  // preOpened means the cold-start paint drew them, and a synchronous peek hit
+  // means the memory snapshot did. The async recall path further down still
+  // takes a full page, because the fetch has to be in flight before that await
+  // resolves and starting the wrong one to save a round trip is a bad trade.
+  //
+  // opts.fullPage is the loop breaker, and it is not hypothetical: resnapshot()
+  // reopens the channel precisely BECAUSE the delta came back too_old, and the
+  // cached page it was too old for is still on screen when it does. Without
+  // this the second open takes the delta again, gets too_old again, and
+  // resnapshots again, forever - which is what happens to anybody returning
+  // after the fourteen-day retention floor. Caught by probe-coldbytes, which
+  // hung rather than failed.
+  const deltaFrom = preOpened ? (store.cursor || 0) : (+snap0?.cursor || 0);
+  const canDelta = !opts.fullPage && deltaFrom > 0 && (preOpened || !!snap0);
+  const pMsgs = canDelta ? null : api.channelMessages(c.id, null, MESSAGE_PAGE)
     .then((r) => ({ rows: r || [] }), (e) => ({ err: e }));
   pThreads.then((threads) => {
     if (gen !== openGen) return;
@@ -649,6 +679,22 @@ export async function openChannel(c, opts = {}) {
   subscribeChannel(c);
 
   // ---- 3. the server's answer, folded into what is already there.
+  if (canDelta) {
+    // Nothing to fold: the rows are on screen and reconcile() replays only what
+    // happened after their cursor, through the same applyEvents every socket
+    // delivery uses. It handles too_old by re-snapshotting, which is the full
+    // page by another name, and it does its own markRead.
+    //
+    // The reactions do need asking for: they are state rather than events, so
+    // no amount of replay produces them and the painted rows would sit bare
+    // until the nine-second sweep in presence.js came round.
+    const painted = [...list.querySelectorAll('.msg')].map((n) => n.dataset.id).filter(Boolean);
+    if (painted.length) loadReactions(painted.slice(-MESSAGE_PAGE)).catch(() => {});
+    await reconcile();
+    if (gen !== openGen) return;
+    if (opts.jumpSeq) jumpToSeq(c, opts.jumpSeq);
+    return;
+  }
   const res = await pMsgs;
   if (gen !== openGen) return;
   if (res.err) {
@@ -1266,7 +1312,9 @@ async function resnapshot(channelId, why) {
   toast(why === 'too_old'
     ? `You were away a while. Reloading #${c.name} from the server.`
     : `Catching up on #${c.name} - too much to replay.`);
-  await openChannel(c, { keepPanel: true });
+  // fullPage, always. This function exists because the delta could not answer,
+  // so reopening in a way that could take the delta again is a loop.
+  await openChannel(c, { keepPanel: true, fullPage: true });
 }
 
 // Deployment without 0056 applied: sync() has no floor, no head and no "more",

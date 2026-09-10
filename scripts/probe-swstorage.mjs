@@ -7,8 +7,8 @@
 //
 //   1. first view fills from network (V1) and lands in dek-storage-v1
 //   2. rotated signed query (?token=bbb) still serves the STALE V1 instantly,
-//      while the background revalidation swaps the cached body to V2
-//   3. with the network aborted the same path serves V2 from cache alone -
+//      and does NOT download it again - the saving this exists for
+//   3. with the network aborted the same path serves the body from cache alone -
 //      the offline half of SWR - keyed identically despite three signatures
 //   4. rest/v1 traffic stays out of the storage cache (live data goes to net)
 //   5. the dek-storage-lru bookkeeping entry exists and tracks one body
@@ -115,17 +115,53 @@ try {
   ok(first === "V1", `first view should be network V1, got ${first}`);
   ok(routeHits === 1, `expected exactly 1 network fill, saw ${routeHits}`);
 
-  // 2. rotated signature: stale body now, refreshed body next
+  // 2. rotated signature: served from cache, and NO SECOND DOWNLOAD.
+  //
+  // This used to be stale-while-revalidate, and this leg used to assert that the
+  // background refresh swapped the body to V2. SWR still spends the download
+  // every single time, just off the critical path - and egress on the free plan
+  // is the thing being paid for. These paths are immutable in practice:
+  // measured on the live database, every object_key is
+  // ws/<workspace-uuid>/<per-upload-uuidv7>.<ext> and all of them are distinct,
+  // so new bytes always arrive at a new path. The body changing under a fixed
+  // path, which is what V2 simulates, does not happen here.
   body = "V2";
-  const stale = await page.evaluate(async (u) => (await fetch(u)).text(), urlWith("bbb"));
-  ok(stale === "V1", `rotated signature should serve STALE V1, got ${stale}`);
-  await sleep(800); // background revalidation behind e.waitUntil
+  const again = await page.evaluate(async (u) => (await fetch(u)).text(), urlWith("bbb"));
+  ok(again === "V1", `a rotated signature should be served from cache (V1), got ${again}`);
+  ok(routeHits === 1, `a cached object went back to the network ${routeHits - 1} extra time(s)`);
+  await sleep(400);
 
-  // 3. network dead: cache is the only answer, and it holds the REFRESHED body
+  // 3. network dead: the cache is the only answer and it still has the body.
   netDead = true;
   const offline = await page.evaluate(async (u) => (await fetch(u)).text(), urlWith("ccc"));
-  ok(offline === "V2", `offline view should serve refreshed V2 from cache, got ${offline}`);
-  ok(routeHits === 2, `aborted network must add no hits, saw ${routeHits}`);
+  ok(offline === "V1", `offline view should serve the cached body, got ${offline}`);
+  ok(routeHits === 1, `aborted network must add no hits, saw ${routeHits - 1} extra`);
+  netDead = false;
+
+  // 3b. THE BELT. Past REVALIDATE_AFTER the worker asks once, conditionally. A
+  //     freak overwrite is corrected eventually rather than never, and the cost
+  //     is a 304 rather than a body. Forced by ageing the stamp the worker
+  //     writes, which is the only record of when an entry was stored.
+  const aged = await page.evaluate(async (u) => {
+    const key = new URL(u).origin + new URL(u).pathname;
+    for (const name of await caches.keys()) {
+      if (!name.includes("storage")) continue;
+      const c = await caches.open(name);
+      const hit = await c.match(key);
+      if (!hit) continue;
+      const h = new Headers(hit.headers);
+      h.set("x-dek-cached-at", String(Date.now() - 30 * 24 * 60 * 60 * 1000));
+      await c.put(new Request(key), new Response(await hit.blob(), { headers: h }));
+      return true;
+    }
+    return false;
+  }, urlWith("ddd"));
+  ok(aged, "could not age the cached entry, so the revalidation window is untested");
+  const beforeReval = routeHits;
+  await page.evaluate(async (u) => (await fetch(u)).text(), urlWith("ddd"));
+  await sleep(900);
+  ok(routeHits === beforeReval + 1,
+    `past the revalidation window the worker made ${routeHits - beforeReval} request(s), want exactly 1`);
 
   // 4+5. inspect the cache from the page (same origin as the worker). The
   // storage branch keys entries by the SUPABASE origin+path on purpose, so
@@ -171,5 +207,5 @@ if (problems.length) {
   for (const p of problems) console.error("  - " + p);
   process.exit(1);
 }
-console.log("PROBE CLEAN: swstorage stale-while-revalidate proven (fill, stale-serve, bg-refresh, offline, keying, lru)");
+console.log("PROBE CLEAN: swstorage cache-first proven (fill, reuse without a second download, offline, conditional revalidation past the window, keying, lru)");
 process.exit(0);
