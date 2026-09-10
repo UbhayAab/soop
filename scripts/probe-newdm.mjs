@@ -20,8 +20,8 @@
 //   6. the DMs tab, tapped while the conversation it opened is on screen, goes
 //      BACK to the list rather than reopening the same conversation - before
 //      this there was no route back to the list at all once a DM was open
-//   7. the footer's New message button clears the floating tab bar rather than
-//      being painted underneath it - the root cause a parallel branch measured
+//   7. there is exactly ONE New message button, and it clears the floating tab
+//      bar rather than being painted underneath it
 //   8. dm:new still opens the picker (the only route to a GROUP), and it closes
 //   9. an arriving DM does NOT open the picker
 //  10. zero pageerror.
@@ -147,14 +147,21 @@ try {
       newBtnText: body.querySelector("button.dmnew")?.textContent.trim() || "",
       searchBeforeRow: firstRow ? !!(body.querySelector("input.dmsearch").compareDocumentPosition(firstRow)
         & Node.DOCUMENT_POSITION_FOLLOWING) : false,
-      footerBtn: !!document.querySelector("#panelFooter button"),
+      // Every New message affordance anywhere in the panel, body and footer.
+      newBtns: [...document.querySelectorAll("#panel button")]
+        .filter((n) => /new message/i.test(n.textContent)).length,
+      footerBtns: document.querySelectorAll("#panelFooter button").length,
     };
   });
   ok(order.search === 0, `search box is not the first thing in the panel body (index ${order.search})`);
   ok(order.newBtn === 1, `New message row is not directly under the search box (index ${order.newBtn})`);
   ok(/new message/i.test(order.newBtnText), `New message row reads "${order.newBtnText}"`);
   ok(order.searchBeforeRow, "the search box is not above the conversation rows");
-  ok(order.footerBtn, "the footer New message button was dropped");
+  // ONE. Fixing the footer's geometry left the panel with two identically
+  // worded buttons, one at each end of a short list, and that was reported
+  // straight back. The one that survives is the one above the fold.
+  ok(order.newBtns === 1, `the panel offers ${order.newBtns} New message buttons, want exactly 1`);
+  ok(order.footerBtns === 0, `${order.footerBtns} button(s) left in the panel footer`);
 
   // 2. no query: conversations only.
   ok(JSON.stringify(await rows()) === JSON.stringify(["Alice Rao"]),
@@ -230,7 +237,11 @@ try {
     document.getElementById("panel").getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {})),
   ));
   const geo = await page.evaluate(() => {
-    const btn = document.querySelector("#panelFooter button");
+    // The body's row now, not the footer's - that button is gone. The CSS fix
+    // this leg was written for (aside#panel > footer reserving --tabbar-h) still
+    // matters for the thread panel's reply composer, which lives in the same
+    // footer; this measures that the surface as a whole clears the bar.
+    const btn = document.querySelector("#panelContent button.dmnew");
     const bar = document.getElementById("tabbar");
     if (!btn || !bar) return null;
     const b = btn.getBoundingClientRect();
@@ -241,8 +252,8 @@ try {
   // A skipped geometry check must not read as a passed one.
   ok(!!geo?.barShown, "the tab bar had no box to measure against, so this leg proved nothing");
   ok(!geo?.barShown || geo.btnBottom <= geo.barTop,
-    `the footer New message button ends at ${geo?.btnBottom}px, under a tab bar that starts at ${geo?.barTop}px`);
-  if (geo) console.log(`probe-newdm: footer button ends ${geo.btnBottom}px, tab bar starts ${geo.barTop}px`);
+    `the New message row ends at ${geo?.btnBottom}px, under a tab bar that starts at ${geo?.barTop}px`);
+  if (geo) console.log(`probe-newdm: New message row ends ${geo.btnBottom}px, tab bar starts ${geo.barTop}px`);
 
   // 8. the picker still opens from dm:new and closes again. It is the only route
   //    to a GROUP conversation, so it has to survive a search box above it.

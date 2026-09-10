@@ -19,7 +19,7 @@
 // v39: DM reactions read and write their own table, the DMs panel starts a
 // conversation from a search at the top of it, an Owner/Admin/Moderator badge
 // beside every name, direct calls.
-const VERSION = 'dek-v46';
+const VERSION = 'dek-v48';
 const SHELL = VERSION + '-shell';
 const VENDOR = VERSION + '-vendor';
 
@@ -91,7 +91,7 @@ const SHELL_FILES = [
   // list, no tasks, no tab bar. KEEP IN SYNC with FEATURES in
   // js/features/index.js; a stale entry here costs nothing (install skips 404s),
   // a missing one costs the feature on every offline cold start.
-  ...['dmlist', 'polls', 'events', 'canvases', 'topics', 'forum', 'later',
+  ...['dmlist', 'activity', 'polls', 'events', 'canvases', 'topics', 'forum', 'later',
     'status', 'profile', 'profilepage', 'admin', 'orgadmin', 'orgshare', 'moderation',
     'integrations', 'messageExtras', 'onboarding', 'roles', 'snippets',
     'bookmarks', 'notifications', 'shortcuts', 'ackloop', 'forms', 'tasks',

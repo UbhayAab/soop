@@ -10,6 +10,10 @@ const FEATURES = [
   // The DMs tab's list surface; tabbar.js opens this panel when no conversation
   // is active. Early so the tab never races its registration.
   'dmlist',
+  // The Activity tab. Takes over the core panel of the same id (replaces:true)
+  // to add per-item read state, filters and a mark-read that does not open
+  // anything. Early for the same reason dmlist is: the tab bar opens it.
+  'activity',
   'polls',
   'events',
   'canvases',

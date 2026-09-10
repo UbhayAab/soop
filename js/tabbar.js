@@ -29,11 +29,25 @@ function iconFor(id) {
   }
 }
 
+// features/activity.js owns the number and publishes it; the bar never imports
+// a feature. Zero until it answers, which is the honest state on a cold start.
+let activityUnread = { total: 0, mentions: 0 };
+
 function unreadBadge() {
   let mentions = 0;
   for (const v of store.unread.values()) mentions += v?.mention_count || 0;
   const dm = (store.dms || []).reduce((n, d) => n + (typeof d.unread === 'number' ? d.unread : (d.unread ? 1 : 0)), 0);
-  return { home: mentions || [...store.unread.values()].some((v) => v?.unread), dms: dm };
+  return {
+    home: mentions || [...store.unread.values()].some((v) => v?.unread),
+    dms: dm,
+    // Two different signals on one tab, deliberately. A NUMBER means somebody
+    // typed your name and is waiting on you; a bare dot means something
+    // happened that concerns you but nobody asked for anything. Badging the
+    // second as loudly as the first is how a notification tab stops meaning
+    // anything, which is the state this one was in.
+    activity: activityUnread.mentions || 0,
+    activityAny: activityUnread.total > 0,
+  };
 }
 
 function paint() {
@@ -44,9 +58,14 @@ function paint() {
     b.classList.toggle('on', id === active);
     const dot = b.querySelector('.tab-dot');
     if (!dot) return;
-    const show = id === 'home' ? badges.home : id === 'dms' ? badges.dms > 0 : false;
+    const show = id === 'home' ? badges.home
+      : id === 'dms' ? badges.dms > 0
+        : id === 'activity' ? (badges.activity > 0 || badges.activityAny)
+          : false;
     dot.classList.toggle('show', !!show);
-    dot.textContent = id === 'dms' && badges.dms > 99 ? '99+' : '';
+    dot.textContent = id === 'dms' && badges.dms > 99 ? '99+'
+      : id === 'activity' && badges.activity > 0 ? (badges.activity > 99 ? '99+' : String(badges.activity))
+        : '';
   });
 }
 
@@ -105,6 +124,7 @@ export function initTabBar() {
 
   bus.on('unread', paint);
   bus.on('spaces:badges', paint);
+  bus.on('activity:unread', (u) => { activityUnread = u || { total: 0, mentions: 0 }; paint(); });
   bus.on('channel:open', () => { active = 'home'; paint(); });
   bus.on('dm:open', () => { active = 'dms'; paint(); });
   // Recompute which tab is lit, do not just repaint the stale one. Closing a

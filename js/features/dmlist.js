@@ -5,14 +5,20 @@
 // tab bar already paint from - so there is exactly one source of truth.
 //
 // It listed only people who had already written to you, and the only way to
-// start a NEW conversation was a "+ New message" button in the panel footer -
-// below the fold on any phone with more than about eight conversations, which
-// is every phone here. So the reported route to a first message was Members ->
-// find the person -> open their card -> Message: four screens to do the thing
-// this panel is named after. The search box at the top of the body is the fix.
-// It searches the whole Space, not just the conversations, and a person you
+// start a NEW conversation was a "+ New message" button in the panel FOOTER,
+// which on a phone was painted underneath the floating tab bar - present,
+// untappable, and reported as "there is no option to start a DM". So the route
+// people actually found was Members -> the person -> their card -> Message.
+//
+// The fix is the search box and the New message row at the top of the body: the
+// search covers the whole Space, not just the conversations, and somebody you
 // have never written to appears in it with "Start a conversation" beside their
 // name.
+//
+// The footer button is GONE rather than kept as a second door. Fixing the
+// footer's own geometry left two identically-worded buttons in one short panel,
+// one at each end, and reported straight back as such. One panel, one verb, and
+// it is the one above the fold.
 import { store, bus, nameOf } from '../store.js';
 import { el, esc, relTime, debounce } from '../util.js';
 import { avatarHtml, roleTagHtml } from '../core/messages.js';
@@ -205,13 +211,6 @@ export function register(app) {
     // A fresh open is a fresh search. Carrying the last query across would open
     // the panel already filtered to something typed ten minutes ago.
     render: (body, ctx) => { query = ctx?.keepQuery ? query : ''; return render(body); },
-    async footer(foot) {
-      foot.innerHTML = '';
-      const b = el('button', 'sm', '+ New message');
-      b.type = 'button';
-      b.onclick = () => bus.emit('dm:new');
-      foot.appendChild(b);
-    },
   });
 
   // While the panel is open, mirror the same signals the tab bar badge uses so
