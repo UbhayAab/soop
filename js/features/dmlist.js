@@ -3,11 +3,27 @@
 // registers a dedicated panel instead: every conversation one tap away,
 // newest activity first, unread state read from the same store the sidebar and
 // tab bar already paint from - so there is exactly one source of truth.
+//
+// It listed only people who had already written to you, and the only way to
+// start a NEW conversation was a "+ New message" button in the panel footer -
+// below the fold on any phone with more than about eight conversations, which
+// is every phone here. So the reported route to a first message was Members ->
+// find the person -> open their card -> Message: four screens to do the thing
+// this panel is named after. The search box at the top of the body is the fix.
+// It searches the whole Space, not just the conversations, and a person you
+// have never written to appears in it with "Start a conversation" beside their
+// name.
 import { store, bus, nameOf } from '../store.js';
-import { el, esc, relTime } from '../util.js';
-import { avatarHtml } from '../core/messages.js';
+import { el, esc, relTime, debounce } from '../util.js';
+import { avatarHtml, roleTagHtml } from '../core/messages.js';
+import { startDM } from '../core/dms.js';
 
 const PANEL = 'dms';
+
+// Survives a repaint. The unread and badge events below re-render the panel
+// underneath whoever is typing in it, and losing the query mid-search - which is
+// what happens if this lives in the closure - reads as the box clearing itself.
+let query = '';
 
 function style() {
   if (document.getElementById('dmlist-css')) return;
@@ -23,7 +39,26 @@ function style() {
     .dmrow .dot-unread{margin-left:auto}
     .dmstack{display:flex;align-items:center}
     .dmstack .avatar{margin-left:-10px;border:2px solid var(--panel)}
-    .dmstack .avatar:first-child{margin-left:0}`;
+    .dmstack .avatar:first-child{margin-left:0}
+    /* The new-message row. Deliberately the first thing under the search box and
+       styled as an action rather than as another conversation, because it is the
+       one row in this panel that is not a person you already talk to. */
+    /* justify-content, explicitly: the base button rule centres its content, so
+       without this the row's ＋ and its label float in the middle and stop
+       lining up with the avatars and names directly underneath. */
+    .dmnew{display:flex;align-items:center;justify-content:flex-start;gap:10px;width:100%;
+      min-height:0;margin:0 0 6px;padding:9px 10px;
+      border:1px dashed var(--line);border-radius:8px;background:none;color:var(--accent);
+      font-weight:600;font-size:13.5px;text-align:left;box-shadow:none;cursor:pointer}
+    .dmnew:hover{background:var(--panel3);border-style:solid}
+    /* 34px, the width of the avatar in the rows below, so the label starts on the
+       same vertical line as every name in the list. */
+    .dmnew .plus{display:inline-flex;flex:none;align-items:center;justify-content:center;
+      width:34px;height:34px;border-radius:50%;background:var(--panel3);font-weight:700}
+    .dmsearch{width:100%;margin-bottom:8px}
+    .dmsec{margin:12px 4px 4px;color:var(--dim);font-size:11px;font-weight:700;
+      letter-spacing:.06em;text-transform:uppercase}
+    .dmsec:first-child{margin-top:2px}`;
   document.head.appendChild(s);
 }
 
@@ -36,8 +71,10 @@ function unreadOf(d) {
   return { on, n };
 }
 
+const othersOf = (d) => (d.other_user_ids || []).filter((u) => u !== store.me);
+
 function avatarsFor(d) {
-  const others = (d.other_user_ids || []).filter((u) => u !== store.me);
+  const others = othersOf(d);
   if (!others.length) return '<span class="ch-ico">@</span>';
   if (others.length === 1) return avatarHtml(others[0], 34);
   // A group shows its first two faces stacked; names stay in the row label.
@@ -45,13 +82,13 @@ function avatarsFor(d) {
 }
 
 function row(d) {
-  const others = (d.other_user_ids || []).filter((u) => u !== store.me);
+  const others = othersOf(d);
   const label = others.length ? others.map(nameOf).join(', ') : 'you';
   const { on, n } = unreadOf(d);
   const ts = Date.parse(d.last_message_at || '') || 0;
   const r = el('div', 'dmrow' + (store.currentDM === d.conversation_id ? ' on' : ''));
   r.innerHTML = `${avatarsFor(d)}
-    <span class="who"><span class="nm">${esc(label)}</span>
+    <span class="who"><span class="nm">${esc(label)}${others.length === 1 ? roleTagHtml(others[0]) : ''}</span>
       <span class="sub">${others.length > 1 ? esc(`group · ${others.length} people`) : ''}
         ${ts ? `<span>${esc(relTime(d.last_message_at))}</span>` : ''}</span></span>
     ${on ? (n ? `<span class="badge">${n}</span>` : '<span class="dot-unread"></span>') : ''}`;
@@ -60,26 +97,103 @@ function row(d) {
   return r;
 }
 
-async function render(body) {
-  body.innerHTML = '<div class="muted pad">loading…</div>';
+// Somebody in this Space you have no conversation with yet. Same row shape as
+// above so the two lists read as one list, with the verb instead of a timestamp.
+function personRow(p) {
+  const r = el('div', 'dmrow');
+  r.innerHTML = `${avatarHtml(p.id, 34)}
+    <span class="who"><span class="nm">${esc(nameOf(p.id))}${roleTagHtml(p.id)}</span>
+      <span class="sub">${p.username ? esc('@' + p.username) + ' · ' : ''}Start a conversation</span></span>
+    ${store.online.has(p.id) ? '<span class="dot on"></span>' : ''}`;
+  r.onclick = () => startDM(p.id);
+  return r;
+}
 
-  // Newest conversation first; a never-written row sorts by name so the empty
-  // list still reads stably instead of shuffling between opens.
-  const rows = [...store.dms].sort((a, b) => {
+function matches(q, ...fields) {
+  if (!q) return true;
+  return fields.some((f) => (f || '').toLowerCase().includes(q));
+}
+
+// Newest conversation first; a never-written row sorts by name so the empty
+// list still reads stably instead of shuffling between opens.
+function sortedDMs() {
+  return [...store.dms].sort((a, b) => {
     const ta = Date.parse(a.last_message_at || '') || 0;
     const tb = Date.parse(b.last_message_at || '') || 0;
     if (ta !== tb) return tb - ta;
-    return (nameOf((a.other_user_ids || [])[0]) || '').localeCompare(nameOf((b.other_user_ids || [])[0]) || '');
+    return (nameOf(othersOf(a)[0]) || '').localeCompare(nameOf(othersOf(b)[0]) || '');
   });
+}
 
+async function render(body) {
   body.innerHTML = '';
-  if (!rows.length) {
-    body.appendChild(el('div', 'empty',
-      'No conversations yet. Pick <b>New message</b> below and choose someone '
-      + 'from this Space to start one.'));
-    return;
-  }
-  for (const d of rows) body.appendChild(row(d));
+
+  const search = el('input', 'dmsearch');
+  search.type = 'search';
+  search.placeholder = 'Search people, or start a new conversation';
+  search.setAttribute('aria-label', 'Search conversations and people');
+  search.value = query;
+
+  const newBtn = el('button', 'dmnew');
+  newBtn.type = 'button';
+  newBtn.innerHTML = '<span class="plus">＋</span><span>New message</span>';
+  newBtn.onclick = () => bus.emit('dm:new');
+
+  const list = el('div');
+  body.append(search, newBtn, list);
+
+  const draw = () => {
+    const q = query.trim().toLowerCase();
+    list.innerHTML = '';
+
+    const convs = sortedDMs().filter((d) =>
+      matches(q, ...othersOf(d).map(nameOf), ...othersOf(d).map((u) => store.profiles.get(u)?.username)));
+
+    // Everyone in the Space you are not already in a one-to-one with. Only ever
+    // shown for an actual query: an unsearched list of a hundred colleagues under
+    // the six people you talk to is not a DM list.
+    const spokenTo = new Set();
+    for (const d of store.dms) {
+      const o = othersOf(d);
+      if (o.length === 1) spokenTo.add(o[0]);
+    }
+    const people = !q ? [] : [...store.profiles.values()]
+      .filter((p) => p.id !== store.me && !p.is_app && !spokenTo.has(p.id))
+      .filter((p) => matches(q, p.display_name, p.username, store.nicknames.get(p.id)))
+      .sort((a, b) => nameOf(a.id).localeCompare(nameOf(b.id)))
+      .slice(0, 20);
+
+    if (!convs.length && !people.length) {
+      list.appendChild(el('div', 'empty', q
+        ? `Nobody in this Space matches "${esc(q)}".`
+        : 'No conversations yet. Pick <b>New message</b> above, or type a name in the '
+          + 'box to find anyone in this Space.'));
+      return;
+    }
+
+    if (convs.length) {
+      if (q) list.appendChild(el('div', 'dmsec', 'Conversations'));
+      for (const d of convs) list.appendChild(row(d));
+    }
+    if (people.length) {
+      list.appendChild(el('div', 'dmsec', 'Start a new conversation'));
+      for (const p of people) list.appendChild(personRow(p));
+    }
+  };
+
+  // 150ms is the same debounce the Members panel uses: under the threshold where
+  // typing feels laggy and well over the rate a phone keyboard fires at.
+  const onType = debounce(() => { query = search.value; draw(); }, 150);
+  search.addEventListener('input', onType);
+  // Enter with exactly one person matched opens them. The fastest path to a
+  // first message is then: tap DMs, type three letters, press go.
+  search.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    query = search.value;
+    const only = list.querySelectorAll('.dmrow');
+    if (only.length === 1) { e.preventDefault(); only[0].click(); }
+  });
+  draw();
 }
 
 export function register(app) {
@@ -88,7 +202,9 @@ export function register(app) {
   app.ui.registerPanel({
     id: PANEL,
     title: 'Direct messages',
-    render,
+    // A fresh open is a fresh search. Carrying the last query across would open
+    // the panel already filtered to something typed ten minutes ago.
+    render: (body, ctx) => { query = ctx?.keepQuery ? query : ''; return render(body); },
     async footer(foot) {
       foot.innerHTML = '';
       const b = el('button', 'sm', '+ New message');
@@ -104,8 +220,14 @@ export function register(app) {
     if (app.ui.currentPanel() !== PANEL) return;
     const body = document.getElementById('panelContent');
     if (!body) return;
+    // Never steal the caret. A repaint while somebody is mid-word replaces the
+    // input element under them, and re-focusing after the fact is what makes a
+    // phone keyboard flicker; if they are typing, the list they are looking at
+    // is already the one they asked for.
+    if (document.activeElement?.classList?.contains('dmsearch')) return;
     render(body).catch(() => {});
   };
   bus.on('unread', repaint);
   bus.on('spaces:badges', repaint);
+  bus.on('profiles', repaint);
 }

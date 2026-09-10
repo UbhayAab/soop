@@ -1302,6 +1302,21 @@ input[type="radio"] {
   background: var(--c-danger-quiet);
   color: var(--c-danger);
 }
+/* Owner / Admin / Moderator beside a name. Two people were made admins and
+   nothing anywhere said so, so "who do I ask for access" had no answer on
+   screen. Warn rather than accent: accent is already the APP pill and the two
+   appear in the same header, and a role is a standing fact about a person, not
+   an alert - so it is tinted at the same weight as everything else here rather
+   than filled. Ordinary members get no pill at all; a badge on every row is
+   decoration. */
+.pill-role {
+  /* flex:none because this one also lands inside the flex row of the Members
+     panel, where without it the pill is the item that gets squeezed. */
+  flex: none;
+  border-radius: var(--r-full);
+  background: var(--c-warn-quiet);
+  color: var(--c-warn);
+}
 /* The channel topic is supporting text, so this one pill leaves the --t-2xs badge
    step for --t-sm: it is a phrase somebody reads, not a glyph, which is the same
    reason it drops the uppercase tracking below. */

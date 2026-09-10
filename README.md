@@ -5,6 +5,33 @@ high-fidelity media. Static front end (no build step), Supabase for
 Postgres/Auth/Realtime, Cloudflare Pages/R2/TURN on the edge. The service
 worker in `sw.js` precaches the whole shell for offline use.
 
+**Deploying is `npm run deploy`, which uploads to Cloudflare Pages.** `git push`
+ships nothing: the Pages project has no Git integration, and the app has not been
+on GitHub Pages since August 2026. See [DEPLOY.md](DEPLOY.md).
+
+## Voice: rooms and calls
+
+Two different things, on one peer mesh (`js/core/rtc.js`).
+
+A **voice room** is a place. It sits in the sidebar, it is always open, and you
+walk into it. Good for a standup, useless for reaching one person - nobody sits
+in a room waiting to be found.
+
+A **direct call** rings somebody. It is the handset in the channel bar of a
+direct message, `Call` on a person's card, or `/call`. It rings for 45 seconds
+with a sheet, a tone and a vibration, it can be answered or declined, and it
+leaves a line in the conversation saying what happened. Up to three people; past
+that the mesh is the wrong shape and the answer is a room.
+
+Rooms broadcast their SDP on the room's own realtime topic. Calls have no such
+topic, so their signalling goes through the `call_signal` RPC and comes back on
+`user:<uid>` - the per-person topic every client already holds. That needs
+`supabase/migrations/0119_direct_calls.sql`; without it the app quietly offers no
+call button. `npm run probe -- --only call` is the test that matters here: it
+builds two real peer connections in one page and fails unless audio bytes
+actually arrive, because a call that connects and carries silence looks exactly
+like one that works.
+
 ## Run it locally
 
 ```

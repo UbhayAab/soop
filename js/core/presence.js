@@ -216,7 +216,9 @@ export function initPresence() {
     if (!ids.length) return;
     rxnDirty = false;
     rxnLast = Date.now();
-    loadReactions(ids);
+    // Whatever is on screen: store.currentDM is precisely 'the open surface is
+    // a conversation', and the two kinds of reaction live in two tables.
+    loadReactions(ids, store.currentDM ? 'dm' : 'channel');
   };
   setInterval(sweepReactions, 9000);
   // THE MOST EXPENSIVE LOOP IN THE APP, and it was the one nobody looked at.

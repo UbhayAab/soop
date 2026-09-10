@@ -16,7 +16,7 @@
 // (below), but the precached copy is still what wins the 3.5s race on a slow
 // phone, so without this bump the 41 installed clients would keep serving the old
 // bundle whenever the network was slow - which is the shape of 03f8074.
-const VERSION = 'dek-v37';
+const VERSION = 'dek-v39';
 const SHELL = VERSION + '-shell';
 const VENDOR = VERSION + '-vendor';
 
@@ -94,6 +94,7 @@ const SHELL_FILES = [
     'bookmarks', 'notifications', 'shortcuts', 'ackloop', 'forms', 'tasks',
     'quicktask', 'taskprogress', 'orientation', 'activityReport', 'coordnav',
     'voicerooms', 'adminnav', 'screenshare', 'errorreport', 'voicenotes',
+    'calls',
   ].map((n) => `./js/features/${n}.js`),
   // tabbar.js is a dynamic import in main.js with a silent catch; uncached it
   // means an installed phone opens with no navigation at all.
@@ -126,6 +127,11 @@ const SHELL_FILES = [
   './js/core/emoji.js',
   './js/core/dms.js',
   './js/core/voice.js',
+  // Direct calls, and the peer-connection layer both they and the rooms sit on.
+  // call.js is a static import of features/calls.js and voice.js imports rtc.js,
+  // so either one missing offline is a module graph that fails to evaluate.
+  './js/core/rtc.js',
+  './js/core/call.js',
   './js/core/presence.js',
   './js/core/actions.js',
   './icons/icon-192.png',

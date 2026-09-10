@@ -20,6 +20,7 @@ import { $, el, esc, initials, hueOf, relTime, fmt } from '../util.js';
 // Core, not another feature. Message is the one action on a profile that has to
 // land somewhere real rather than emit an event nothing listens for.
 import { startDM } from '../core/dms.js';
+import { roleTagHtml } from '../core/messages.js';
 
 let UI = null;
 let current = null;   // { userId, data }
@@ -121,6 +122,7 @@ async function draw() {
         <span class="pp-av big" style="--h:${hueOf(p.user_id)}">${esc(initials(p.display_name || p.username))}</span>
         <div class="pp-hero-main">
           <h1>${esc(p.display_name || p.username || 'Somebody')}
+            ${roleTagHtml(p.user_id)}
             ${p.pronouns ? `<span class="pp-pronouns">${esc(p.pronouns)}</span>` : ''}</h1>
           ${p.title ? `<p class="pp-title">${esc(p.title)}</p>` : ''}
           <p class="pp-presence"><span class="pp-dot ${presence.cls}"></span>${esc(presence.text)}

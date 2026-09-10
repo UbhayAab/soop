@@ -880,6 +880,37 @@ section.msgs {
 }
 #sidebar h3:active { background: var(--c-nav-active); }
 
+/* A section heading that carries its own action. Only Direct messages has one
+   today: with a dozen conversations the "New message" row at the foot of the
+   group is below the fold, so the affordance has to also sit where the eye
+   already is. The heading itself is not a collapse toggle for this group, so
+   there is no click to fight over - the stopPropagation in channels.js is
+   belt and braces for the categories that are. */
+#sidebar h3.h3-act { cursor: default; }
+#sidebar h3.h3-act:hover { background: none; color: var(--c-nav-text); }
+#sidebar .h3-plus {
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-xs);
+  background: none;
+  color: var(--c-nav-text);
+  font-size: var(--t-base);
+  font-weight: var(--t-bold);
+  line-height: 1;
+  box-shadow: none;
+  cursor: pointer;
+}
+#sidebar .h3-plus:hover {
+  background: var(--c-nav-hover);
+  color: var(--c-nav-text-active);
+}
+/* A 22px target is fine for a mouse and not for a thumb. */
+:root[data-input="touch"] #sidebar .h3-plus { width: 34px; height: 34px; }
+
 .navgroup {
   display: flex;
   flex-direction: column;

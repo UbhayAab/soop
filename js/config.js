@@ -48,8 +48,10 @@ export const GUEST_SIGNIN = false;
 // on any page; what this stops is Dek talking to it or accepting credentials
 // from it. Serving `Content-Security-Policy: frame-ancestors <the same list>`
 // from wherever this is hosted is what stops the frame being drawn at all, and
-// it is the one that also stops clickjacking. GitHub Pages cannot set headers,
-// so on Pages this list is the only enforcement there is.
+// it is the one that also stops clickjacking. That is why the app is on
+// Cloudflare Pages and not GitHub Pages, which cannot set headers at all - see
+// `_headers` at the repo root and DEPLOY.md. On a host that cannot send them,
+// this list is the only enforcement there is.
 export const EMBED_ORIGINS = [
   // Add your dashboards here, e.g.
   // 'https://dash.yourcompany.com',

@@ -60,12 +60,22 @@ async function go(id) {
     if (c) { const { openChannel } = await import('./core/channels.js'); openChannel(c); }
     else bus.emit('channel:list');
   } else if (id === 'dms') {
-    // A DM list surface, not a blind jump: with an active conversation we
-    // reopen it, otherwise the dedicated conversations panel (registered by
-    // features/dmlist.js) lists them newest-first. The drawer is no longer the
-    // fallback - on a phone it buried DMs under channels and org chrome.
-    if (store.currentDM) { const { openDM } = await import('./core/dms.js'); openDM(store.currentDM); }
-    else { const { openPanel } = await import('./ui.js'); openPanel('dms'); }
+    // Always the list (registered by features/dmlist.js), never a jump straight
+    // back into a conversation.
+    //
+    // It used to reopen store.currentDM when there was one, which meant that
+    // after the first DM of a session the DMs tab could never show the DMs
+    // again: every tap landed back in the same conversation, and the search box
+    // and New message that live at the top of the list were unreachable from the
+    // tab named after them. That is the "there is no visible option to start a
+    // new conversation" report, and it was literally true.
+    //
+    // Nothing is lost. The open conversation is still behind the sheet, its row
+    // is marked in the list, and closing the sheet returns to it - so the old
+    // behaviour is one tap away and the list is no longer zero taps away from
+    // nowhere.
+    const { openPanel } = await import('./ui.js');
+    openPanel('dms');
   } else {
     const { openPanel } = await import('./ui.js');
     openPanel(id === 'later' ? 'later' : 'activity');

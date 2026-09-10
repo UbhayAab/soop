@@ -64,6 +64,10 @@ const FEATURES = [
   // this is the button and the window you watch.
   'screenshare',
   'offline',
+  // Ringing one person, the way a phone does. After voicerooms because the two
+  // sit next to each other in the head of the app and this one inserts its bar
+  // relative to the room bar; before uxfix, which decorates what is on screen.
+  'calls',
   // Voice notes: MediaRecorder -> audio attachment. Field staff's most-used
   // gesture on WhatsApp; without it the record of what was said lives outside.
   'voicenotes',

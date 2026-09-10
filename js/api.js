@@ -108,6 +108,13 @@ export const api = {
   createSpace: (name) => rpc('create_space', { p_name: name }),
   createWorkspace: (org, slug, name) => rpc('create_workspace', { p_org: org, p_slug: slug, p_name: name }),
   bootstrap: (ws) => rpc('get_bootstrap', { p_workspace: ws }),
+  // Who wears an Admin badge, for everybody in the Space. get_bootstrap already
+  // carries this per member on a cold start; this is the refresh, for the moment
+  // straight after somebody is promoted and for the Members panel, which used to
+  // work it out by reading member_roles - a table RLS hides from ordinary
+  // members, so the pill it drew was invisible to everyone who is not already an
+  // admin. One bit per person, no permission bitfields.
+  memberBadges: (ws) => rpc('get_member_badges', { p_workspace: ws }),
   // Cross-Space badge rollup. loadSpaces() at sign-in and refreshUnread()'s full
   // tail both ask for it within seconds of each other; a short shared TTL with
   // in-flight dedup turns the second call into a free await instead of a second
@@ -344,6 +351,21 @@ export const api = {
   markDMRead: (conv, upToSeq) => rpc('mark_dm_read', { p_conversation: conv, p_up_to_seq: upToSeq }),
   dmReceipts: (conv) => rpc('get_dm_receipts', { p_conversation: conv }),
   dmUnread: (ws) => rpc('get_dm_unread', { p_workspace: ws }),
+
+  // ---------- direct calls (0119) ----------
+  // Signalling is an RPC rather than a realtime broadcast on purpose: see the
+  // header of js/core/call.js. Every one of these is a write that must surface,
+  // so they all use rpc() and not tryRpc() - a call that fails silently is the
+  // exact failure this feature exists to avoid.
+  startCall: (conversation) => rpc('start_call', { p_conversation: conversation }),
+  answerCall: (call) => rpc('answer_call', { p_call: call }),
+  declineCall: (call, reason = 'declined') =>
+    rpc('decline_call', { p_call: call, p_reason: reason }),
+  endCall: (call, reason = null) => rpc('end_call', { p_call: call, p_reason: reason }),
+  callSignal: (call, to, payload) =>
+    rpc('call_signal', { p_call: call, p_to: to, p_payload: payload }),
+  callHeartbeat: (call) => rpc('call_heartbeat', { p_call: call }),
+  activeCall: () => rpc('get_active_call', {}),
 
   // ---------- search ----------
   search: (o) => rpc('search_messages', {

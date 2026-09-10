@@ -3,7 +3,7 @@
 // DMs, search results and pins all look identical.
 import { sb } from '../sb.js';
 import { api } from '../api.js';
-import { store, bus, nameOf, profileOf } from '../store.js';
+import { store, bus, nameOf, profileOf, roleTagOf } from '../store.js';
 import { $, el, esc, fmt, timeOf, dayOf, plain, hueOf, initials } from '../util.js';
 import { QUICK_EMOJI } from '../config.js';
 import { getMessageActions, toast, contextMenu } from '../ui.js';
@@ -113,34 +113,55 @@ export function initNarrowWatcher() {
 // hits it - somebody who joined while you were offline, an author of a healed
 // message, a member list still in flight when the first page paints.
 //
-// The repair is narrow on purpose: only rows whose rendered name no longer
-// matches what the store now says, and only the parts that can change.
+// The repair is narrow on purpose: only what the arriving profile can change,
+// and only where it actually differs from what is on screen.
+//
+// Each fact is checked on its own. Gating the pills on the NAME having changed
+// was wrong the moment a second pill existed: on a cold start pagecache paints
+// the previous conversation before the bootstrap lands, so a row can already
+// carry the correct name while the badge map behind it is still empty - and the
+// name-first early return meant that row kept no Admin pill for the rest of the
+// session.
 export function repaintAuthors(root) {
   const host = root || $('messages');
   if (!host) return 0;
   let fixed = 0;
+  let renamed = 0;
   for (const who of host.querySelectorAll('.who[data-user]')) {
     const id = who.dataset.user;
     if (!id) continue;
-    const want = nameOf(id);
-    if (who.textContent === want) continue;
-    who.textContent = want;
-    // The APP pill is decided by the same profile, so it is wrong for exactly
-    // the same rows and has to be corrected in the same pass.
     const head = who.parentElement;
+    if (!head) continue;
+
+    const want = nameOf(id);
+    if (who.textContent !== want) { who.textContent = want; renamed++; fixed++; }
+
+    // Both pills are decided by the same late-arriving profile, so they are
+    // wrong on exactly the rows this pass exists to fix. Order matters: APP sits
+    // directly after the name and the role pill after that, which is the order
+    // buildMessage emits them in.
     const isApp = !!profileOf(id)?.is_app;
-    const pill = head?.querySelector('.pill-bot');
-    if (isApp && !pill) {
-      const span = el('span', 'pill pill-bot', 'APP');
-      who.insertAdjacentElement('afterend', span);
-    } else if (!isApp && pill) {
-      pill.remove();
-    }
-    fixed++;
+    const appPill = head.querySelector('.pill-bot');
+    if (isApp && !appPill) {
+      who.insertAdjacentElement('afterend', el('span', 'pill pill-bot', 'APP'));
+      fixed++;
+    } else if (!isApp && appPill) { appPill.remove(); fixed++; }
+
+    const tag = roleTagOf(id);
+    const rolePill = head.querySelector('.pill-role');
+    if (tag && rolePill?.textContent !== tag) {
+      rolePill?.remove();
+      const span = el('span', 'pill pill-role', esc(tag));
+      span.title = tag + ' of this Space';
+      (head.querySelector('.pill-bot') || who).insertAdjacentElement('afterend', span);
+      fixed++;
+    } else if (!tag && rolePill) { rolePill.remove(); fixed++; }
   }
-  // The face comes from the same profile row as the name. Re-running the second
-  // paint phase is cheaper than reasoning about which gutters changed.
-  if (fixed) hydrateAvatars(host);
+  // The face comes from the same profile row as the name, so only a RENAME can
+  // have invalidated it - a badge arriving does not change anybody's avatar, and
+  // re-minting signed URLs for every row on screen because a pill appeared is
+  // exactly the kind of cost this file is careful about elsewhere.
+  if (renamed) hydrateAvatars(host);
   return fixed;
 }
 
@@ -157,6 +178,15 @@ export function avatarHtml(userId, size = 36) {
   }
   return `<div class="avatar" style="width:${size}px;height:${size}px;background:hsl(${h} 45% 32%)"
     title="${esc(name)}" data-user="${esc(userId || '')}">${esc(initials(name))}</div>`;
+}
+
+// The Owner / Admin / Moderator pill, as markup, in the one place every surface
+// can reach. Six things draw a name - a message header, the Members panel, the
+// profile card, the profile page, the DM list and the mention menu - and a
+// badge that only some of them know how to draw is the state this started in.
+export function roleTagHtml(userId) {
+  const tag = roleTagOf(userId);
+  return tag ? `<span class="pill pill-role" title="${esc(tag)} of this Space">${esc(tag)}</span>` : '';
 }
 
 function mentionsMe(m) {
@@ -213,6 +243,7 @@ export function buildMessage(m, opts = {}) {
       ${opts.grouped ? '' : `<div class="mhead">
         <span class="who" data-user="${esc(m.author_id || '')}">${esc(who)}</span>
         ${isBot ? '<span class="pill pill-bot">APP</span>' : ''}
+        ${roleTagHtml(m.author_id)}
         ${m.priority === 'urgent' ? '<span class="pill pill-urgent">URGENT</span>' : ''}
         ${m.topic ? `<span class="pill pill-topic" data-topic="${esc(m.topic)}">${esc(m.topic)}</span>` : ''}
         <span class="t">${timeOf(m.created_at)}</span>
@@ -783,14 +814,33 @@ export async function toggleReaction(messageId, emoji) {
     await api.react(messageId, emoji);
   } catch (e) {
     applyReaction({ message_id: messageId, emoji, user_id: store.me, added: !!has });
-    toast(e.message || 'Reaction failed', 'error');
+    // 'forbidden' is what the server says and it is not what a person needs to
+    // read. Until 0120 every reaction in a DM hit this branch, and "not allowed
+    // to perform this action" on a button the app itself had just drawn is the
+    // report that led here. If it happens now it means one specific thing.
+    const raw = e.message || '';
+    toast(/forbidden|not allowed|42501/i.test(raw)
+      ? 'That reaction was refused. You may have been removed from this conversation.'
+      : /rate|too many|slow/i.test(raw)
+        ? 'Slow down a moment - too many reactions at once.'
+        : (raw || 'Reaction failed'), 'error');
   }
 }
 
-export async function loadReactions(ids) {
+// `kind` decides which table holds them. A DM message's reactions are in
+// dm_message_reactions, not message_reactions: message_reactions.message_id is a
+// foreign key onto public.messages and its channel_id is NOT NULL, so a DM
+// reaction has never been able to live there. Reading one table for both would
+// silently paint every DM as having no reactions, which is how this looked
+// before 0120 except that the write end also failed.
+//
+// The caller says which, rather than this guessing from store.currentDM: the
+// sweep in presence.js heals whatever is on screen, and the answer has to come
+// from the surface that knows, not from a global read at the wrong moment.
+export async function loadReactions(ids, kind = 'channel') {
   ids = (ids || []).filter(Boolean);
   if (!ids.length) return;
-  const { data } = await sb.from('message_reactions')
+  const { data } = await sb.from(kind === 'dm' ? 'dm_message_reactions' : 'message_reactions')
     .select('message_id,emoji,user_id').in('message_id', ids);
   const byMsg = new Map();
   for (const r of data || []) {

@@ -1,47 +1,25 @@
 // Voice channels: a WebRTC peer mesh with Supabase Realtime as the signalling
 // bus. No SFU, no third-party service - for ambient rooms of a handful of people
 // a mesh is the right call and it costs nothing.
-import { sb, subscribe, unsubscribe, getSub, accessToken } from '../sb.js';
+import { subscribe, unsubscribe, getSub } from '../sb.js';
 import { api, table } from '../api.js';
 import { store, bus, nameOf } from '../store.js';
 import { $, el, esc, debounceLead } from '../util.js';
 import { icon } from '../icons.js';
 import { toast } from '../ui.js';
 import { renderChannels } from './channels.js';
-import { SUPABASE_URL } from '../config.js';
-
-const RTC = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:global.stun.twilio.com:3478' },
-  ],
-};
-
-// Cloudflare Realtime TURN. STUN alone connects peers on permissive networks
-// and fails SILENTLY for everyone behind carrier-grade NAT - which is what Jio
-// and Airtel mobile data are, i.e. most of this app's real audience. The roster
-// still shows both people present while neither hears anything; that failure
-// mode is why TURN exists. Credentials are short-lived and minted by the
-// dek-turn Edge Function, which holds the account secret so it never reaches a
-// browser. Until that function is deployed we stay STUN-only, exactly as before.
-let turnTried = false;
-async function withTurn() {
-  if (turnTried) return RTC;
-  turnTried = true;
-  try {
-    const r = await fetch(SUPABASE_URL + '/functions/v1/dek-turn', {
-      headers: { Authorization: 'Bearer ' + (accessToken() || '') },
-    });
-    if (!r.ok) return RTC;
-    const j = await r.json();
-    if (j && Array.isArray(j.iceServers) && j.iceServers.length) {
-      RTC.iceServers.push(...j.iceServers);
-    }
-  } catch {
-    /* No relay endpoint: historical behaviour. */
-  }
-  return RTC;
-}
+// The peer connection, the glare rule, the ICE buffer and the TURN credentials
+// all moved to core/rtc.js when direct calls arrived, because every one of those
+// is equally load-bearing for a call and two copies would mean fixing each bug
+// twice. What stayed here is everything a ROOM means: the roster, the bar, push
+// to talk, the screen share, and signalling over the room's realtime topic.
+//
+// The TURN fetch moving also fixed it. It read `'Bearer ' + (accessToken() || '')`
+// against an ASYNC accessToken(), so every request carried the literal string
+// "Bearer [object Promise]", was rejected, and the mesh has been STUN-only the
+// whole time - which is exactly the silent failure the comment there warns about,
+// on the carrier-grade NAT most of this app's users are behind.
+import { createLink, levelMeter, signalInbox } from './rtc.js';
 
 export const voice = {
   active: false, channel: null, local: null, muted: false, deafened: false,
@@ -114,144 +92,91 @@ export async function joinVoice(channelId) {
   monitorSelf();
 }
 
+// A peer in a room. The connection itself, the glare rule and the ICE buffering
+// are core/rtc.js's job; what is left here is everything that is about a ROOM -
+// where an incoming track goes, who is speaking, and the screen share.
+//
+// voice.peers now holds LINKS, not RTCPeerConnections. Anything that genuinely
+// needs the connection (adding and removing a screen track) reaches through
+// .pc, which is deliberately the only place that does.
+// Signals for a peer whose connection is still being built. Both sides of a
+// join start building off the same roster refresh, so whichever side resolves
+// its ICE config second used to lose the other's offer outright - silently.
+const inbox = signalInbox();
+
 async function makePeer(peerId, initiator) {
   if (voice.peers.has(peerId)) return voice.peers.get(peerId);
-  const pc = new RTCPeerConnection(await withTurn());
-  voice.peers.set(peerId, pc);
-  voice.local.getTracks().forEach((t) => pc.addTrack(t, voice.local));
+  // Reserved before the first await. createLink resolves the ICE config, and two
+  // roster refreshes inside that window would otherwise build two connections to
+  // the same person - a duplicate offer, and a wedge.
+  voice.peers.set(peerId, null);
+  const link = await createLink({
+    id: peerId,
+    me: store.me,
+    send: (msg) => signal(peerId, msg),
+    onTrack: (track, stream) => {
+      // Two kinds of track arrive on the same connection now, and they need
+      // completely different homes: audio into a hidden <audio> element that
+      // autoplays, video into a viewer somebody looks at. Routing a video track
+      // into the audio element is silent and invisible, which is the worst
+      // possible failure because there is nothing to see OR hear.
+      if (track.kind === 'video') {
+        voice.remoteScreens.set(peerId, stream);
+        // The far side stopping is delivered here, not through any signal we sent.
+        track.addEventListener('ended', () => {
+          voice.remoteScreens.delete(peerId);
+          bus.emit('voice:screen', { peerId, on: false });
+        });
+        stream.addEventListener?.('removetrack', () => {
+          voice.remoteScreens.delete(peerId);
+          bus.emit('voice:screen', { peerId, on: false });
+        });
+        bus.emit('voice:screen', { peerId, on: true, stream });
+        return;
+      }
+      let a = document.getElementById('a-' + peerId);
+      if (!a) {
+        a = document.createElement('audio');
+        a.id = 'a-' + peerId;
+        a.autoplay = true;
+        document.body.appendChild(a);
+      }
+      a.srcObject = stream;
+      a.muted = voice.deafened;
+      monitorSpeaking(peerId, stream);
+    },
+    onState: (state) => {
+      if (['failed', 'closed', 'disconnected'].includes(state)) dropPeer(peerId);
+      refreshVoice();
+    },
+  });
+
+  // Left the room while the ICE config was in flight.
+  if (!voice.active || !voice.local) { link.close(); voice.peers.delete(peerId); return null; }
+  voice.peers.set(peerId, link);
+  voice.local.getTracks().forEach((t) => link.pc.addTrack(t, voice.local));
+  inbox.release(peerId, link);
   // Somebody joining a room where a share is already running has to receive it.
   // Without this they get audio and a blank space where everybody else can see
   // the screen, and nothing anywhere says why.
-  if (voice.screen) addScreenTo(peerId, pc);
+  if (voice.screen) addScreenTo(peerId, link.pc);
 
-  pc.onicecandidate = (e) => { if (e.candidate) signal(peerId, { kind: 'ice', data: e.candidate }); };
-  pc.ontrack = (e) => {
-    // Two kinds of track arrive on the same connection now, and they need
-    // completely different homes: audio into a hidden <audio> element that
-    // autoplays, video into a viewer somebody looks at. Routing a video track
-    // into the audio element is silent and invisible, which is the worst
-    // possible failure because there is nothing to see OR hear.
-    if (e.track.kind === 'video') {
-      const stream = e.streams[0];
-      voice.remoteScreens.set(peerId, stream);
-      // The far side stopping is delivered here, not through any signal we sent.
-      e.track.addEventListener('ended', () => {
-        voice.remoteScreens.delete(peerId);
-        bus.emit('voice:screen', { peerId, on: false });
-      });
-      stream.addEventListener?.('removetrack', () => {
-        voice.remoteScreens.delete(peerId);
-        bus.emit('voice:screen', { peerId, on: false });
-      });
-      bus.emit('voice:screen', { peerId, on: true, stream });
-      return;
-    }
-    let a = document.getElementById('a-' + peerId);
-    if (!a) {
-      a = document.createElement('audio');
-      a.id = 'a-' + peerId;
-      a.autoplay = true;
-      document.body.appendChild(a);
-    }
-    a.srcObject = e.streams[0];
-    a.muted = voice.deafened;
-    monitorSpeaking(peerId, e.streams[0]);
-  };
-  pc.onconnectionstatechange = () => {
-    if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) dropPeer(peerId);
-    refreshVoice();
-  };
-  if (initiator) {
-    pc.createOffer()
-      .then((o) => pc.setLocalDescription(o).then(() => signal(peerId, { kind: 'offer', data: o })))
-      .catch(() => {});
-  }
-  return pc;
-}
-
-// GLARE. Until screen sharing there was exactly one offer per connection, made
-// at join time by whichever side had the lower user id, so two offers could
-// never cross. Starting a share means offering again on a connection that is
-// already up, and if two people press Share within a round trip of each other
-// both sides offer at once. setRemoteDescription with an offer while in
-// have-local-offer throws, and the connection is then wedged: no more audio,
-// no error anybody sees, and the only cure is leaving and rejoining.
-//
-// This is the perfect-negotiation pattern, cut down to what this mesh needs.
-// One side is "polite" and gives way; the rule only has to be consistent and
-// opposite on the two peers, and comparing ids is both. The impolite side
-// ignores the colliding offer and its own will be answered.
-const polite = (peerId) => store.me > peerId;
-
-// ICE candidates that arrived before there was anywhere to put them.
-//
-// addIceCandidate throws if no remote description is set yet, and the existing
-// code swallowed that with .catch(() => {}) - so a candidate that beat its offer
-// through the broadcast was simply lost. That was already a source of slow and
-// occasionally failed connects, and the rollback above makes it strictly worse:
-// during a rollback the connection legitimately has no remote description, and
-// that is exactly the window when the other side is spraying candidates.
-//
-// A lost candidate is not a visible error. It is a call that takes eight seconds
-// to connect instead of one, or does not connect at all, on some networks and
-// not others. Buffer them and drain once there is a remote description.
-const pendingIce = new Map();
-
-async function addIce(pc, from, candidate) {
-  if (!pc) return;
-  if (!pc.remoteDescription) {
-    if (!pendingIce.has(from)) pendingIce.set(from, []);
-    // Bounded, because a peer that never completes its offer would otherwise
-    // grow this forever. Fifty is far more than any real negotiation produces.
-    const q = pendingIce.get(from);
-    if (q.length < 50) q.push(candidate);
-    return;
-  }
-  try { await pc.addIceCandidate(candidate); } catch { /* stale candidate */ }
-}
-
-async function drainIce(pc, from) {
-  const q = pendingIce.get(from);
-  if (!q?.length) return;
-  pendingIce.delete(from);
-  for (const cand of q) {
-    try { await pc.addIceCandidate(cand); } catch { /* stale by now */ }
-  }
+  if (initiator) link.offer();
+  return link;
 }
 
 async function onSignal(p) {
   if (p.to !== store.me) return;
-  const from = p.from;
-  try {
-    if (p.kind === 'offer') {
-      const pc = await makePeer(from, false);
-      const collision = pc.signalingState !== 'stable';
-      if (collision) {
-        if (!polite(from)) return;
-        // Rolling back drops our own half-made offer and accepts theirs. We do
-        // not resend ours: whatever prompted it (a track added) is still on the
-        // connection, so the answer we are about to make carries it anyway.
-        await pc.setLocalDescription({ type: 'rollback' });
-      }
-      await pc.setRemoteDescription(p.data);
-      await drainIce(pc, from);
-      const ans = await pc.createAnswer();
-      await pc.setLocalDescription(ans);
-      signal(from, { kind: 'answer', data: ans });
-    } else if (p.kind === 'answer') {
-      const pc = voice.peers.get(from);
-      // An answer arriving when we are not expecting one is a late duplicate
-      // from a rolled-back negotiation. Setting it would throw.
-      if (pc && pc.signalingState === 'have-local-offer') {
-        await pc.setRemoteDescription(p.data);
-        await drainIce(pc, from);
-      }
-    } else if (p.kind === 'ice') {
-      await addIce(voice.peers.get(from), from, p.data);
-    } else if (p.kind === 'bye') {
-      dropPeer(from);
-    }
-  } catch (e) { console.warn('signal', e); }
+  if (p.kind === 'bye') { dropPeer(p.from); return; }
+  // Three cases, and only the first is the obvious one:
+  //   - a link exists          -> hand it over
+  //   - none, and this is an offer -> this peer is arriving; build for them
+  //   - a build is already in flight (the map holds a null placeholder), or a
+  //     candidate arrived ahead of its offer -> hold it until there is a link
+  if (voice.peers.has(p.from) && !voice.peers.get(p.from)) { inbox.hold(p.from, p); return; }
+  const link = voice.peers.get(p.from) || (p.kind === 'offer' ? await makePeer(p.from, false) : null);
+  if (!link) { inbox.hold(p.from, p); return; }
+  await link.handle(p);
 }
 
 function signal(to, msg) {
@@ -282,20 +207,9 @@ function addScreenTo(peerId, pc) {
   return sender;
 }
 
-// One offer per peer, serialised, because two overlapping renegotiations on the
-// same connection is the same wedge glare causes.
-const renegotiating = new Set();
-async function renegotiate(peerId) {
-  const pc = voice.peers.get(peerId);
-  if (!pc || renegotiating.has(peerId)) return;
-  renegotiating.add(peerId);
-  try {
-    if (pc.signalingState !== 'stable') return;
-    const o = await pc.createOffer();
-    await pc.setLocalDescription(o);
-    signal(peerId, { kind: 'offer', data: o });
-  } catch (e) { console.warn('renegotiate', e); } finally { renegotiating.delete(peerId); }
-}
+// Serialising overlapping renegotiations - two of them on one connection wedge
+// it the same way glare does - is the link's own job now.
+const renegotiate = (peerId) => voice.peers.get(peerId)?.renegotiate();
 
 export async function startScreenShare() {
   if (!voice.active) { toast('Join a voice room first', 'error'); return false; }
@@ -329,7 +243,11 @@ export async function startScreenShare() {
   // else and the app still says you are sharing.
   track.addEventListener('ended', () => { stopScreenShare(); });
 
-  for (const [peerId, pc] of voice.peers) { addScreenTo(peerId, pc); renegotiate(peerId); }
+  for (const [peerId, link] of voice.peers) {
+    if (!link) continue;                    // still resolving its ICE config
+    addScreenTo(peerId, link.pc);
+    renegotiate(peerId);
+  }
   bus.emit('voice:sharing', { on: true, stream });
   return true;
 }
@@ -339,7 +257,7 @@ export async function stopScreenShare() {
   const stream = voice.screen;
   voice.screen = null;
   for (const [peerId, sender] of voice.screenSenders) {
-    try { voice.peers.get(peerId)?.removeTrack(sender); } catch { /* peer already gone */ }
+    try { voice.peers.get(peerId)?.pc.removeTrack(sender); } catch { /* peer already gone */ }
     renegotiate(peerId);
   }
   voice.screenSenders.clear();
@@ -351,14 +269,14 @@ function dropPeer(id) {
   voice.peers.get(id)?.close();
   voice.peers.delete(id);
   voice.screenSenders.delete(id);
-  pendingIce.delete(id);
+  inbox.drop(id);
   if (voice.remoteScreens.delete(id)) bus.emit('voice:screen', { peerId: id, on: false });
   // srcObject nulled before the element goes, so the decoder is released rather
   // than pinned by a detached node still holding a live MediaStream.
   const a = document.getElementById('a-' + id);
   if (a) { a.srcObject = null; a.remove(); }
-  const m = voice.monitors.get(id);
-  if (m) { cancelAnimationFrame(m.raf); m.ctx?.close?.(); voice.monitors.delete(id); }
+  voice.monitors.get(id)?.();
+  voice.monitors.delete(id);
 }
 
 export async function leaveVoice() {
@@ -376,6 +294,12 @@ export async function leaveVoice() {
   unsubscribe('voice');
   voice.local?.getTracks().forEach((t) => t.stop());
   voice.local = null;
+  // Including your own, which dropPeer never sees: monitorSelf has been opening
+  // one AudioContext per join and leaving it running since the day it was
+  // written, and browsers allow only a handful per document.
+  for (const stop of voice.monitors.values()) stop?.();
+  voice.monitors.clear();
+  inbox.clear();
   voice.active = false;
   voice.channel = null;
   $('voicebar').classList.add('hidden');
@@ -442,33 +366,16 @@ export async function refreshVoice() {
 }
 
 function monitorSpeaking(id, stream) {
-  try {
-    // Close the previous one first. ontrack can fire more than once for a peer -
-    // a connection rebuilt after a transient drop is the ordinary case, and
-    // renegotiation is a new one - and each call started another AudioContext
-    // and another requestAnimationFrame loop while the map kept only the latest
-    // handle. The earlier loop then ran for the rest of the session with nothing
-    // able to cancel it. Browsers cap AudioContexts per document at a small
-    // number, so after a few reconnects creation throws and the speaking
-    // indicator stops working for everybody, silently, via the catch below.
-    const old = voice.monitors.get(id);
-    if (old) { cancelAnimationFrame(old.raf); old.ctx?.close?.(); voice.monitors.delete(id); }
-
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const src = ctx.createMediaStreamSource(stream);
-    const an = ctx.createAnalyser();
-    an.fftSize = 256;
-    src.connect(an);
-    const buf = new Uint8Array(an.frequencyBinCount);
-    const loop = () => {
-      an.getByteFrequencyData(buf);
-      const v = buf.reduce((a, b) => a + b, 0) / buf.length;
-      document.getElementById('vp-' + id)?.classList.toggle('speaking', v > 18);
-      const raf = requestAnimationFrame(loop);
-      voice.monitors.set(id, { raf, ctx });
-    };
-    loop();
-  } catch { /* analyser is a nicety */ }
+  // Stop the previous one first. onTrack can fire more than once for a peer - a
+  // connection rebuilt after a transient drop is the ordinary case, and a
+  // renegotiation is another - and each meter holds an AudioContext and a
+  // requestAnimationFrame loop. Browsers cap AudioContexts per document at a
+  // small number, so a leaked one per reconnect ends with creation throwing and
+  // every speaking indicator dying, silently.
+  voice.monitors.get(id)?.();
+  voice.monitors.set(id, levelMeter(stream, (speaking) => {
+    document.getElementById('vp-' + id)?.classList.toggle('speaking', speaking);
+  }));
 }
 
 function monitorSelf() {

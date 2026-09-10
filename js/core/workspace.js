@@ -3,7 +3,7 @@
 // opens it lands in exactly that Space.
 import { api, table, tryRpc } from '../api.js';
 import { sb, subscribe } from '../sb.js';
-import { store, bus, hasPerm } from '../store.js';
+import { store, bus, hasPerm, setBadges } from '../store.js';
 import { PERM } from '../config.js';
 import { $, el, esc, initials, hueOf, debounceLead } from '../util.js';
 import { icon } from '../icons.js';
@@ -704,6 +704,10 @@ export async function switchWorkspace(target) {
   store.ws = target;
   store.current = null;
   store.currentDM = null;
+  // Admin is a fact about a person IN A SPACE. Carrying the last Space's answer
+  // across would put a pill beside somebody who is an ordinary member here, and
+  // the bootstrap below refills it a moment later either way.
+  setBadges([]);
   // The server name is the menu, Discord-style. Before this the only route to
   // Leave was a right-click on the rail icon, which nothing advertised and a
   // phone cannot perform.
@@ -763,6 +767,8 @@ export async function switchWorkspace(target) {
     store.channels = boot.channels || [];
     store.dms = boot.dms || [];
     store.profiles = new Map((boot.members || []).map((m) => [m.user_id, { id: m.user_id, ...m }]));
+    // Kept beside the profiles rather than inside them: see store.badges.
+    setBadges(boot.members || []);
     store.online = new Set((boot.members || []).filter((m) => m.online).map((m) => m.user_id));
     // The member list REPLACED here, silently, was the last piece of the
     // "someone" bug. This app is local-first: pagecache paints the previous
@@ -902,6 +908,29 @@ export async function reloadMembers() {
   const profs = await table('profiles', (q) => q.in('id', ids));
   for (const p of profs) store.profiles.set(p.id, { ...(store.profiles.get(p.id) || {}), ...p });
   bus.emit('profiles');
+  refreshMemberBadges();
+}
+
+// Re-ask who the admins are. Anybody in the Space may call this - the RPC hands
+// back one bit per member and nothing else - which is the point: the Members
+// panel used to work the same thing out by reading member_roles, and RLS hides
+// that table from ordinary members, so the pill was drawn only for the people
+// who already knew.
+//
+// Fire-and-forget by design. It is a badge; a failed refresh means the badges
+// stay as they were, which is the state the bootstrap left them in.
+export async function refreshMemberBadges() {
+  if (!store.ws) return false;
+  const [rows] = await tryRpc('get_member_badges', { p_workspace: store.ws.id });
+  if (!Array.isArray(rows)) return false;
+  setBadges(rows);
+  // Two events on purpose. 'profiles' repaints anything that draws a name;
+  // 'badges' is the narrower one the Members panel listens for to drop its own
+  // five-minute role cache, which would otherwise keep showing a promotion as
+  // not having happened for five minutes after it did.
+  bus.emit('badges');
+  bus.emit('profiles');
+  return true;
 }
 
 export async function reloadChannels(openId) {

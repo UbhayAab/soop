@@ -1,108 +1,95 @@
-# Where Soop lives, and how to move the front end
+# Where Dek lives, and how to ship it
 
-## Where you are right now
+## Read this first
 
-Soop is two separate things in two separate places, and only one of them moves.
+**The front end is on Cloudflare Pages. It is not on GitHub Pages, and pushing to
+GitHub deploys nothing.**
 
-| | what it is | where it lives now | moving? |
+That sentence is at the top because this file used to be a guide to *moving* off
+GitHub Pages, written before the move, and anybody skimming it came away with
+"served straight off the main branch on GitHub Pages" and shipped a change by
+pushing a commit. The move happened. The old address is gone.
+
+| | what it is | where it lives | how it ships |
 | --- | --- | --- | --- |
-| **Front end** | this repo. HTML, CSS, JS. No build step, no server, no Node. | **GitHub Pages**, `https://ubhayaab.github.io/soop/`, served straight off the `main` branch | **yes** |
-| **Back end** | Postgres, sign-in, realtime, file storage, Edge Functions | **Supabase**, project `ybddogqphinruyunnuwx` | **no. Nothing to do.** |
+| **Front end** | this repo. HTML, CSS, JS. No build step, no bundler, no server. | **Cloudflare Pages**, project `dek`, at `https://dek-7o4.pages.dev` | `npm run deploy` |
+| **Back end** | Postgres, sign-in, realtime, file storage, Edge Functions | **Supabase**, project `ybddogqphinruyunnuwx` | `node scripts/db-query.mjs -f <migration>.sql`, `npx supabase functions deploy <name>` |
+| **GitHub** | `github.com/UbhayAab/soop`, private | source history only | `git push`. **Deploys nothing.** |
 
-Supabase is already a hosted platform run by somebody else. It has nothing to do
-with GitHub Pages and it does not care where the front end is served from. You
-will not touch it during the move.
+There is no Git integration on the Pages project - `wrangler pages project list`
+shows `Git Provider: No` - which is exactly why a push is not a deploy. The
+upload is direct, from your machine, of a staged copy of the working tree.
 
-## Why the front end has to move
+## Shipping a front-end change
+
+```bash
+npm test          # syntax, encoding, shell audit
+npm run probe     # the standing probe suite (playwright, takes a few minutes)
+npm run deploy    # -> Cloudflare Pages project "dek"
+```
+
+`npm run deploy` is `scripts/deploy-web.mjs`. It does not upload the repository.
+It copies the working tree into a temp directory **minus** `scripts/`,
+`supabase/`, `docs/`, `qa/`, `node_modules/`, every `.md`, every `.sql` and every
+`probe-*.mjs`, refuses to continue if `index.html`, `sw.js`, `js/` or `css/` went
+missing, and hands that directory to `wrangler pages deploy --project-name=dek`.
+Read the comment at the top of that file before changing the deny list: the
+version of this that uploaded the whole repo was serving the entire database
+schema and a working demo password at guessable URLs.
+
+`--dry` stages without uploading and prints the path, if you want to look at
+exactly what would go out.
+
+### Two things that have to move with the front end
+
+- **`sw.js` `VERSION`.** Bump it in the same commit as any change to `js/` or
+  `css/`. The service worker precaches the whole shell; without a new version key
+  an installed PWA serves the old bundle out of its own cache and the deploy
+  looks like it did nothing.
+- **Any migration the new code needs.** Deploy the SQL *first*. The client
+  degrades politely when an RPC is missing - `tryRpc` swallows it and the feature
+  switches itself off - so the failure mode of the wrong order is a feature that
+  silently is not there, which is harder to spot than an error.
+
+### Wrangler auth
+
+Wrangler is logged in on this machine via OAuth (`pages:write` is in the stored
+scopes). If it ever asks again:
+
+```bash
+npx wrangler login          # opens a browser
+npx wrangler whoami         # confirms which account
+npx wrangler pages project list
+```
+
+`CLOUDFLARE_API_TOKEN` in the environment also works and is what a CI runner
+would use.
+
+## Why Cloudflare and not Pages
 
 One reason, and it is narrow but it is real.
 
-Soop is becoming embeddable, which means it will run inside an iframe on other
-people's dashboards. The browser needs to be told **which pages are allowed to
-put Soop in a frame**. There is exactly one way to say that: a response header
-called `Content-Security-Policy: frame-ancestors`.
+Dek is embeddable, which means it runs inside an iframe on other people's
+dashboards. The browser has to be told **which pages are allowed to frame it**.
+There is exactly one way to say that: a response header,
+`Content-Security-Policy: frame-ancestors`.
 
 GitHub Pages cannot send custom response headers. At all. There is no setting, no
-file, no workaround. And the header is deliberately **ignored** when you try to
-put it in a `<meta>` tag, so the usual static-site trick does not apply either.
+file, no workaround. And the header is deliberately **ignored** when you put it in
+a `<meta>` tag, so the usual static-site trick does not apply either.
 
-Without it, any page on the internet can load a logged-in Soop in an invisible
+Without it, any page on the internet could load a signed-in Dek in an invisible
 iframe and steer somebody's clicks into it. There is a script-level refusal in
-`js/embed.js` that catches this, and it works, but it is script running inside
-the frame. The header stops the frame from being drawn at all. You want both.
+`js/embed.js` that catches this and it stays, but it is script running inside the
+frame. The header stops the frame being drawn at all. Both, neither relying on
+the other.
 
-Cloudflare Pages, Netlify and Vercel all send headers from a plain text file with
-no build step. The recommendation is Cloudflare Pages for two reasons: the free
-tier has no bandwidth cap, and custom domains are trivial, which matters for the
-second thing below.
+`_headers` in this repo is the file that produces those headers on Cloudflare.
 
-### The bonus reason: same-site framing
+### Checking the headers actually arrived
 
-If your dashboard is at `dash.jarurat.care` and Soop is at `soop.pages.dev`,
-those are different **sites**, and every browser now partitions storage between
-them. It works, but the panel gets its own isolated storage per dashboard and
-Safari wipes it between launches.
-
-If Soop is at `soop.jarurat.care` instead, it is the **same site** as the
-dashboard, and that entire class of problem disappears. That is a custom domain,
-which is a DNS record, which is why it is worth having Cloudflare in the picture.
-You do not have to do it on day one.
-
----
-
-## The move, step by step
-
-Budget fifteen minutes. Nothing is destructive and the GitHub Pages site keeps
-working the whole time.
-
-### 1. Push what is in your working tree
-
-Cloudflare deploys from GitHub, so it can only deploy what is on GitHub.
-
-```bash
-git add -A
-git commit -m "Plugin mode, task intake, forecasting, security fixes"
-git push
-```
-
-### 2. Create the Cloudflare Pages project
-
-1. Sign up or log in at **dash.cloudflare.com**. Free account is enough.
-2. Left sidebar: **Compute (Workers & Pages)**.
-3. Button: **Create** -> tab **Pages** -> **Connect to Git**.
-4. Authorise Cloudflare on GitHub. When it asks which repositories, you can pick
-   **Only select repositories** and choose just `soop`.
-5. Pick the `soop` repository. **Begin setup**.
-
-### 3. The build settings (this is the part people get wrong)
-
-This repo has **no build step**. The files in it are already the website. So:
-
-| field | value |
-| --- | --- |
-| Project name | `soop` (this becomes `soop.pages.dev`) |
-| Production branch | `main` |
-| Framework preset | **None** |
-| Build command | **leave completely empty** |
-| Build output directory | `/` |
-| Root directory | `/` |
-
-If you pick a framework preset it will try to run `npm install` and fail, because
-there is no `package.json`. There is nothing to install and nothing to build.
-
-Press **Save and Deploy**. It takes about thirty seconds.
-
-### 4. Check it worked
-
-Open `https://soop.pages.dev` (or whatever name it gave you).
-
-You should see the Soop sign-in card. Sign in with your normal account. It talks
-to the same Supabase, the same messages, the same everything, because the back
-end did not move.
-
-Then check the header actually arrived. In the browser, press F12 -> **Network**
-tab -> reload -> click the top row (`soop.pages.dev`) -> **Headers**. Under
-Response Headers you should see:
+F12 -> **Network** -> reload -> click the top row -> **Headers**. Under Response
+Headers:
 
 ```
 content-security-policy: frame-ancestors 'self' http://localhost:8098 ...
@@ -110,61 +97,27 @@ referrer-policy: strict-origin-when-cross-origin
 x-content-type-options: nosniff
 ```
 
-If those are there, the whole reason for the move is done. The `_headers` file in
-this repo is what produces them.
+If those are there, the whole reason for being on Cloudflare is working.
 
-### 5. Tell Supabase about the new address
+## A custom domain
 
-Not strictly required today, but it will bite later if you skip it.
+Pages project -> **Custom domains** -> **Set up a custom domain** -> e.g.
+`dek.jarurat.care`. If the domain's DNS is already at Cloudflare it is one click.
 
-Supabase dashboard -> your project -> **Authentication** -> **URL Configuration**:
+Worth doing, and not only for the nicer address: if the dashboard embedding Dek
+is at `dash.jarurat.care` and Dek is at `dek-7o4.pages.dev`, those are different
+**sites**, and every browser now partitions storage between them. It works, but
+the panel gets isolated storage per dashboard and Safari wipes it between
+launches. Same registrable domain, and that entire class of problem disappears.
 
-- **Site URL**: `https://soop.pages.dev`
-- **Redirect URLs**: add `https://soop.pages.dev/**`
+After adding one, update **Site URL** and **Redirect URLs** in Supabase ->
+Authentication -> URL Configuration, and `SOOP_APP_ORIGIN` in the Edge Function
+secrets.
 
-Keep the old `https://ubhayaab.github.io/soop/**` in the list until you are sure
-nobody is using the old address.
-
-### 6. A custom domain (optional, do it when you have a domain)
-
-In the Pages project -> **Custom domains** -> **Set up a custom domain** ->
-type `soop.jarurat.care` (or whatever). Cloudflare will tell you the DNS record.
-If the domain's DNS is already at Cloudflare, it adds it for you in one click.
-
-Then update `Site URL` in Supabase, and `SOOP_APP_ORIGIN` in the Edge Function
-secrets (step 3 of the checklist below).
-
----
-
-## The two loose ends after the move
-
-### Old links keep pointing at GitHub Pages
-
-Every invite link you have already sent looks like
-`https://ubhayaab.github.io/soop/#/join/<token>`. Those keep working as long as
-GitHub Pages stays up, and they break the moment you turn it off.
-
-Also, anybody who added Soop to their home screen installed it from that address.
-Their PWA points at GitHub Pages, has its own service worker, and will happily go
-on serving the old code forever.
-
-Three choices, in increasing order of effort:
-
-1. **Nobody real is using it yet.** Turn Pages off: GitHub repo -> Settings ->
-   Pages -> Source -> **None**. Old links 404, everyone uses the new address.
-2. **Leave both up.** They both work, both talk to the same back end. Fine for a
-   while. The risk is that the two versions drift, because GitHub Pages deploys
-   on push and so does Cloudflare, so actually they will not drift at all. This
-   is the lazy option and it is not bad.
-3. **Redirect the old one.** Replace `index.html` on a `gh-pages` branch with a
-   one-line redirect to the new address. Ask me and I will write it.
-
-Say which and I will do it.
-
-### The `_headers` file needs your real dashboard origins
+## The `_headers` file needs your real dashboard origins
 
 Open `_headers` and find the line marked `>>> EDIT THIS LINE`. Every dashboard
-that will embed Soop needs its origin listed there, **and** in `EMBED_ORIGINS` in
+that will embed Dek needs its origin listed there, **and** in `EMBED_ORIGINS` in
 `js/config.js`, **and** in the `allowed_origins` column when you register it.
 
 Three lists on purpose. They fail differently, which is how you tell which one
@@ -172,13 +125,13 @@ you forgot:
 
 | missing from | what you see |
 | --- | --- |
-| `_headers` | blank panel; browser refuses to draw the frame |
+| `_headers` | blank panel; the browser refuses to draw the frame |
 | `js/config.js` | panel loads, spins 15 seconds, then asks for a password |
 | `allowed_origins` | the Edge Function log says `origin not registered` |
 
 ---
 
-## The back-end checklist (separate from the move)
+## The back-end checklist (separate from the front end)
 
 None of this is affected by where the front end lives. It is the work that makes
 credential passthrough and the new task features actually function. It has
@@ -200,14 +153,77 @@ migrations rather than you editing SQL you did not write.
 
 ### 2. Run the migrations
 
-Supabase dashboard -> **SQL Editor** -> paste and run, one at a time:
+The fast way, and the one used here, is `node scripts/db-query.mjs -f
+supabase/migrations/<file>.sql`. It reads the project ref and a management token
+from `hearth/.env.local`, never prints either, and runs the file as one
+statement batch. The Supabase dashboard's **SQL Editor** does the same job if
+you would rather paste.
+
+Already applied to the live project; listed so a fresh project can be brought up
+to the same state, in this order:
 
 - `supabase/migrations/0100_embed_registry.sql` - the dashboard registry and the
   one call that makes a team's server exist
 - `supabase/migrations/0101_tasks_v2.sql` - progress log, blockers, triage,
   started_at, priority
+- `supabase/migrations/0119_direct_calls.sql` - direct calls: ringing one person
+  (or two) instead of walking into a voice room. Nothing else depends on it, and
+  until it is run the app simply does not offer a call button - `get_active_call`
+  answers "no such function" once per sign-in and calling switches itself off,
+  the same way every other optional RPC in this codebase degrades.
+- `supabase/migrations/0120_dm_reactions_and_admin_badges.sql` - two things the
+  UI offered and the database could not do. `public.dm_message_reactions` plus a
+  `toggle_reaction` that routes by which table the message id lives in, so the
+  reaction bar that has always been drawn on a DM finally works instead of
+  answering "forbidden"; and `is_admin`/`is_owner` per member in `get_bootstrap`
+  plus `get_member_badges`, an RPC any member may call, so the Admin badge beside
+  a name is visible to the people who need to know who to ask rather than only to
+  admins (the Members panel used to work it out by reading `member_roles`, which
+  RLS hides from everybody else).
 
-Both are written to be safe to run twice.
+All four are written to be safe to run twice.
+
+0119 leans on four things that are already in your database and are NOT in this
+repository. Check them before running it, because a missing one is a migration
+that half-applies:
+
+```sql
+select 'uuidv7' as needs, count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'util' and p.proname = 'uuidv7'
+union all select 'app.emit', count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'app' and p.proname = 'emit'
+union all select 'rate_limit', count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'private' and p.proname = 'rate_limit'
+union all select 'conversations', count(*) from information_schema.tables
+ where table_schema = 'public' and table_name in ('conversations','conversation_members');
+```
+
+Four rows, each count 1 except `conversations` which is 2. If any is 0, stop and
+say so rather than editing the migration.
+
+After it runs, the whole feature is verifiable in one go from two browsers signed
+in as two people: open a direct message, press the handset in the channel bar,
+and the other browser should ring. If it rings and connects but neither person
+hears anything, that is TURN, not signalling - see the note below.
+
+#### If a call connects but nobody can hear anything
+
+That is the relay, and it is the one failure in this feature with no error
+message anywhere. Audio is peer to peer; on a permissive network the two browsers
+reach each other directly, and behind carrier-grade NAT - which is what Jio and
+Airtel mobile data are - they cannot, so a relay has to stand in the middle. The
+relay credentials come from the `dek-turn` Edge Function:
+
+```bash
+supabase functions deploy dek-turn
+```
+
+Until it is deployed, both voice rooms and calls are STUN-only: they work on
+office wifi and fail silently on mobile data. Note that this path had never
+actually worked - the fetch built its Authorization header from an un-awaited
+promise and sent the literal string `Bearer [object Promise]` - so if you have
+been told "voice does not work on phones", this is very likely why. It is fixed
+in `js/core/rtc.js`, but the function still has to be deployed for it to matter.
 
 ### 3. Deploy the Edge Functions
 
@@ -215,7 +231,7 @@ Both are written to be safe to run twice.
 supabase login
 supabase link --project-ref ybddogqphinruyunnuwx
 
-supabase secrets set SOOP_APP_ORIGIN='https://soop.pages.dev'
+supabase secrets set SOOP_APP_ORIGIN='https://dek-7o4.pages.dev'
 supabase functions deploy soop-handoff --no-verify-jwt
 ```
 

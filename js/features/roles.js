@@ -14,6 +14,7 @@ import { api, table } from '../api.js';
 import { store, hasPerm, bus } from '../store.js';
 import { PERM } from '../config.js';
 import { el, esc } from '../util.js';
+import { refreshMemberBadges } from '../core/workspace.js';
 import { icon } from '../icons.js';
 
 const canRoles = () => hasPerm(PERM.MANAGE_ROLES) || store.isAdmin;
@@ -258,7 +259,12 @@ async function renderPanel(body, app) {
     return;
   }
 
-  const redraw = () => renderPanel(body, app);
+  // Every mutation in this panel - create, edit, delete, assign - ends by
+  // calling redraw(), so this is the one place that has to re-ask who the
+  // admins are. Making somebody an admin and then not seeing the badge appear
+  // beside their name anywhere is how "are they actually an admin?" gets asked
+  // in the first place.
+  const redraw = () => { refreshMemberBadges(); return renderPanel(body, app); };
   const byId = new Map((roles || []).map((r) => [r.id, r]));
   const rolesOf = (userId) => (memberRoles || [])
     .filter((mr) => mr.user_id === userId)

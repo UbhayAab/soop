@@ -118,6 +118,18 @@ export const ICONS = {
     + P('M6.5 11a5.5 5.5 0 0 0 11 0M12 16.5V20'),
   micOff: P('M9.5 6.4A2.5 2.5 0 0 1 14.5 6.5v4M9.5 10.5v1a2.5 2.5 0 0 0 4.2 1.8')
     + P('M6.5 11a5.5 5.5 0 0 0 8.4 4.7M12 16.5V20') + P('m4 4 16 16'),
+  // The handset. Deliberately the same silhouette every phone on earth uses, at
+  // this grid and this stroke: an icon that means "call" has exactly one shape
+  // people already know, and being clever with it costs recognition for nothing.
+  phone: P('M7.6 4.5h-2A1.6 1.6 0 0 0 4 6.2 14.4 14.4 0 0 0 17.8 20a1.6 1.6 0 0 0 1.7-1.6v-2a1.1 1.1 0 0 0-.9-1.1l-2.5-.5a1.1 1.1 0 0 0-1.1.5l-.8 1.2a11 11 0 0 1-5.4-5.4l1.2-.8a1.1 1.1 0 0 0 .5-1.1l-.5-2.5a1.1 1.1 0 0 0-1.1-.9z'),
+  // Hanging up is the SAME handset, turned down. The first draft used this set's
+  // usual slash (micOff, volumeOff) and it was wrong at 26px: a diagonal stroke
+  // across a shape that is already diagonal reads as a smudge, not as a "no".
+  // Rotation is what every phone on earth uses for this and it survives being
+  // small, which is the only size it is ever seen at.
+  phoneOff: `<g transform="rotate(135 12 12)">`
+    + P('M7.6 4.5h-2A1.6 1.6 0 0 0 4 6.2 14.4 14.4 0 0 0 17.8 20a1.6 1.6 0 0 0 1.7-1.6v-2a1.1 1.1 0 0 0-.9-1.1l-2.5-.5a1.1 1.1 0 0 0-1.1.5l-.8 1.2a11 11 0 0 1-5.4-5.4l1.2-.8a1.1 1.1 0 0 0 .5-1.1l-.5-2.5a1.1 1.1 0 0 0-1.1-.9z')
+    + `</g>`,
   headphones: P('M4 14v-2a8 8 0 0 1 16 0v2')
     + P('M4 14h2.5a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM20 14h-2.5a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1H19a1 1 0 0 0 1-1z'),
 

@@ -11,6 +11,7 @@ import { openChannel, renderChannels, wireScroll, refreshUnread, jumpToSeq,
 import { initComposer, setReply, resolveMentions } from './core/composer.js';
 import { initPresence } from './core/presence.js';
 import { initVoice } from './core/voice.js';
+import { initCall } from './core/call.js';
 import { openThread, threadState } from './core/threads.js';
 import { registerCoreActions, registerCoreHeader } from './core/actions.js';
 import { openDM, startDM } from './core/dms.js';
@@ -488,6 +489,15 @@ function subscribeUser(uid) {
         }
       },
       reminder: (p) => toast('Reminder: ' + (p?.note || 'you asked to be reminded')),
+      // Direct calls (0119). All three ride this topic because it is the one
+      // per-person topic that is already authorised and already open on every
+      // signed-in client - a call has no channel to broadcast on, and a topic
+      // invented for it would need an RLS policy this repo cannot verify. The
+      // handlers are one line each on purpose: js/core/call.js owns the state
+      // machine, and main.js must not grow a second opinion about it.
+      call_ring: (p) => bus.emit('call:ring', { payload: p }),
+      call_state: (p) => bus.emit('call:state', { payload: p }),
+      call_signal: (p) => bus.emit('call:signalled', { payload: p }),
     });
   });
 }
@@ -675,6 +685,10 @@ async function main() {
   try { initAuth(enter); } catch (e) { console.error('initAuth failed', e); }
   initComposer();
   initVoice();
+  // Before registerFeatures, so the engine is listening on the bus by the time
+  // features/calls.js paints anything - and before the 'auth' handler inside it
+  // could miss a call that was live when this tab reloaded.
+  initCall();
   initShortcuts();
   wireScroll();
   registerCoreActions();

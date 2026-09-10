@@ -15,10 +15,10 @@
 // four. Two connection banners is worse than one, and two wrappers around
 // window.fetch is a bug waiting to happen.
 
-import { store, bus, nameOf, hasPerm } from '../store.js';
+import { store, bus, nameOf, hasPerm, setBadges } from '../store.js';
 import { $, el, esc, plain, debounce, relTime } from '../util.js';
 import { icon } from '../icons.js';
-import { table, api } from '../api.js';
+import { table, api, tryRpc } from '../api.js';
 import { PERM } from '../config.js';
 import { modal, escPush } from '../ui.js';
 import { avatarHtml, applyEdit } from '../core/messages.js';
@@ -1124,6 +1124,26 @@ async function memberRoleMap() {
   if (roleCache.ws === store.ws.id && Date.now() - roleCache.at < ROLE_TTL && roleCache.map) {
     return { roles: roleCache.map, complete: true };
   }
+
+  // One RPC that any member may call, instead of three table reads two of which
+  // RLS hides from anybody who is not already an admin. That was the whole
+  // reason the pill was reported missing: the panel worked perfectly for the
+  // person who set the roles and drew nothing for everyone else, which is the
+  // exact inverse of who needs to know. It also carries the membership, so the
+  // filter below no longer needs its own read.
+  const [badges] = await tryRpc('get_member_badges', { p_workspace: store.ws.id });
+  if (Array.isArray(badges) && badges.length) {
+    setBadges(badges);
+    for (const b of badges) {
+      out.set(b.user_id, b.is_owner ? 'Owner' : b.is_admin ? 'Admin'
+        : b.member_type === 'moderator' ? 'Moderator' : 'Member');
+    }
+    roleCache = { ws: store.ws.id, at: Date.now(), map: out };
+    return { roles: out, complete: true };
+  }
+
+  // Pre-0120 server. Kept because a stale deploy should degrade to the old
+  // half-answer rather than to an unlabelled list.
   let got = false;
   try {
     const [members, links, roles] = await Promise.all([
@@ -1160,6 +1180,9 @@ async function memberRoleMap() {
   if (got) roleCache = { ws: store.ws.id, at: Date.now(), map: out };
   return { roles: out, complete: got };
 }
+
+// A promotion just landed: the five-minute cache above must not outlive it.
+bus.on('badges', () => { roleCache = { ws: null, at: 0, map: null }; });
 
 function registerMembersPanel(ui) {
   ui.registerPanel({
@@ -1217,7 +1240,7 @@ function registerMembersPanel(ui) {
             <span class="truncate">${esc(name)}${p.status_emoji ? ` <span>${esc(p.status_emoji)}</span>` : ''}</span>
             <span class="ux-mem-handle">${esc(sub)}</span>
           </div>
-          ${role && role !== 'Member' ? `<span class="ux-rolepill">${esc(role)}</span>` : ''}
+          ${role && role !== 'Member' ? `<span class="pill pill-role">${esc(role)}</span>` : ''}
           <span class="dot ${store.online.has(p.id) ? 'on' : 'off'}"></span>`;
         const open = (ev) => bus.emit('profile:open', { userId: p.id, anchor: r, ev });
         r.onclick = open;

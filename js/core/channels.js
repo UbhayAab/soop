@@ -11,7 +11,8 @@ import { icon } from '../icons.js';
 import { appendMessage, claimMessage, loadReactions, applyEdit, applyDelete, applyReaction,
   refreshThreadIndicator, jumpTo, buildMessage, scrollDown, renderedIn, atBottom,
   renderBatch, prependBatch, capWindow, capWindowTop, resetWindow, windowState,
-  restoreAbove, restoreBelow, deferBelow, jumpLatest, repaintAuthors } from './messages.js';
+  restoreAbove, restoreBelow, deferBelow, jumpLatest, repaintAuthors,
+  roleTagHtml } from './messages.js';
 import * as pagecache from '../lib/pagecache.js';
 
 export { scrollDown };
@@ -163,7 +164,14 @@ export async function renderChannels() {
   const hasDmTab = !!tabbar && getComputedStyle(tabbar).display !== 'none';
   const dmsBelongHere = !hasDmTab;
   if (dmsBelongHere) {
-  h += '<h3><span>Direct messages</span></h3><div class="navgroup">';
+  // The ＋ in the heading, not only the row at the bottom of the group. With
+  // more than a handful of conversations the "New message" row is below the
+  // fold of the sidebar, which is how "there is no visible option to start a
+  // DM" happens in a list that has one. Both are kept: the heading is where
+  // people look, the row is where somebody scrolling to the end lands.
+  h += `<h3 class="h3-act"><span>Direct messages</span>
+    <button class="h3-plus" type="button" data-newdm="1" title="New message"
+      aria-label="New message">＋</button></h3><div class="navgroup">`;
   for (const d of store.dms) {
     const others = (d.other_user_ids || []).filter((u) => u !== store.me);
     const label = others.length ? others.map(nameOf).join(', ') : 'you';
@@ -175,6 +183,7 @@ export async function renderChannels() {
     const count = typeof d.unread === 'number' && d.unread > 1 ? d.unread : null;
     h += `<div class="chan${store.currentDM === d.conversation_id ? ' active' : ''}${unread ? ' unread' : ''}"
       data-dm="${d.conversation_id}"><span class="ch-ico">@</span><span class="ch-name">${esc(label)}</span>
+      ${others.length === 1 ? roleTagHtml(others[0]) : ''}
       ${unread ? (count ? `<span class="badge">${count}</span>` : '<span class="dot-unread"></span>') : ''}</div>`;
   }
   h += '<div class="chan chan-add" data-newdm="1">＋ New message</div></div>';
@@ -192,7 +201,11 @@ export async function renderChannels() {
   host.querySelectorAll('[data-dm]').forEach((n) => {
     n.onclick = () => bus.emit('dm:request', { conversationId: n.dataset.dm });
   });
-  host.querySelector('[data-newdm]')?.addEventListener('click', () => bus.emit('dm:new'));
+  // querySelector, singular, bound only the FIRST match - so adding the ＋ to the
+  // heading would have silently unbound the row at the bottom of the group.
+  host.querySelectorAll('[data-newdm]').forEach((n) => {
+    n.addEventListener('click', (e) => { e.stopPropagation(); bus.emit('dm:new'); });
+  });
   host.querySelector('[data-newch]')?.addEventListener('click', () => createChannelDialog());
   host.querySelector('[data-newvoice]')?.addEventListener('click',
     () => createChannelDialog({ kind: 'voice' }));

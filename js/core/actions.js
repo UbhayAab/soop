@@ -8,7 +8,7 @@ import { PERM } from '../config.js';
 import { $, el, esc, fmt, plain, relTime, timeOf, toLocalInput, fromLocalInput } from '../util.js';
 import { addMessageAction, addHeaderButton, registerPanel, openPanel, toast, modal,
   formModal, confirmModal, contextMenu, addSwitcherSource } from '../ui.js';
-import { buildMessage, avatarHtml, jumpTo } from './messages.js';
+import { buildMessage, avatarHtml, jumpTo, roleTagHtml } from './messages.js';
 import { icon } from '../icons.js';
 import { setReply } from './composer.js';
 import { openThread } from './threads.js';
@@ -421,7 +421,7 @@ bus.on('profile:open', async ({ userId, anchor } = {}) => {
   const box = el('div', 'profile-card');
   box.innerHTML = `
     <div class="pc-head">${avatarHtml(userId, 56)}
-      <div><b>${esc(nameOf(userId))}</b>
+      <div><b>${esc(nameOf(userId))}</b> ${roleTagHtml(userId)}
       ${nick ? `<div class="muted">you call them this - they are ${esc(p.display_name || p.username || 'unnamed')}</div>` : ''}
       ${p.username ? `<div class="muted">@${esc(p.username)}</div>` : ''}
       ${p.pronouns ? `<div class="muted">${esc(p.pronouns)}</div>` : ''}</div></div>
@@ -430,6 +430,7 @@ bus.on('profile:open', async ({ userId, anchor } = {}) => {
       <button class="sm ghost" data-a="full">Full profile</button>
       <button class="sm ghost" data-a="nick">${nick ? 'Change what you call them' : 'Rename for yourself'}</button>
       ${userId !== store.me ? '<button class="sm" data-a="dm">Message</button>' : ''}
+      ${userId !== store.me ? '<button class="sm" data-a="call">Call</button>' : ''}
       ${userId !== store.me ? '<button class="sm ghost" data-a="block">Block</button>' : ''}
       ${userId !== store.me && hasPerm(PERM.KICK) ? '<button class="sm ghost" data-a="kick">Remove</button>' : ''}
       ${userId !== store.me && hasPerm(PERM.BAN) ? '<button class="sm danger" data-a="ban">Ban</button>' : ''}
@@ -444,6 +445,14 @@ bus.on('profile:open', async ({ userId, anchor } = {}) => {
     bus.emit('profile:page', { userId });
   });
   box.querySelector('[data-a="dm"]')?.addEventListener('click', () => { m.close(); startDM(userId); });
+  // An event rather than an import: features/calls.js owns calling, and core has
+  // no business knowing whether this deployment even has the RPCs for it. If the
+  // feature failed to load, nothing listens and the button does nothing - which
+  // is the same thing every other optional surface in this app does.
+  box.querySelector('[data-a="call"]')?.addEventListener('click', () => {
+    m.close();
+    bus.emit('call:request', { userId });
+  });
   // A name only you see. Nobody is told, nothing is sent to them, and clearing
   // the box puts their own name back.
   box.querySelector('[data-a="nick"]')?.addEventListener('click', async () => {

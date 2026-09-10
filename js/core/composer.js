@@ -1,7 +1,7 @@
 // The composer: autocomplete (@people, #channels, :emoji, /commands), attachments,
 // server-synced drafts, typing broadcast, and optimistic send.
 import { api, table } from '../api.js';
-import { store, bus, nameOf } from '../store.js';
+import { store, bus, nameOf, roleTagOf } from '../store.js';
 import { getSub } from '../sb.js';
 import { $, el, esc, debounce, fmtSize } from '../util.js';
 import { toast, listSlash, runSlash, renderComposerButtons, addComposerButton } from '../ui.js';
@@ -77,8 +77,15 @@ function updateAutocomplete() {
       .filter((p) => p.id !== store.me)
       .filter((p) => !q || (p.display_name || '').toLowerCase().includes(q) || (p.username || '').toLowerCase().includes(q))
       .slice(0, 7)
-      .map((p) => ({ label: p.display_name || p.username, hint: p.username ? '@' + p.username : '', icon: icon('members'),
-        value: p.username || p.display_name }));
+      .map((p) => {
+        // The role goes in the hint, not the label: the label is what gets
+        // typed into the message, and "Admin" is not part of anybody's handle.
+        const tag = roleTagOf(p.id);
+        const handle = p.username ? '@' + p.username : '';
+        return { label: p.display_name || p.username, icon: icon('members'),
+          hint: [tag, handle].filter(Boolean).join(' · '),
+          value: p.username || p.display_name };
+      });
     const groups = [{ label: '@here', hint: 'notify everyone online', icon: icon('megaphone'), value: 'here' },
       { label: '@channel', hint: 'notify the whole channel', icon: icon('megaphone'), value: 'channel' }]
       .filter((g) => !q || g.label.slice(1).startsWith(q));

@@ -25,6 +25,12 @@ export const store = {
   // member_status, reloadMembers and presence all REPLACE entries in that map,
   // so anything stored inside it is one repaint away from being erased.
   nicknames: new Map(),     // subject_id -> nickname
+  // Who holds ADMINISTRATOR in the current Space, for the badge beside a name.
+  // A sibling of profiles for the same reason nicknames are one, and the
+  // comment above is the whole argument: every path that refreshes a profile
+  // row REPLACES the entry, and a fact that only get_bootstrap knows would be
+  // erased by the next presence fetch. Keyed by user id, rebuilt per Space.
+  badges: new Map(),        // user_id -> {is_admin, is_owner, member_type}
   online: new Set(),
   unread: new Map(),        // scope_id -> {unread, mention_count}
   notify: new Map(),        // scope_id -> {notify_level, muted_until}
@@ -66,6 +72,40 @@ export const nameOf = (id) => {
 };
 
 export const profileOf = (id) => store.profiles.get(id) || null;
+
+// The one word that goes beside a name, or null for most people.
+//
+// Two admins were appointed and nothing anywhere said so, so nobody could tell
+// who to ask. Owner beats Admin beats Moderator because only one of them can be
+// shown in the space available, and the more senior fact is the useful one.
+// Ordinary members get null and no pill: a badge every row wears is decoration,
+// not information.
+export function roleTagOf(id) {
+  if (!id) return null;
+  const b = store.badges.get(id);
+  if (!b) return null;
+  if (b.is_owner) return 'Owner';
+  if (b.is_admin) return 'Admin';
+  if (b.member_type === 'moderator') return 'Moderator';
+  return null;
+}
+
+// Rebuild the badge map from anything shaped like the bootstrap's members array
+// or get_member_badges' rows. Both carry user_id + is_admin + is_owner +
+// member_type; a payload from an older server that carries none of them leaves
+// the map empty, which paints no pills rather than wrong ones.
+export function setBadges(rows) {
+  store.badges = new Map();
+  for (const r of rows || []) {
+    const id = r.user_id || r.id;
+    if (!id) continue;
+    store.badges.set(id, {
+      is_admin: !!r.is_admin,
+      is_owner: !!r.is_owner,
+      member_type: r.member_type || 'member',
+    });
+  }
+}
 
 export function hasPerm(bit) {
   if (store.isAdmin) return true;

@@ -7,7 +7,7 @@ import { $, el, esc, debounce } from '../util.js';
 import { toast, modal, closePanel } from '../ui.js';
 import { appendMessage, claimMessage, loadReactions, applyReaction, atBottom, scrollDown } from './messages.js';
 import { renderChannels, showNewBelow, clearNewBelow } from './channels.js';
-import { avatarHtml } from './messages.js';
+import { avatarHtml, roleTagHtml } from './messages.js';
 
 // A DM had no cursor, no gap detection and no healing path of ANY kind. Both
 // periodic loops gated on `store.current`, which openDM sets to null, so a
@@ -63,7 +63,7 @@ export async function openDM(conversationId) {
     if (!claimMessage(m)) continue;
     appendMessage(list, m, 'dm', { bulk: true });
   }
-  await loadReactions(msgs.map((m) => m.id));
+  await loadReactions(msgs.map((m) => m.id), 'dm');
   if (gen !== dmGen) return;
   // The pill is a sibling of the list, so opening a conversation does not clear
   // it. Use the hardened pin rather than one bare assignment, or avatars and
@@ -201,7 +201,7 @@ export async function reconcileDM() {
       landed++;
       bus.emit('message:new', { msg: m, dm: true, healed: true });
     }
-    await loadReactions(rows.map((m) => m.id));
+    await loadReactions(rows.map((m) => m.id), 'dm');
     if (gen !== dmGen || store.currentDM !== conversationId) return;
     // A healed message is still an arriving message: recovering what the socket
     // dropped must not move somebody who is reading further up either.
@@ -303,7 +303,7 @@ export function newDMDialog() {
     if (!rows.length) { list.appendChild(el('div', 'empty', 'Nobody else here yet. Invite someone first.')); return; }
     for (const p of rows.slice(0, 60)) {
       const r = el('div', 'picker-row' + (picked.has(p.id) ? ' picked' : ''));
-      r.innerHTML = `${avatarHtml(p.id, 26)}<span>${esc(p.display_name || p.username)}</span>
+      r.innerHTML = `${avatarHtml(p.id, 26)}<span>${esc(nameOf(p.id))}</span>${roleTagHtml(p.id)}
         ${store.online.has(p.id) ? '<span class="dot on"></span>' : '<span class="picker-check">✓</span>'}`;
       r.onclick = () => {
         if (picked.has(p.id)) picked.delete(p.id);
@@ -317,7 +317,17 @@ export function newDMDialog() {
   const m = modal({ title: 'New message', body: box });
   go.onclick = () => { if (picked.size) { m.close(); startDM([...picked]); } };
   search.oninput = () => draw(search.value);
+  // Enter on a single match starts that conversation. The dialog exists to be
+  // passed through, not filled in.
+  search.onkeydown = (e) => {
+    if (e.key !== 'Enter') return;
+    const rows = list.querySelectorAll('.picker-row');
+    if (rows.length === 1 && !picked.size) { e.preventDefault(); rows[0].click(); go.click(); }
+    else if (picked.size) { e.preventDefault(); go.click(); }
+  };
   draw();
+  // The box is the whole point of the dialog, on a phone as much as a laptop.
+  setTimeout(() => search.focus(), 30);
 }
 
 bus.on('dm:request', ({ conversationId }) => openDM(conversationId));

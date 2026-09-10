@@ -479,17 +479,10 @@ aside#panel:not(.hidden) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ux-rolepill {
-  flex: none;
-  padding: 1px var(--s-3);
-  border-radius: var(--r-full);
-  background: var(--c-accent-quiet);
-  color: var(--c-accent);
-  font-size: var(--t-2xs);
-  font-weight: var(--t-bold);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
+/* The Owner / Admin / Moderator pill used to be defined only here and only for
+   this panel, in the accent colour. It is now .pill.pill-role in
+   components.css, because the same fact is drawn beside a name in five other
+   places and three different looks for one badge is not a design. */
 .ux-more-row {
   width: 100%;
   margin-top: var(--s-4);
