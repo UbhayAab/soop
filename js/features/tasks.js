@@ -347,9 +347,21 @@ async function renderPanel(body, ctx = {}) {
   openCount = activeTab === 'mine' ? open.length : openCount;
 
   if (!list.length) {
+    // Both routes, because until 0126 there was only one and it was the
+    // non-obvious one: you had to find a message somebody had already sent
+    // before you could write any work down at all.
     const e = el('div', 'empty', esc(tabDef.empty) + '<br><br>');
-    e.appendChild(document.createTextNode('To make one: press and hold a message '
-      + '(or hover it on a computer), open the ... menu and pick "Make this a task".'));
+    e.appendChild(document.createTextNode(
+      'Two ways to make one. From nothing: open Later and press + New task. '
+      + 'From something somebody said: press and hold the message (or hover it on '
+      + 'a computer), open the ... menu and pick "Make this a task".'));
+    const go = el('button', 'sm');
+    go.type = 'button';
+    go.textContent = 'Open Later';
+    go.style.marginTop = 'var(--s-4)';
+    go.onclick = () => uiRef?.openPanel('later', { view: 'mine' });
+    e.appendChild(document.createElement('br'));
+    e.appendChild(go);
     body.appendChild(e);
     return;
   }
