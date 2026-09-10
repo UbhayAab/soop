@@ -897,28 +897,46 @@
   font-size: var(--t-sm);
 }
 
+/* A COLUMN, not a row. Side by side, the native player and the label both got
+   min-width'd into nothing on a 390px phone: a squeezed transport beside a
+   filename ellipsed to "voice-note-0m02s...." was what the report was a picture
+   of. Stacked, the player gets the full width it needs and the label reads. */
 .att-aud {
   display: flex;
-  align-items: center;
-  gap: var(--s-4);
+  flex-direction: column;
+  gap: var(--s-3);
+  align-items: stretch;
   max-width: 100%;
   min-width: 0;
-  padding: var(--s-3) var(--s-4);
+  width: min(320px, 100%);
+  padding: var(--s-4);
   border: var(--bw) solid var(--c-border);
   border-radius: var(--r-lg);
   background: var(--c-surface);
 }
-.att-aud audio {
-  width: 260px;
-  max-width: 100%;
-  height: 34px;
+.att-aud-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  font-size: var(--t-sm);
 }
-.att-aud span {
+.att-aud-head .att-ico {
+  display: inline-flex;
+  flex: none;
+  color: var(--c-text-2);
+}
+.att-aud-head .att-ico .ico { width: 16px; height: 16px; }
+.att-aud-head b { font-weight: var(--t-semibold); }
+.att-aud-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--t-sm);
+}
+.att-aud audio {
+  width: 100%;
+  height: 34px;
 }
 
 .att-file {

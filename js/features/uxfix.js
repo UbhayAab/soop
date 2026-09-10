@@ -911,8 +911,21 @@ function startInlineEdit(row, api) {
   const ta = el('textarea');
   ta.value = m.body_text || '';
   ta.setAttribute('aria-label', 'Edit your message');
-  const hint = el('div', 'ux-edit-hint', 'Enter to save, Escape to cancel');
-  box.append(ta, hint);
+  // A phone has no Escape key and its Enter is a newline, so "Enter to save,
+  // Escape to cancel" was the only way out of an editor a double-TAP opens -
+  // which is to say there was no way out. Reported with a screenshot of exactly
+  // that. Real buttons, always, and the keyboard line hidden on touch by CSS so
+  // it follows the pointer that is actually being used rather than a guess made
+  // when the editor opened.
+  const hint = el('div', 'ux-edit-hint');
+  const keys = el('div', 'ux-edit-keys', 'Enter to save, Escape to cancel');
+  const acts = el('div', 'ux-edit-acts');
+  const saveBtn = el('button', 'sm', 'Save');
+  saveBtn.type = 'button';
+  const cancelBtn = el('button', 'sm ghost', 'Cancel');
+  cancelBtn.type = 'button';
+  acts.append(saveBtn, cancelBtn, keys);
+  box.append(ta, hint, acts);
   bodyEl.style.display = 'none';
   bodyEl.after(box);
   ta.focus();
@@ -926,20 +939,29 @@ function startInlineEdit(row, api) {
     const text = ta.value.trim();
     if (!text || text === m.body_text) { cancelInlineEdit(box); return; }
     ta.disabled = true;
+    saveBtn.disabled = true;
     hint.textContent = 'Saving…';
     try {
       await api.edit(id, text);
       closeInlineEdit(box, { restore: false, text });
     } catch (e) {
       ta.disabled = false;
+      saveBtn.disabled = false;
       ta.focus();
       // The text the author typed is still in the box, so nothing is lost and
-      // Enter tries again. That is the whole contract on a bad connection.
+      // Save tries again. That is the whole contract on a bad connection.
       hint.textContent = humanError(e.message);
     }
   };
+  saveBtn.onclick = save;
+  cancelBtn.onclick = () => cancelInlineEdit(box);
   ta.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); }
+    // Enter saves on a keyboard only. On a phone Enter is how you get a second
+    // line, and stealing it means a two-line edit cannot be typed at all.
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    if (document.documentElement.dataset.input === 'touch') return;
+    e.preventDefault();
+    save();
   });
 }
 

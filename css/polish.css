@@ -568,8 +568,26 @@ aside#panel:not(.hidden) {
 /* A hint under a field. The textarea above it stays at --t-md because it
    literally stands in for the message body it replaces - that is the one place
    in these three files where the reading step is the correct answer. */
+/* The status line: empty at rest, "Saving..." or the server's complaint while
+   something is happening. Kept separate from the keyboard line below, because
+   that one is hidden on a phone and this one must never be. */
+.ux-edit-hint:empty { display: none; }
 .ux-edit-hint { color: var(--c-text-2); font-size: var(--t-sm); }
 .ux-edit-hint kbd { border-bottom-width: 1px; }
+.ux-edit-acts {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+  flex-wrap: wrap;
+}
+/* Keyed off the pointer LAST USED, not off a media query: a touchscreen laptop
+   reports (hover: hover), so a media query never sees its fingers. main.js
+   rewrites data-input on every pointerdown, so this follows the person rather
+   than the hardware. A phone has no Escape key and its Enter makes a newline,
+   so on touch this line is an instruction that cannot be carried out. */
+.ux-edit-keys { color: var(--c-text-2); font-size: var(--t-sm); }
+:root[data-input="touch"] .ux-edit-keys { display: none; }
 
 
 /* ============================================================================

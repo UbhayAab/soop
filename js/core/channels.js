@@ -5,7 +5,7 @@ import { sb, subscribe, unsubscribe } from '../sb.js';
 import { api, table } from '../api.js';
 import { store, bus, nameOf, resetChannelState, hasPerm } from '../store.js';
 import { PERM, MESSAGE_PAGE } from '../config.js';
-import { $, el, esc, debounce } from '../util.js';
+import { $, el, esc, debounce, initials, hueOf } from '../util.js';
 import { toast, contextMenu, formModal, confirmModal, typeToConfirm, renderNavSections, closePanel } from '../ui.js';
 import { icon } from '../icons.js';
 import { appendMessage, claimMessage, loadReactions, applyEdit, applyDelete, applyReaction,
@@ -106,6 +106,63 @@ export async function renderChannels() {
   };
 
   let h = '';
+
+  // ---- servers, when the rail is not on screen ----
+  //
+  // The rail is 44px of coloured tiles showing two letters each. On a phone that
+  // is a column of initials nobody can read - "SS" is Safalta Setu and Sourabh's
+  // avatar and a Space called Support - permanently occupying the left edge of a
+  // 390px screen. Reported as: take it away, and let me pick the server from the
+  // same place I pick the channel.
+  //
+  // Read what is actually on screen rather than a class somebody has to remember
+  // to keep in sync, exactly as the DM section below does with the tab bar: the
+  // rail is hidden purely by CSS, so its computed display IS the answer to
+  // "does this device have a rail".
+  const rail = document.getElementById('spaceRail');
+  const hasRail = !!rail && getComputedStyle(rail).display !== 'none';
+  if (!hasRail && (store.spaces || []).length) {
+    const orgName = new Map((store.orgs || []).map((o) => [o.org_id, o.name]));
+    const byOrg = new Map();
+    for (const sp of store.spaces) {
+      const k = sp.org_id || '';
+      if (!byOrg.has(k)) byOrg.set(k, []);
+      byOrg.get(k).push(sp);
+    }
+    const collapsed = localStorage.getItem('dak.cat.servers') === '0';
+    h += `<h3 data-cat="servers"><span>${collapsed ? '▸' : '▾'} Servers</span></h3>
+      <div class="navgroup" ${collapsed ? 'style="display:none"' : ''}>`;
+    // One group per organisation, and its name above its servers - the same
+    // shape the rail draws, in words instead of initials.
+    const many = byOrg.size > 1;
+    for (const [orgId, list] of byOrg) {
+      if (many && orgId) {
+        h += `<div class="nav-orglabel">${esc(orgName.get(orgId) || 'Organisation')}</div>`;
+      }
+      for (const sp of list) {
+        const b = store.spaceBadges.get(sp.id);
+        const dead = !!(sp.archived_at || sp.scheduled_delete_at);
+        const active = store.ws?.id === sp.id;
+        h += `<div class="chan srv${active ? ' active' : ''}${dead ? ' srv-off' : ''}"
+          data-space="${esc(sp.id)}" title="${esc(sp.name || '')}">
+          <span class="ch-ico srv-ico" style="--h:${hueOf(sp.id)}">${esc(initials(sp.name || '?'))}</span>
+          <span class="ch-name">${esc(sp.name || 'Server')}</span>
+          ${b?.mention_total ? `<span class="badge">${b.mention_total}</span>`
+            : b?.unread_total ? '<span class="dot-unread"></span>' : ''}</div>`;
+      }
+      // Only where it says something the row below does not. With one
+      // organisation there is already a "Browse servers" row further down the
+      // drawer (features/adminnav.js) and this would be a second door to the
+      // same room; with several, "More in Jarurat Care" and "More in Safalta
+      // Setu" are different rooms and both are worth a door.
+      if (orgId && many) {
+        h += `<div class="chan chan-add" data-orgdir="${esc(orgId)}">${
+          esc('More in ' + (orgName.get(orgId) || 'this organisation'))}</div>`;
+      }
+    }
+    h += '</div>';
+  }
+
   // Channels with no category used to render as a bare group above every
   // category heading, which is how a channel someone had just created appeared
   // to jump to the very top of the sidebar and out of the list: the create
@@ -191,6 +248,36 @@ export async function renderChannels() {
 
   host.innerHTML = h;
 
+  host.querySelectorAll('[data-space]').forEach((n) => {
+    const spaceOf = () => store.spaces.find((x) => x.id === n.dataset.space);
+    n.onclick = () => {
+      const sp = spaceOf();
+      document.body.classList.remove('nav-open');   // the drawer is the picker
+      if (sp && sp.id !== store.ws?.id) import('./workspace.js').then((m) => m.switchWorkspace(sp));
+    };
+    // Rename, archive, leave: the menu the rail tile carries, on the gesture a
+    // phone actually has.
+    let timer = null;
+    let fired = false;
+    const cancel = () => { clearTimeout(timer); timer = null; };
+    const open = (ev) => import('./workspace.js').then((m) => m.spaceMenu?.(ev, spaceOf()));
+    n.oncontextmenu = (e) => { e.preventDefault(); open(e); };
+    n.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse') return;
+      fired = false;
+      timer = setTimeout(() => { fired = true; open({ clientX: e.clientX, clientY: e.clientY }); }, 500);
+    });
+    for (const evt of ['pointerup', 'pointercancel', 'pointerleave', 'pointermove']) {
+      n.addEventListener(evt, cancel);
+    }
+    n.addEventListener('click', (e) => { if (fired) { e.stopPropagation(); fired = false; } }, true);
+  });
+  host.querySelectorAll('[data-orgdir]').forEach((n) => {
+    n.onclick = () => {
+      document.body.classList.remove('nav-open');
+      import('./workspace.js').then((m) => m.orgDirectory(n.dataset.orgdir));
+    };
+  });
   host.querySelectorAll('[data-ch]').forEach((n) => {
     n.onclick = () => openChannel(store.channels.find((c) => c.id === n.dataset.ch));
     n.oncontextmenu = (e) => { e.preventDefault(); channelMenu(e, store.channels.find((c) => c.id === n.dataset.ch)); };

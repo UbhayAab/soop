@@ -209,9 +209,14 @@ export async function openShareSheet(orgId) {
         await navigator.clipboard.writeText(link);
       } catch {
         // Clipboard API refuses without a secure context or a user gesture it
-        // recognises; selecting the field at least leaves one keystroke to go.
+        // recognises; selecting the field at least leaves one step to go. Which
+        // step depends on what is in the person's hand: a phone has no Ctrl key,
+        // and telling somebody to press one is the same kind of dead end as
+        // "Escape to cancel" on a touchscreen.
         $('.oshare-url').select();
-        toast('Press Ctrl+C to copy', 'info');
+        toast(document.documentElement.dataset.input === 'touch'
+          ? 'The link is selected - long-press it and choose Copy'
+          : 'Press Ctrl+C to copy', 'info');
         return;
       }
       btn.classList.add('is-done');

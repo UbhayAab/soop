@@ -349,8 +349,25 @@ export function attsHtml(m) {
         controls disablepictureinpicture x-webkit-airplay="deny"></video></div>`;
     }
     if (mime.startsWith('audio/')) {
-      return `<div class="att-aud" data-key="${esc(x.object_key)}"><audio controls preload="metadata"></audio>
-        <span class="muted">${esc(x.name || 'audio')}</span></div>`;
+      // A voice note is not "an audio file called
+      // voice-note-0m02s.webm". It is somebody talking, and the name is machine
+      // spelling nobody asked to read - on a phone it truncated to
+      // "voice-note-0m02s...." beside a squeezed player, which is what the
+      // report was a picture of. features/voicenotes.js mints exactly this
+      // shape, so the duration is already in the name and can be shown as a
+      // duration instead.
+      const vn = /^voice-note-(\d+)m(\d+)s\./.exec(x.name || '');
+      if (vn) {
+        const label = `${+vn[1]}:${String(+vn[2]).padStart(2, '0')}`;
+        return `<div class="att-aud att-voice" data-key="${esc(x.object_key)}">
+          <span class="att-aud-head"><span class="att-ico">${icon('mic')}</span>
+            <b>Voice note</b><span class="muted">${esc(label)}</span></span>
+          <audio controls preload="metadata"></audio></div>`;
+      }
+      return `<div class="att-aud" data-key="${esc(x.object_key)}">
+        <span class="att-aud-head"><span class="att-ico">${icon('mic')}</span>
+          <span class="att-aud-name">${esc(x.name || 'audio')}</span></span>
+        <audio controls preload="metadata"></audio></div>`;
     }
     return `<div class="att-file" data-key="${esc(x.object_key)}" data-name="${esc(x.name || 'file')}">
       <span class="att-ico">${icon('doc')}</span><span>${esc(x.name || 'file')}</span>

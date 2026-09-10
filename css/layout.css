@@ -917,6 +917,37 @@ section.msgs {
   gap: var(--s-1);
 }
 
+/* ------------------------------------------------------------------ servers in the drawer
+   Only drawn where the rail is not (see the phone block near the end of this
+   file). A server row is a channel row with a face: the tile carries the same
+   per-Space hue the rail tile uses, so the two surfaces name the same server the
+   same colour. */
+.nav-orglabel {
+  margin: var(--s-4) var(--s-2) var(--s-1);
+  padding: 0 var(--s-2);
+  color: var(--c-nav-text-2, var(--c-nav-text));
+  font-size: var(--t-2xs);
+  font-weight: var(--t-bold);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.chan.srv .ch-name { font-weight: var(--t-semibold); }
+.srv-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-sm);
+  background: hsl(var(--h) 45% 32%);
+  color: #fff;
+  font-size: var(--t-2xs);
+  font-weight: var(--t-bold);
+  letter-spacing: 0;
+}
+.chan.srv-off { opacity: 0.5; }
+
 .chan {
   display: flex;
   align-items: center;
@@ -1366,8 +1397,15 @@ body.nav-open #messages::after {
     to { opacity: 1; transform: none; }
   }
 
-  /* The rail narrows but the tiles do not: 44px stays the floor for a thumb. */
-  #spaceRail { gap: var(--s-3); }
+  /* The rail is GONE on a phone.
+     44px of coloured tiles showing two letters each, permanently occupying the
+     left edge of a 390px screen, and two letters is not enough to tell one
+     server from another - "SS" is Safalta Setu, and Support, and Sourabh's
+     face. Reported as: take it away and let me pick the server from the same
+     place I pick the channel. renderChannels() reads this rule's effect (the
+     rail's computed display) and draws a Servers section at the top of the
+     drawer instead, with full names. */
+  #spaceRail { display: none; }
 
   .authcard {
     padding: var(--s-8) var(--s-6);

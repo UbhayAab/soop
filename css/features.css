@@ -632,6 +632,10 @@
 }
 :root .cv-block:hover .cv-tools,
 :root .cv-block:focus-within .cv-tools { opacity: 1; }
+/* There is no hover on a phone, and focus-within only helps once something in
+   the block has been focused - which for a block you want to DELETE never
+   happens. On touch the tools are simply always there. */
+:root[data-input="touch"] .cv-tools { opacity: 1; }
 :root .cv-tools button { min-width: 26px; color: var(--c-text-2); }
 :root .cv-tools button:hover { background: var(--c-surface-3); color: var(--c-text); }
 

@@ -397,7 +397,9 @@ export async function leaveSpace(s) {
 // One menu, reachable three ways: click the server name in the top bar,
 // right-click its icon in the rail, or long-press that icon on a phone. Leave
 // used to live only on the right-click, which is not a gesture a phone has.
-function spaceMenu(ev, s) {
+// Exported since the phone drawer draws its own server rows and needs the same
+// menu the rail tile carries.
+export function spaceMenu(ev, s) {
   if (!s) return;
   const iAmOrgAdmin = (store.orgs || [])
     .find((o) => o.org_id === s.org_id)?.org_role === 'admin';
