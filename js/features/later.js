@@ -246,7 +246,10 @@ async function newTaskDialog(ui, redraw) {
     title: 'New task',
     note: 'It is posted in the channel you choose, so the team can see it and talk about it.',
     fields: [
-      { name: 'title', label: 'What needs doing', required: true, maxlength: 300,
+      // formModal honours min/max, not maxlength, so a cap written that way is
+      // silently ignored and the only enforcement is the server. Both, then:
+      // the trim below and a translated error if it still gets through.
+      { name: 'title', label: 'What needs doing', required: true,
         placeholder: 'Call the twelve patients from Tuesday' },
       { name: 'channel', label: 'In which channel', type: 'select',
         value: store.current?.id || channels[0].id,
@@ -293,6 +296,8 @@ function taskError(e) {
   if (/already_claimed/.test(m)) return 'Somebody else picked that up first.';
   if (/task_closed/.test(m)) return 'That task is already finished.';
   if (/forbidden|42501/.test(m)) return 'You cannot post in that channel.';
+  if (/title_too_long/.test(m)) return 'That title is too long. Keep it to a line - the detail can go in the channel.';
+  if (/title_required/.test(m)) return 'Give it a name first.';
   if (/rate_limit/.test(m)) return 'Slow down a moment - too many tasks at once.';
   return m || 'That did not work';
 }
