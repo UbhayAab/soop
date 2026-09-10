@@ -252,7 +252,10 @@ export async function renderChannels() {
     const spaceOf = () => store.spaces.find((x) => x.id === n.dataset.space);
     n.onclick = () => {
       const sp = spaceOf();
-      document.body.classList.remove('nav-open');   // the drawer is the picker
+      // The drawer STAYS OPEN. See the sidebar click handler in js/main.js: on a
+      // phone this list is the only channel picker, so switching server has to
+      // leave you looking at the new server's channels rather than dropping you
+      // into whichever one it opens on.
       if (sp && sp.id !== store.ws?.id) import('./workspace.js').then((m) => m.switchWorkspace(sp));
     };
     // Rename, archive, leave: the menu the rail tile carries, on the gesture a

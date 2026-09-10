@@ -15,7 +15,8 @@
 //   1. at phone width the rail is display:none and the drawer lists every
 //      server by NAME, grouped under its organisation
 //   2. the active server is marked, and unread rolls up onto its row
-//   3. tapping one switches to it and closes the drawer
+//   3. tapping a server switches to it and LEAVES THE DRAWER OPEN, so the
+//      next tap can be the channel; tapping a channel is what closes it
 //   4. at laptop width the rail is back and the drawer does NOT list servers -
 //      two switchers side by side is the thing being removed, not a second copy
 //   5. the Servers heading collapses and remembers, like a category
@@ -122,7 +123,13 @@ try {
     `the current server is not the marked one: ${JSON.stringify(phone.active)}`);
   ok(phone.badge === "2", `the mention count did not roll up onto the server row (got ${phone.badge})`);
 
-  // 3. tapping switches, and puts the drawer away.
+  // 3. tapping a server switches, and the drawer STAYS OPEN.
+  //
+  //    This is the whole point on a phone: the drawer is the only channel
+  //    picker there is, so switching server and closing it in the same tap
+  //    drops you into whichever channel that server opens on with the list you
+  //    were about to choose from now behind another tap on the hamburger.
+  //    Reported, in those words, after the first version of this shipped.
   const tapped = await page.evaluate(async () => {
     // The real handler, the real switchWorkspace: every read it makes is
     // answered empty by the route above, which is enough for it to land.
@@ -133,8 +140,27 @@ try {
       ws: (await import("/js/store.js")).store.ws?.id,
     };
   });
-  ok(tapped.drawerOpen === false, "tapping a server left the drawer open over the conversation");
   ok(tapped.ws === "w-hr", `tapping a server did not switch to it (store.ws is ${tapped.ws})`);
+  ok(tapped.drawerOpen === true,
+    "tapping a server closed the drawer - there is then no way to pick a channel in the server you just opened");
+
+  // 3b. and tapping a CHANNEL does close it, because that is a place you are
+  //     going rather than a list you are still choosing from.
+  const afterChannel = await page.evaluate(async () => {
+    const { store } = await import("/js/store.js");
+    const ch = await import("/js/core/channels.js");
+    store.ws = store.spaces[0];
+    // switchWorkspace above replaced these; renderChannels only draws a channel
+    // whose category it can find.
+    store.categories = [{ id: "c-1", name: "General", position: 1 }];
+    store.channels = [{ id: "ch-1", name: "founders-office", kind: "text", category_id: "c-1", position: 1 }];
+    document.body.classList.add("nav-open");
+    await ch.renderChannels();
+    document.querySelector('#channels .chan[data-ch="ch-1"]').click();
+    await new Promise((r) => setTimeout(r, 400));
+    return document.body.classList.contains("nav-open");
+  });
+  ok(afterChannel === false, "tapping a channel left the drawer open over the conversation");
 
   // 5. the heading collapses and remembers, like a category.
   const collapse = await page.evaluate(async () => {

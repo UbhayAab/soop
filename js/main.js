@@ -791,8 +791,17 @@ async function main() {
       document.body.classList.remove('nav-open');
     }
   });
+  // Tapping a place you are GOING puts the drawer away. Tapping a server does
+  // not, because on a phone the drawer is the only channel picker there is:
+  // switching server and closing it in the same tap drops you into whichever
+  // channel that server opens on, with the list you were about to choose from
+  // now behind another tap on the hamburger. Reported as "I change server and
+  // then I want a specific channel - how would I do that". So a .srv row
+  // switches underneath the open drawer and repaints it with the new server's
+  // channels, and the tap after that is the one that closes it.
   $('sidebar').addEventListener('click', (e) => {
-    if (e.target.closest('.chan')) document.body.classList.remove('nav-open');
+    const row = e.target.closest('.chan');
+    if (row && !row.classList.contains('srv')) document.body.classList.remove('nav-open');
   });
   $('messages').addEventListener('click', () => document.body.classList.remove('nav-open'));
 
